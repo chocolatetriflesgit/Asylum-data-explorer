@@ -1,0 +1,40 @@
+name: Bundle check
+
+# Gate PRs against an index.html that's out of sync with src/*.jsx or
+# data/boats-data.js. Re-runs scripts/bundle.py and fails if the result
+# differs from the committed index.html. Push-to-main is NOT gated — the
+# daily update-data workflow is authoritative there and re-bundles itself.
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "data/**"
+      - "index.html"
+      - "scripts/bundle.py"
+      - ".github/workflows/bundle-check.yml"
+
+jobs:
+  bundle-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Re-bundle
+        run: python scripts/bundle.py
+
+      - name: Fail if index.html is out of sync
+        run: |
+          if ! git diff --quiet -- index.html; then
+            echo "::error::index.html is out of sync with src/*.jsx or data/boats-data.js."
+            echo "Run 'python scripts/bundle.py' locally and commit the updated index.html."
+            echo ""
+            echo "--- diff ---"
+            git --no-pager diff -- index.html | head -200
+            exit 1
+          fi
+          echo "index.html is in sync."

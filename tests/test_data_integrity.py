@@ -137,6 +137,47 @@ def test_generated_records_total_matches_daily_sum():
     assert data["BOATS_RECORDS"]["totalMigrants"] == total
 
 
+_ASYLUM_ROW_RE = re.compile(
+    r"\{\s*y:\s*(\d{4})[^}]*?boats:\s*(\d+)\s*\}"
+)
+
+
+def _load_asylum_annual_boats() -> dict[int, int]:
+    """Parse the ASYLUM_ANNUAL literal in src/data.jsx into {year: boats}.
+
+    The literal is a JS object-literal (unquoted keys) so we can't JSON-parse
+    it. We only need the y/boats pair — a shallow regex is sufficient and
+    avoids pulling in a JS parser just for a test.
+    """
+    src = ROOT / "src" / "data.jsx"
+    if not src.exists():
+        pytest.skip("src/data.jsx not present")
+    text = src.read_text(encoding="utf-8")
+    return {int(y): int(b) for y, b in _ASYLUM_ROW_RE.findall(text)}
+
+
+def test_asylum_annual_boats_reconciles_with_boats_annual():
+    """CLAUDE.md § 'Things that look like problems but aren't':
+    when BOATS_ANNUAL changes, ASYLUM_ANNUAL.boats must be updated in the
+    same commit. Enforce that here. Only checks overlapping years.
+    """
+    data = _load_generated()
+    asylum_boats = _load_asylum_annual_boats()
+    boats_annual = {row["y"]: row["m"] for row in data["BOATS_ANNUAL"]}
+    overlap = sorted(set(asylum_boats) & set(boats_annual))
+    if not overlap:
+        pytest.skip("no year overlap between ASYLUM_ANNUAL and BOATS_ANNUAL")
+    mismatches = [
+        (y, asylum_boats[y], boats_annual[y])
+        for y in overlap
+        if asylum_boats[y] != boats_annual[y]
+    ]
+    assert not mismatches, (
+        "ASYLUM_ANNUAL.boats out of sync with BOATS_ANNUAL "
+        f"(year, asylum, boats): {mismatches}"
+    )
+
+
 def test_generated_latest_data_point_is_fresh():
     """Warning, not failure, per CLAUDE.md § Testing."""
     data = _load_generated()
