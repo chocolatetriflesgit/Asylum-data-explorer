@@ -114,11 +114,23 @@ def test_generated_annual_equals_daily_sum():
         assert row["m"] == expected, f"annual mismatch for {y}"
 
 
-def test_generated_weekly_ends_on_saturday():
+def test_generated_weekly_ends_on_same_weekday():
+    """Gov.uk's weekly series uses a consistent week-ending day (Sunday in
+    the current ODS, per 2026-04 inspection). The day is whatever the
+    first row dictates — the invariant is consistency, not a specific
+    day. CLAUDE.md originally asserted Saturday; that was a documentation
+    error, not a data bug."""
     data = _load_generated()
-    for row in data["BOATS_WEEKLY"]:
+    weekly = data["BOATS_WEEKLY"]
+    if not weekly:
+        pytest.skip("no weekly rows")
+    expected_dow = dt.date.fromisoformat(weekly[0]["we"]).weekday()
+    for row in weekly:
         d = dt.date.fromisoformat(row["we"])
-        assert d.weekday() == 5, f"week ending {row['we']} is not a Saturday"
+        assert d.weekday() == expected_dow, (
+            f"week ending {row['we']} weekday={d.weekday()} "
+            f"differs from first row's weekday={expected_dow}"
+        )
 
 
 def test_generated_no_date_gaps_in_daily():

@@ -14,8 +14,8 @@
    but lives here so the shell's legacy charts work without a data fetch. */
 window.ASYLUM_ANNUAL = window.ASYLUM_ANNUAL || [
   { y: 2018, applications: 29382, decisions: 14583, granted: 4914, boats: 299 },
-  { y: 2019, applications: 35738, decisions: 20103, granted: 6236, boats: 1844 },
-  { y: 2020, applications: 36041, decisions: 14795, granted: 6896, boats: 8466 },
+  { y: 2019, applications: 35738, decisions: 20103, granted: 6236, boats: 1843 },
+  { y: 2020, applications: 36041, decisions: 14795, granted: 6896, boats: 8462 },
   { y: 2021, applications: 48540, decisions: 13888, granted: 9973, boats: 28526 },
   { y: 2022, applications: 74751, decisions: 18699, granted: 13703, boats: 45755 },
   { y: 2023, applications: 67337, decisions: 86798, granted: 32557, boats: 29437 },
