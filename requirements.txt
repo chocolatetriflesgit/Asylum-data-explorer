@@ -2,7 +2,7 @@
 # Pinned for reproducibility + so Dependabot / pip-audit have a stable surface to scan.
 # Review upgrades before merging Dependabot PRs.
 
-pandas==2.3.3
+pandas==3.0.2
 odfpy==1.4.1
-requests==2.32.3
-beautifulsoup4==4.12.3
+requests==2.33.1
+beautifulsoup4==4.14.3
