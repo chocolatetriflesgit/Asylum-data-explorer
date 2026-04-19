@@ -115,8 +115,12 @@ def _coerce_date(v: Any) -> dt.date:
 
 def build_daily(df: pd.DataFrame) -> list[dict]:
     date_col = _first_matching(df, "Date", "Day")
-    migrants_col = _first_matching(df, "Migrants", "Arrivals", "Migrants_detected")
-    boats_col = _first_matching(df, "Boats", "Boats_arriving")
+    migrants_col = _first_matching(
+        df, "Migrants arrived", "Migrants", "Arrivals", "Migrants_detected"
+    )
+    boats_col = _first_matching(
+        df, "Boats arrived", "Boats", "Boats_arriving"
+    )
 
     out: list[dict] = []
     for _, row in df.iterrows():
@@ -128,13 +132,38 @@ def build_daily(df: pd.DataFrame) -> list[dict]:
     return out
 
 
+def _optional_matching(df: pd.DataFrame, *candidates: str) -> str | None:
+    """Like _first_matching, but returns None instead of raising.
+    Used for columns the ODS only started including recently."""
+    try:
+        return _first_matching(df, *candidates)
+    except KeyError:
+        return None
+
+
 def build_weekly(df: pd.DataFrame) -> list[dict]:
-    we_col = _first_matching(df, "Week_ending", "Week ending", "Week end")
-    migrants_col = _first_matching(df, "Migrants", "Arrivals")
-    boats_col = _first_matching(df, "Boats")
-    prev_col = _first_matching(df, "Preventions", "Prevented", "Migrants_prevented")
-    events_col = _first_matching(
-        df, "Events_prevented", "Prevention_events", "Events"
+    we_col = _first_matching(
+        df, "Week_ending", "Week ending", "Week ending (Saturday)", "Week end"
+    )
+    migrants_col = _first_matching(
+        df, "Migrants arrived", "Migrants", "Arrivals"
+    )
+    boats_col = _first_matching(df, "Boats arrived", "Boats")
+    prev_col = _optional_matching(
+        df,
+        "Migrants prevented",
+        "Migrants disrupted",
+        "Preventions",
+        "Prevented",
+        "Migrants_prevented",
+    )
+    events_col = _optional_matching(
+        df,
+        "Events prevented",
+        "Crossings prevented",
+        "Events_prevented",
+        "Prevention_events",
+        "Events",
     )
 
     out: list[dict] = []
@@ -145,8 +174,8 @@ def build_weekly(df: pd.DataFrame) -> list[dict]:
                 "we": we.isoformat(),
                 "m": _coerce_int(row[migrants_col]) or 0,
                 "b": _coerce_int(row[boats_col]) or 0,
-                "p": _coerce_int(row[prev_col]),
-                "e": _coerce_int(row[events_col]),
+                "p": _coerce_int(row[prev_col]) if prev_col else None,
+                "e": _coerce_int(row[events_col]) if events_col else None,
             }
         )
     out.sort(key=lambda r: r["we"])
