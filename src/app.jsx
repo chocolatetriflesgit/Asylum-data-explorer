@@ -3,6 +3,28 @@
    Shared across every route.
    ========================================================================= */
 
+/* Focus + Escape management for modal drawers. On open: remember the
+   previously-focused element, move focus onto the dialog, listen for
+   Escape. On close: return focus to the trigger. */
+function useDrawerA11y(open, onClose) {
+  const dialogRef = React.useRef(null);
+  const lastFocusRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return;
+    lastFocusRef.current = document.activeElement;
+    const focusTimer = setTimeout(() => dialogRef.current?.focus(), 0);
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKey);
+      const prev = lastFocusRef.current;
+      if (prev && typeof prev.focus === "function") prev.focus();
+    };
+  }, [open, onClose]);
+  return dialogRef;
+}
+
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "story",     label: "Story" },
@@ -134,6 +156,7 @@ function SiteFooter() {
 function MethodologyDrawer({ open, onClose }) {
   const meta = (typeof window !== "undefined" && window.BOATS_META) || null;
   const notes = meta?.notes || [];
+  const dialogRef = useDrawerA11y(open, onClose);
   return (
     <>
       <div
@@ -142,6 +165,8 @@ function MethodologyDrawer({ open, onClose }) {
         aria-hidden="true"
       />
       <aside
+        ref={dialogRef}
+        tabIndex={-1}
         className={"drawer" + (open ? " is-open" : "")}
         role="dialog"
         aria-modal="true"
@@ -212,6 +237,7 @@ const ACCENT_OPTIONS = [
 ];
 
 function TweakPanel({ open, onClose, accent, onAccentChange }) {
+  const dialogRef = useDrawerA11y(open, onClose);
   return (
     <>
       <div
@@ -220,6 +246,8 @@ function TweakPanel({ open, onClose, accent, onAccentChange }) {
         aria-hidden="true"
       />
       <aside
+        ref={dialogRef}
+        tabIndex={-1}
         className={"drawer" + (open ? " is-open" : "")}
         role="dialog"
         aria-modal="true"
