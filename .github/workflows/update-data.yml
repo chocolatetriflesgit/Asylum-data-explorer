@@ -1,0 +1,70 @@
+name: Update data
+
+# Daily pull of the gov.uk Small Boats ODS. Regenerates data/boats-data.js,
+# re-bundles index.html, runs data-integrity tests, and commits if anything
+# changed. Failure is loud — the fetcher exits non-zero if the gov.uk page
+# layout shifts, which is exactly what we want.
+
+on:
+  schedule:
+    - cron: "0 7 * * *"  # 07:00 UTC daily
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "src/**"
+      - "index.html"
+      - ".github/workflows/update-data.yml"
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Fetch latest ODS
+        run: python scripts/fetch_latest.py
+
+      - name: Regenerate data module
+        run: python scripts/build_boats_data.py cache/latest.ods data/
+
+      - name: Re-bundle index.html
+        run: python scripts/bundle.py
+
+      - name: Run data integrity tests
+        run: pytest tests/ -v
+
+      - name: Commit changes if any
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- data/boats-data.js index.html; then
+            echo "no changes"
+            exit 0
+          fi
+
+          TODAY=$(date -u +%Y-%m-%d)
+          git add data/boats-data.js index.html
+          git commit -m "chore: data update ${TODAY}"
+          git push

@@ -1,0 +1,1422 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Home Office Data Explorer</title>
+<meta name="description" content="A browser-based data explorer for UK Home Office small-boats crossing data." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..900;1,8..60,300..900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<!-- React + Babel (single-file architecture: no build step at runtime) -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  /* =========================================================================
+     Design tokens — mirrors design/tokens.md exactly.
+     Update design/tokens.md first if you need to change anything here.
+     ========================================================================= */
+  :root {
+    /* Neutrals */
+    --bg:       #fbfaf7;
+    --bg-2:     #f5f2ea;
+    --bg-3:     #efe9db;
+    --ink:      #1a1a17;
+    --ink-2:    #3a342a;
+    --muted:    #7a6d5a;
+    --muted-2:  #9a8f78;
+    --rule:     #e8e2d4;
+    --rule-2:   #d6cdb8;
+
+    /* Accents */
+    --accent:       #1c3d2e;   /* forest (primary / default) */
+    --accent-2:     #5a7d3b;   /* olive */
+    --accent-warn:  #b85c38;   /* terracotta */
+    --accent-gold:  #8a6d3b;   /* gold / umber */
+
+    /* Typography */
+    --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --font-mono:  "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    /* Layout max-widths */
+    --max-dashboard: 1300px;
+    --max-footer:    1240px;
+    --max-story:     720px;
+    --max-caption:   640px;
+  }
+
+  /* Accent override palette (wired through the tweak panel in root.jsx).
+     Nothing else should be user-tweakable — the semantic roles are fixed. */
+  :root[data-accent="forest"] { --accent: #1c3d2e; }
+  :root[data-accent="navy"]   { --accent: #1c2d4a; }
+  :root[data-accent="sage"]   { --accent: #4a6a4a; }
+  :root[data-accent="umber"]  { --accent: #6a4a2a; }
+  :root[data-accent="plum"]   { --accent: #4a2a3a; }
+  :root[data-accent="ink"]    { --accent: #1a1a17; }
+
+  /* =========================================================================
+     Base
+     ========================================================================= */
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  body {
+    font-family: var(--font-serif);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "onum" 1, "kern" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 { font-weight: 400; margin: 0; }
+  p { margin: 0 0 1em; }
+  a { color: var(--accent); text-decoration-color: var(--rule-2); text-underline-offset: 3px; }
+  a:hover { text-decoration-color: var(--accent); }
+
+  /* Typographic scale — use these classes rather than inventing new sizes.
+     Rhythm ladder for margins (only these values): 6, 8, 10, 14, 18, 22, 28, 36, 44. */
+  .t-hero    { font-size: 42px; letter-spacing: -0.4px; line-height: 1.04; }
+  .t-section { font-size: 28px; letter-spacing: -0.2px; line-height: 1.1; }
+  .t-sub     { font-size: 19px; font-weight: 500; letter-spacing: -0.1px; line-height: 1.2; }
+  .t-body    { font-size: 16px; line-height: 1.5; }
+  .t-caption { font-size: 12.5px; font-style: italic; color: var(--muted); line-height: 1.5; }
+  .t-axis    { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .t-kpi     { font-size: 42px; letter-spacing: -0.4px; line-height: 1; font-variant-numeric: tabular-nums; }
+
+  /* Small utilities */
+  .uc { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .sc { font-variant: small-caps; letter-spacing: 0.06em; text-transform: lowercase; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--font-mono); }
+
+  /* Rules / borders */
+  .rule { border: 0; border-top: 1px solid var(--rule); margin: 28px 0; }
+  .rule-strong { border: 0; border-top: 1px solid var(--rule-2); margin: 28px 0; }
+
+  /* Kicker rules (2px accent strap under a kicker label) */
+  .kicker-rule,
+  .rule-terra  { width: 36px; height: 2px; background: var(--accent-warn); border: 0; margin: 0 0 10px; }
+  .rule-olive  { background: var(--accent-2); }
+  .rule-gold   { background: var(--accent-gold); }
+  .rule-accent { background: var(--accent); }
+
+  /* End-of-paragraph dot */
+  .end-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-warn); margin-left: 6px; vertical-align: 2px; }
+  .end-dot-olive { background: var(--accent-2); }
+  .end-dot-gold  { background: var(--accent-gold); }
+
+  /* Tick marker (legend indicator) */
+  .tick { display: inline-block; width: 10px; height: 2px; background: var(--accent-warn); margin-right: 6px; vertical-align: 3px; }
+  .tick-olive  { background: var(--accent-2); }
+  .tick-gold   { background: var(--accent-gold); }
+  .tick-accent { background: var(--accent); }
+
+  /* Containers */
+  .page        { max-width: var(--max-dashboard); margin: 0 auto; padding: 36px 48px 80px; }
+  .page-story  { max-width: var(--max-story);     margin: 0 auto; padding: 36px 24px 80px; }
+  .page-drawer { padding: 28px 40px; }
+  .caption-col { max-width: var(--max-caption); }
+
+  /* Chart wrapper (tooltips anchor inside) */
+  .chart-wrap { position: relative; margin: 0 0 28px; }
+
+  /* KPI cards */
+  .kpi-grid   { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .kpi        { position: relative; padding: 22px 18px 18px; background: var(--bg-2); }
+  .kpi::before { content: ""; position: absolute; top: 0; left: 0; width: 36px; height: 3px; background: var(--accent-warn); }
+  .kpi.olive::before  { background: var(--accent-2); }
+  .kpi.gold::before   { background: var(--accent-gold); }
+  .kpi.accent::before { background: var(--accent); }
+  .kpi.ink::before    { background: var(--ink); }
+  .kpi .kpi-label { color: var(--muted); margin-bottom: 6px; }
+
+  /* Chart row */
+  .chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 28px; }
+
+  /* Buttons / pressables */
+  button { font: inherit; color: inherit; background: transparent; border: 1px solid var(--rule-2); padding: 6px 14px; cursor: pointer; }
+  button.pressable { transition: opacity 150ms ease; }
+  button.pressable:hover { opacity: 0.75; }
+  button[aria-pressed="true"], button.is-active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  /* Tooltip */
+  .tooltip {
+    position: absolute;
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 12px;
+    padding: 8px 10px;
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 120ms ease;
+    z-index: 10;
+    font-variant-numeric: tabular-nums;
+  }
+  .tooltip::after {
+    content: "";
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--ink);
+    border-bottom-width: 0;
+  }
+
+  /* Drawer */
+  .drawer-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.3); opacity: 0; pointer-events: none; transition: opacity 300ms cubic-bezier(.2,.7,.2,1); z-index: 20; }
+  .drawer-scrim.is-open { opacity: 1; pointer-events: auto; }
+  .drawer { position: fixed; top: 0; right: 0; height: 100vh; width: min(520px, 92vw); background: var(--bg); border-left: 1px solid var(--rule-2); transform: translateX(100%); transition: transform 300ms cubic-bezier(.2,.7,.2,1); z-index: 30; overflow-y: auto; }
+  .drawer.is-open { transform: translateX(0); }
+
+  /* Range slider */
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; }
+  input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: var(--rule-2); }
+  input[type="range"]::-moz-range-track { height: 2px; background: var(--rule-2); }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); margin-top: -6px; }
+  input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); }
+
+  /* Motion */
+  .fade-enter { opacity: 1; transform: translateY(0); }
+  @media (prefers-reduced-motion: no-preference) {
+    .fade-enter { animation: fadeIn 350ms ease; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  }
+
+  /* Methodology callout */
+  .callout { background: var(--bg-3); padding: 18px 22px; border-left: 2px solid var(--accent-warn); margin: 22px 0; }
+
+  /* Footer */
+  footer.site-footer { max-width: var(--max-footer); margin: 0 auto; padding: 36px 48px; color: var(--muted); border-top: 1px solid var(--rule); }
+
+  /* Tables (used in /datasets) */
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react" id="app-bundle">
+/* BUNDLE_START — everything between these markers is overwritten by scripts/bundle.py. Do not edit by hand. */
+
+/* --- data/boats-data.js --- (not generated yet; run scripts/build_boats_data.py) */
+
+/* --- src/data.jsx --- */
+/* =========================================================================
+   data.jsx — hard-coded shell data that isn't derived from the ODS.
+
+   CLAUDE.md says this file holds "asylum / backlog / regions / stories" —
+   the legacy Home Office data-explorer shell. Here we keep it small: just
+   enough scaffolding for the story and datasets views to reference. Anything
+   numeric about small boats MUST come from window.BOATS_*, not from here.
+
+   Editing rule: when BOATS_ANNUAL changes, update ASYLUM_ANNUAL.boats in
+   the same commit (see CLAUDE.md § "Things that look like problems").
+   ========================================================================= */
+
+/* Annual asylum figures — shell data. `boats` column duplicates BOATS_ANNUAL
+   but lives here so the shell's legacy charts work without a data fetch. */
+window.ASYLUM_ANNUAL = window.ASYLUM_ANNUAL || [
+  { y: 2018, applications: 29382, decisions: 14583, granted: 4914, boats: 299 },
+  { y: 2019, applications: 35738, decisions: 20103, granted: 6236, boats: 1844 },
+  { y: 2020, applications: 36041, decisions: 14795, granted: 6896, boats: 8466 },
+  { y: 2021, applications: 48540, decisions: 13888, granted: 9973, boats: 28526 },
+  { y: 2022, applications: 74751, decisions: 18699, granted: 13703, boats: 45755 },
+  { y: 2023, applications: 67337, decisions: 86798, granted: 32557, boats: 29437 },
+  { y: 2024, applications: 108138, decisions: 98754, granted: 40565, boats: 36816 },
+];
+
+/* A few narrative anchors — used by the /story view. Numbers are illustrative
+   placeholders and should be replaced with derivations from BOATS_* once the
+   pipeline is live. */
+window.STORIES = window.STORIES || [
+  {
+    id: "beginnings",
+    kicker: "2018",
+    title: "An almost-zero baseline",
+    body:
+      "When the weekly series begins in January 2018, English Channel crossings are rare. Whole months pass with single-digit arrivals. The 2018 annual total is lower than a single busy day five years later.",
+  },
+  {
+    id: "inflection",
+    kicker: "2020",
+    title: "Inflection",
+    body:
+      "Arrivals rise sharply through 2020, redefining the baseline. By the end of the year the daily average is an order of magnitude above 2019.",
+  },
+  {
+    id: "plateau",
+    kicker: "2023–present",
+    title: "A rougher plateau",
+    body:
+      "Annual totals stop their steep climb but remain at a level that would have been unthinkable five years earlier. Preventions, newly reported from 2023, add a second line to the picture.",
+  },
+];
+
+/* Dataset catalogue — rendered as a table on /datasets. Kept here, not
+   generated, because the description is editorial, not mechanical. */
+window.DATASET_CATALOGUE = window.DATASET_CATALOGUE || [
+  { global: "BOATS_DAILY",    shape: "[{d, m, b}]",                     size: "~3,000 rows", notes: "Daily migrants + boats from 2018-01-01." },
+  { global: "BOATS_WEEKLY",   shape: "[{we, m, b, p, e}]",              size: "~400 rows",   notes: "Week-ending Saturdays; p/e null before 2023." },
+  { global: "BOATS_MONTHLY",  shape: "[{month, m, b}]",                 size: "~100 rows",   notes: "Aggregated from BOATS_DAILY." },
+  { global: "BOATS_ANNUAL",   shape: "[{y, m, b, perBoat}]",            size: "~9 rows",     notes: "Per-boat = migrants / boats." },
+  { global: "BOATS_YOY",      shape: "{YYYY: [cum_day_1..366]}",        size: "9 keys",      notes: "Cumulative by day-of-year; null past latest." },
+  { global: "BOATS_RECORDS",  shape: "{busiest*, total*, firstDate, latestDate, daysCovered}", size: "1 object",   notes: "Scalar highlights." },
+  { global: "BOATS_META",     shape: "{sourceFile, sourceDated, latestDataPoint, generatedAt, provider, licence, sourceUrl, notes[]}", size: "1 object", notes: "Provenance + methodology text." },
+];
+
+/* --- src/charts.jsx --- */
+/* =========================================================================
+   charts.jsx — SVG chart primitives + shared utilities.
+   Every visual rule comes from design/tokens.md. If this file and tokens.md
+   disagree, tokens.md wins — update the code to match.
+   ========================================================================= */
+
+const MULTI_COLORS = [
+  "var(--accent)",
+  "var(--accent-warn)",
+  "var(--accent-2)",
+  "var(--accent-gold)",
+  "var(--muted)",
+];
+
+const fmtN = (v) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  return new Intl.NumberFormat("en-GB").format(Math.round(v));
+};
+
+const fmtK = (v) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  const n = Number(v);
+  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "m";
+  if (Math.abs(n) >= 1_000)     return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "k";
+  return String(Math.round(n));
+};
+
+function useTooltip() {
+  const [tip, setTip] = React.useState(null);
+  const show = React.useCallback((x, y, label) => {
+    setTip({ x, y, label });
+  }, []);
+  const hide = React.useCallback(() => setTip(null), []);
+  return { tip, show, hide };
+}
+
+function Tooltip({ tip }) {
+  if (!tip) return null;
+  return (
+    <div
+      className="tooltip"
+      style={{
+        left: tip.x,
+        top: tip.y - 12,
+        transform: "translate(-50%, -100%)",
+      }}
+    >
+      {tip.label}
+    </div>
+  );
+}
+
+function Figure({ subtitle, title, caption, source, width, children }) {
+  return (
+    <figure className="chart-wrap" style={{ margin: 0, width }}>
+      {(subtitle || title) && (
+        <figcaption style={{ marginBottom: 14 }}>
+          {subtitle && <div className="uc">{subtitle}</div>}
+          {subtitle && <div className="rule-terra kicker-rule" />}
+          {title && <div className="t-sub">{title}</div>}
+        </figcaption>
+      )}
+      {children}
+      {caption && (
+        <div className="t-caption caption-col" style={{ marginTop: 10 }}>
+          {caption}
+        </div>
+      )}
+      {source && (
+        <div className="uc" style={{ marginTop: 12 }}>Source: {source}</div>
+      )}
+    </figure>
+  );
+}
+
+function linearScale(domain, range) {
+  const [d0, d1] = domain;
+  const [r0, r1] = range;
+  const span = d1 - d0 || 1;
+  const fn = (v) => r0 + ((v - d0) / span) * (r1 - r0);
+  fn.invert = (px) => d0 + ((px - r0) / (r1 - r0)) * span;
+  fn.domain = domain;
+  fn.range = range;
+  return fn;
+}
+
+function niceTicks(min, max, target = 5) {
+  if (min === max) return [min];
+  const span = max - min;
+  const step0 = span / target;
+  const pow = Math.pow(10, Math.floor(Math.log10(step0)));
+  const rel = step0 / pow;
+  const step = (rel >= 5 ? 10 : rel >= 2 ? 5 : rel >= 1 ? 2 : 1) * pow;
+  const start = Math.ceil(min / step) * step;
+  const out = [];
+  for (let v = start; v <= max + 1e-9; v += step) {
+    out.push(Math.round(v / step) * step);
+  }
+  return out;
+}
+
+function ChartGrid({
+  xScale, yScale, plotTop, plotBottom, plotLeft, plotRight,
+  xTicks, yTicks, formatX = String, formatY = fmtK,
+}) {
+  const ySafe = yTicks || niceTicks(yScale.domain[0], yScale.domain[1], 5);
+  const xSafe = xTicks || [];
+  return (
+    <g aria-hidden="true">
+      {ySafe.map((v, i) => (
+        <g key={`y-${i}`}>
+          <line x1={plotLeft} x2={plotRight} y1={yScale(v)} y2={yScale(v)} stroke="var(--rule)" strokeWidth="1" />
+          <text x={plotLeft - 10} y={yScale(v) + 4} textAnchor="end" className="t-axis" style={{ fontFamily: "var(--font-serif)" }}>
+            {formatY(v)}
+          </text>
+        </g>
+      ))}
+      <line x1={plotLeft} x2={plotRight} y1={plotBottom} y2={plotBottom} stroke="var(--rule-2)" strokeWidth="1" />
+      {xSafe.map((t, i) => (
+        <text key={`x-${i}`} x={xScale(t.value)} y={plotBottom + 18} textAnchor="middle" className="t-axis" style={{ fontFamily: "var(--font-serif)" }}>
+          {t.label ?? formatX(t.value)}
+        </text>
+      ))}
+    </g>
+  );
+}
+
+function LineChart({
+  series, width = 640, height = 320, fill = true, annotations = [],
+  xTickFormat = String, xTicks, yTickFormat = fmtK, tooltipLabel,
+}) {
+  const padding = { top: 22, right: 24, bottom: 36, left: 48 };
+  const plotLeft = padding.left;
+  const plotRight = width - padding.right;
+  const plotTop = padding.top;
+  const plotBottom = height - padding.bottom;
+
+  const { tip, show, hide } = useTooltip();
+  const isMulti = series.length > 1;
+
+  const allX = series.flatMap((s) => s.data.map((d) => d.x));
+  const allY = series.flatMap((s) => s.data.map((d) => d.y).filter((v) => v !== null && v !== undefined));
+  const xMin = Math.min(...allX);
+  const xMax = Math.max(...allX);
+  const yMaxRaw = Math.max(0, ...allY);
+  const yMax = yMaxRaw === 0 ? 1 : yMaxRaw * 1.08;
+
+  const x = linearScale([xMin, xMax], [plotLeft, plotRight]);
+  const y = linearScale([0, yMax], [plotBottom, plotTop]);
+
+  const wrapRef = React.useRef(null);
+
+  const handleHover = (event, seriesName, xVal, yVal) => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    const px = event.clientX - rect.left;
+    const py = event.clientY - rect.top;
+    const label =
+      tooltipLabel?.({ seriesName, x: xVal, y: yVal }) ??
+      `${xTickFormat(xVal)} · ${isMulti ? `${seriesName}: ` : ""}${fmtN(yVal)}`;
+    show(px, py, label);
+  };
+
+  const toPath = (data) => {
+    let d = "";
+    let pen = false;
+    for (const pt of data) {
+      if (pt.y === null || pt.y === undefined) { pen = false; continue; }
+      const cmd = pen ? "L" : "M";
+      d += `${cmd}${x(pt.x).toFixed(2)} ${y(pt.y).toFixed(2)} `;
+      pen = true;
+    }
+    return d.trim();
+  };
+
+  const gradId = `grad-${React.useId().replace(/:/g, "")}`;
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" width="100%" height={height} role="img">
+        <defs>
+          {fill && series[0] && (
+            <linearGradient id={gradId} x1="0" x2="0" y1={plotTop} y2={plotBottom} gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor={series[0].color || MULTI_COLORS[0]} stopOpacity="0.18" />
+              <stop offset="100%" stopColor={series[0].color || MULTI_COLORS[0]} stopOpacity="0" />
+            </linearGradient>
+          )}
+        </defs>
+
+        <ChartGrid xScale={x} yScale={y} plotTop={plotTop} plotBottom={plotBottom} plotLeft={plotLeft} plotRight={plotRight} xTicks={xTicks} formatY={yTickFormat} />
+
+        {fill && series[0] && (() => {
+          const primary = series[0];
+          const pts = primary.data.filter((d) => d.y !== null && d.y !== undefined);
+          if (pts.length < 2) return null;
+          const path =
+            `M${x(pts[0].x).toFixed(2)} ${plotBottom} ` +
+            pts.map((p) => `L${x(p.x).toFixed(2)} ${y(p.y).toFixed(2)}`).join(" ") +
+            ` L${x(pts[pts.length - 1].x).toFixed(2)} ${plotBottom} Z`;
+          return <path d={path} fill={`url(#${gradId})`} />;
+        })()}
+
+        {series.map((s, i) => {
+          const color = s.color || (isMulti ? MULTI_COLORS[i % MULTI_COLORS.length] : MULTI_COLORS[0]);
+          const strokeWidth = isMulti ? 1.4 : 1.8;
+          return (
+            <g key={s.name || i}>
+              <path d={toPath(s.data)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+              {s.data.map((pt, j) => {
+                if (pt.y === null || pt.y === undefined) return null;
+                return (
+                  <g key={j}>
+                    <circle cx={x(pt.x)} cy={y(pt.y)} r={3} fill={color} />
+                    <circle cx={x(pt.x)} cy={y(pt.y)} r={14} fill="transparent"
+                      style={{ cursor: "crosshair" }}
+                      onMouseEnter={(e) => handleHover(e, s.name, pt.x, pt.y)}
+                      onMouseMove={(e) => handleHover(e, s.name, pt.x, pt.y)}
+                      onMouseLeave={hide} />
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
+
+        {annotations.map((a, i) => {
+          const s = series[a.seriesIndex ?? 0];
+          if (!s) return null;
+          const pt = s.data.find((d) => d.x === a.x);
+          if (!pt || pt.y === null) return null;
+          return (
+            <g key={`ann-${i}`}>
+              <circle cx={x(pt.x)} cy={y(pt.y)} r={5} fill="none" stroke="var(--ink)" strokeWidth="1" />
+              <line x1={x(pt.x)} y1={y(pt.y) - 6} x2={x(pt.x) + 18} y2={y(pt.y) - 28} stroke="var(--ink-2)" strokeWidth="0.8" />
+              <text x={x(pt.x) + 22} y={y(pt.y) - 28} className="t-caption" style={{ fontFamily: "var(--font-serif)" }} fill="var(--ink-2)">
+                {a.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <Tooltip tip={tip} />
+    </div>
+  );
+}
+
+function Spark({ data, width = 140, height = 36, color = "var(--accent)" }) {
+  const pts = data.filter((d) => d.y !== null && d.y !== undefined);
+  if (pts.length < 2) return <svg width={width} height={height} />;
+  const xMin = Math.min(...pts.map((d) => d.x));
+  const xMax = Math.max(...pts.map((d) => d.x));
+  const yMax = Math.max(...pts.map((d) => d.y));
+  const x = linearScale([xMin, xMax], [1, width - 1]);
+  const y = linearScale([0, yMax === 0 ? 1 : yMax], [height - 2, 2]);
+  const d =
+    pts.map((p, i) => `${i ? "L" : "M"}${x(p.x).toFixed(1)} ${y(p.y).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" width={width} height={height} role="img" aria-hidden="true">
+      <path d={d} fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* --- src/app.jsx --- */
+/* =========================================================================
+   app.jsx — chrome components: header, footer, search, methodology drawer.
+   Shared across every route.
+   ========================================================================= */
+
+const NAV_ITEMS = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "story",     label: "Story" },
+  { id: "datasets",  label: "Datasets" },
+  { id: "build",     label: "Build" },
+];
+
+function SiteHeader({ route, onNavigate, onOpenMethodology, onOpenTweaks }) {
+  return (
+    <header
+      style={{
+        borderBottom: "1px solid var(--rule)",
+        padding: "22px 48px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 28,
+      }}
+    >
+      <div>
+        <div className="uc">Home Office Data Explorer</div>
+        <div
+          className="t-sub"
+          style={{ marginTop: 2 }}
+        >
+          Small boats<span className="end-dot" />
+        </div>
+      </div>
+
+      <nav
+        aria-label="Primary"
+        style={{ display: "flex", gap: 6 }}
+      >
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            className="pressable"
+            aria-pressed={route === item.id}
+            onClick={() => onNavigate(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      <div style={{ display: "flex", gap: 6 }}>
+        <SearchStub />
+        <button className="pressable" onClick={onOpenMethodology}>
+          Methodology
+        </button>
+        <button
+          className="pressable"
+          onClick={onOpenTweaks}
+          aria-label="Open theme tweak panel"
+          title="Tweak accent colour"
+        >
+          Tweaks
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function SearchStub() {
+  const [value, setValue] = React.useState("");
+  return (
+    <input
+      type="search"
+      placeholder="Search"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      style={{
+        font: "inherit",
+        border: "1px solid var(--rule-2)",
+        padding: "6px 10px",
+        background: "var(--bg)",
+        color: "var(--ink)",
+        width: 160,
+      }}
+    />
+  );
+}
+
+function SiteFooter() {
+  const meta = (typeof window !== "undefined" && window.BOATS_META) || null;
+  const sourceDated = meta?.sourceDated || "pending first fetch";
+  const latest = meta?.latestDataPoint || "—";
+  const generated = meta?.generatedAt ? meta.generatedAt.slice(0, 10) : "—";
+  return (
+    <footer className="site-footer">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 28 }}>
+        <div>
+          <div className="uc">Source</div>
+          <div className="rule-terra kicker-rule" />
+          <p className="t-body">
+            UK Home Office —{" "}
+            <a
+              href="https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Migrants detected crossing the English Channel in small boats
+            </a>
+            . Published under the Open Government Licence v3.0.
+          </p>
+        </div>
+        <div>
+          <div className="uc">Pipeline</div>
+          <div className="rule-olive kicker-rule" />
+          <p className="t-body">
+            Source file dated <span className="tnum">{sourceDated}</span>.
+            Latest data point <span className="tnum">{latest}</span>.
+            Regenerated <span className="tnum">{generated}</span>.
+          </p>
+        </div>
+        <div>
+          <div className="uc">Notes</div>
+          <div className="rule-gold kicker-rule" />
+          <p className="t-body">
+            No editorial framing. Numbers trace to specific{" "}
+            <span className="mono">BOATS_*</span> fields.
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function MethodologyDrawer({ open, onClose }) {
+  const meta = (typeof window !== "undefined" && window.BOATS_META) || null;
+  const notes = meta?.notes || [];
+  return (
+    <>
+      <div
+        className={"drawer-scrim" + (open ? " is-open" : "")}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside
+        className={"drawer" + (open ? " is-open" : "")}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Methodology"
+        aria-hidden={!open}
+      >
+        <div className="page-drawer">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <div>
+              <div className="uc">Methodology</div>
+              <div className="rule-terra kicker-rule" />
+              <h2 className="t-section">How the numbers are built</h2>
+            </div>
+            <button className="pressable" onClick={onClose} aria-label="Close drawer">
+              Close
+            </button>
+          </div>
+
+          <p className="t-body" style={{ marginTop: 22 }}>
+            Every chart and KPI reads from a <span className="mono">BOATS_*</span>{" "}
+            global produced by <span className="mono">scripts/build_boats_data.py</span>.
+            The source is a weekly ODS from gov.uk; the build pipeline is the schema
+            source of truth.
+          </p>
+
+          <div className="callout">
+            <div className="uc">Provenance</div>
+            <p className="t-body" style={{ marginTop: 6 }}>
+              Source file:{" "}
+              <span className="mono">{meta?.sourceFile || "—"}</span>.
+              Regenerated{" "}
+              <span className="tnum">
+                {meta?.generatedAt ? meta.generatedAt.slice(0, 10) : "—"}
+              </span>
+              .
+            </p>
+          </div>
+
+          <div className="uc" style={{ marginTop: 28 }}>Notes from source</div>
+          <div className="rule-olive kicker-rule" />
+          {notes.length === 0 ? (
+            <p className="t-caption">
+              No notes extracted. (The ODS has not yet been built — run{" "}
+              <span className="mono">scripts/build_boats_data.py</span>.)
+            </p>
+          ) : (
+            <ol style={{ paddingLeft: 18, margin: 0 }}>
+              {notes.map((n, i) => (
+                <li key={i} className="t-body" style={{ margin: "10px 0" }}>
+                  {n}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}
+
+const ACCENT_OPTIONS = [
+  { id: "forest", hex: "#1c3d2e" },
+  { id: "navy",   hex: "#1c2d4a" },
+  { id: "sage",   hex: "#4a6a4a" },
+  { id: "umber",  hex: "#6a4a2a" },
+  { id: "plum",   hex: "#4a2a3a" },
+  { id: "ink",    hex: "#1a1a17" },
+];
+
+function TweakPanel({ open, onClose, accent, onAccentChange }) {
+  return (
+    <>
+      <div
+        className={"drawer-scrim" + (open ? " is-open" : "")}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside
+        className={"drawer" + (open ? " is-open" : "")}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Theme tweaks"
+        aria-hidden={!open}
+      >
+        <div className="page-drawer">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <div>
+              <div className="uc">Tweaks</div>
+              <div className="rule-accent kicker-rule" />
+              <h2 className="t-section">Accent</h2>
+            </div>
+            <button className="pressable" onClick={onClose}>Close</button>
+          </div>
+
+          <p className="t-caption" style={{ marginTop: 18 }}>
+            The only user-tweakable token. Everything that reads{" "}
+            <span className="mono">var(--accent)</span> updates live.
+          </p>
+
+          <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
+            {ACCENT_OPTIONS.map((opt) => {
+              const isActive = accent === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  className="pressable"
+                  onClick={() => onAccentChange(opt.id)}
+                  aria-pressed={isActive}
+                  title={opt.id}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    background: opt.hex,
+                    border: 0,
+                    padding: 0,
+                    outline: isActive ? "2px solid var(--ink)" : "none",
+                    outlineOffset: 2,
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          <div className="uc" style={{ marginTop: 36 }}>Sample</div>
+          <div className="rule-terra kicker-rule" />
+          <div style={{ marginTop: 10 }}>
+            <span className="tick tick-accent" />
+            <span className="t-body">Primary series (forest by default)</span>
+          </div>
+          <div style={{ marginTop: 6 }}>
+            <span className="tick" />
+            <span className="t-body">Attention / refusals (terracotta, fixed)</span>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+/* --- src/dashboard-view.jsx --- */
+/* =========================================================================
+   dashboard-view.jsx — /dashboard route.
+   ========================================================================= */
+
+function StaleBanner() {
+  const meta = window.BOATS_META;
+  if (!meta?.latestDataPoint) return null;
+  const latest = new Date(meta.latestDataPoint + "T00:00:00Z");
+  const now = new Date();
+  const ageDays = Math.floor((now - latest) / 86400000);
+  if (ageDays <= 14) return null;
+  return (
+    <div className="callout">
+      <div className="uc">Stale source</div>
+      <div className="rule-terra kicker-rule" />
+      <p className="t-body" style={{ marginTop: 6 }}>
+        Latest data point is{" "}
+        <span className="tnum">{ageDays}</span> days old (
+        <span className="tnum">{meta.latestDataPoint}</span>). The pipeline may
+        not be running — check GitHub Actions.
+      </p>
+    </div>
+  );
+}
+
+function KpiStrip() {
+  const r = window.BOATS_RECORDS;
+  if (!r) return null;
+  return (
+    <section className="kpi-grid" style={{ marginBottom: 36 }}>
+      <div className="kpi accent">
+        <div className="uc kpi-label">Total migrants</div>
+        <div className="t-kpi">{fmtN(r.totalMigrants)}</div>
+        <div className="t-caption">
+          Since {r.firstDate} · {fmtN(r.daysCovered)} days
+        </div>
+      </div>
+      <div className="kpi olive">
+        <div className="uc kpi-label">Total boats</div>
+        <div className="t-kpi">{fmtN(r.totalBoats)}</div>
+        <div className="t-caption">Average ~{(r.totalMigrants / Math.max(1, r.totalBoats)).toFixed(1)} migrants per boat</div>
+      </div>
+      <div className="kpi">
+        <div className="uc kpi-label">Busiest day</div>
+        <div className="t-kpi">{fmtN(r.busiestDay?.migrants)}</div>
+        <div className="t-caption tnum">{r.busiestDay?.date}</div>
+      </div>
+      <div className="kpi gold">
+        <div className="uc kpi-label">Busiest month</div>
+        <div className="t-kpi">{fmtN(r.busiestMonth?.migrants)}</div>
+        <div className="t-caption tnum">{r.busiestMonth?.month}</div>
+      </div>
+    </section>
+  );
+}
+
+function WeeklySeriesChart() {
+  const weekly = window.BOATS_WEEKLY || [];
+  if (!weekly.length) return null;
+
+  const toX = (s) => +new Date(s + "T00:00:00Z");
+  const migrants = weekly.map((w) => ({ x: toX(w.we), y: w.m }));
+  const preventions = weekly.map((w) => ({ x: toX(w.we), y: w.p }));
+
+  const years = Array.from(
+    new Set(weekly.map((w) => w.we.slice(0, 4)))
+  ).map((y) => ({ value: +new Date(`${y}-07-01T00:00:00Z`), label: y }));
+
+  return (
+    <Figure
+      subtitle="Weekly totals"
+      title="Migrants arriving by small boat, weekly"
+      caption="Weekly ending Saturday. Preventions (where reported from 2023) overlaid in terracotta."
+      source="UK Home Office — SB_02"
+    >
+      <LineChart
+        series={[
+          { name: "Arrivals",    data: migrants,    color: "var(--accent)" },
+          { name: "Preventions", data: preventions, color: "var(--accent-warn)" },
+        ]}
+        width={820}
+        height={320}
+        xTicks={years}
+        xTickFormat={(ms) => new Date(ms).toISOString().slice(0, 10)}
+        tooltipLabel={({ seriesName, x, y }) =>
+          `${new Date(x).toISOString().slice(0, 10)} · ${seriesName}: ${fmtN(y)}`
+        }
+      />
+    </Figure>
+  );
+}
+
+function YoYCumulativeChart() {
+  const yoy = window.BOATS_YOY || {};
+  const years = Object.keys(yoy).sort();
+  if (!years.length) return null;
+
+  const series = years.map((y) => ({
+    name: y,
+    data: yoy[y].map((v, i) => ({ x: i, y: v })),
+  }));
+
+  const monthTicks = [
+    { value: 0,   label: "Jan" },
+    { value: 31,  label: "Feb" },
+    { value: 59,  label: "Mar" },
+    { value: 90,  label: "Apr" },
+    { value: 120, label: "May" },
+    { value: 151, label: "Jun" },
+    { value: 181, label: "Jul" },
+    { value: 212, label: "Aug" },
+    { value: 243, label: "Sep" },
+    { value: 273, label: "Oct" },
+    { value: 304, label: "Nov" },
+    { value: 334, label: "Dec" },
+  ];
+
+  return (
+    <Figure
+      subtitle="Year-on-year"
+      title="Cumulative arrivals by day of year"
+      caption="Each line is one year, running from 1 January. The current year stops at the latest data point — no interpolation past it."
+      source="UK Home Office — SB_01"
+    >
+      <LineChart
+        series={series}
+        width={820}
+        height={360}
+        fill={false}
+        xTicks={monthTicks}
+        xTickFormat={(doy) => `day ${doy + 1}`}
+        tooltipLabel={({ seriesName, x, y }) =>
+          `${seriesName} · day ${x + 1}: ${fmtN(y)}`
+        }
+      />
+    </Figure>
+  );
+}
+
+function AnnualTotalsTable() {
+  const annual = window.BOATS_ANNUAL || [];
+  if (!annual.length) return null;
+  return (
+    <section style={{ marginTop: 36 }}>
+      <div className="uc">Annual totals</div>
+      <div className="rule-gold kicker-rule" />
+      <h2 className="t-section" style={{ marginBottom: 18 }}>
+        Every year since 2018
+      </h2>
+      <div style={{ overflowX: "auto" }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th style={{ textAlign: "right" }}>Migrants</th>
+              <th style={{ textAlign: "right" }}>Boats</th>
+              <th style={{ textAlign: "right" }}>Per boat</th>
+              <th style={{ width: 160 }}>Trend</th>
+            </tr>
+          </thead>
+          <tbody>
+            {annual.map((row) => {
+              const monthly = (window.BOATS_MONTHLY || []).filter((m) =>
+                m.month.startsWith(String(row.y))
+              );
+              const spark = monthly.map((m, i) => ({ x: i, y: m.m }));
+              return (
+                <tr key={row.y}>
+                  <td className="tnum">{row.y}</td>
+                  <td className="tnum" style={{ textAlign: "right" }}>{fmtN(row.m)}</td>
+                  <td className="tnum" style={{ textAlign: "right" }}>{fmtN(row.b)}</td>
+                  <td className="tnum" style={{ textAlign: "right" }}>{row.perBoat ?? "—"}</td>
+                  <td>
+                    <Spark data={spark} width={140} height={28} color="var(--accent)" />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function DashboardView() {
+  return (
+    <div className="page">
+      <StaleBanner />
+      <header style={{ marginBottom: 36 }}>
+        <div className="uc">Dashboard</div>
+        <div className="rule-terra kicker-rule" />
+        <h1 className="t-hero">Small boats crossings at a glance</h1>
+        <p className="t-body caption-col" style={{ marginTop: 14, color: "var(--ink-2)" }}>
+          Headline numbers, weekly series, and year-on-year comparison. Every figure
+          traces back to a <span className="mono">BOATS_*</span> global built from
+          the gov.uk source ODS.
+        </p>
+      </header>
+
+      <KpiStrip />
+
+      <div className="chart-row">
+        <WeeklySeriesChart />
+        <YoYCumulativeChart />
+      </div>
+
+      <AnnualTotalsTable />
+    </div>
+  );
+}
+
+/* --- src/views-story-build.jsx --- */
+/* =========================================================================
+   views-story-build.jsx — /story, /datasets, /build routes.
+   ========================================================================= */
+
+function StoryKpiLine({ label, value, suffix, sparkData, sparkColor }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 18,
+        padding: "14px 0",
+        borderBottom: "1px solid var(--rule)",
+      }}
+    >
+      <div>
+        <div className="uc">{label}</div>
+        <div className="t-sub tnum" style={{ marginTop: 2 }}>
+          {value}
+          {suffix && <span className="t-caption" style={{ marginLeft: 6 }}>{suffix}</span>}
+        </div>
+      </div>
+      {sparkData && <Spark data={sparkData} color={sparkColor} />}
+    </div>
+  );
+}
+
+function StoryView() {
+  const r = window.BOATS_RECORDS;
+  const annual = window.BOATS_ANNUAL || [];
+  const firstYearTotal = annual[0]?.m ?? null;
+  const latestYearTotal = annual[annual.length - 1]?.m ?? null;
+
+  const annualSpark = annual.map((a) => ({ x: a.y, y: a.m }));
+
+  return (
+    <div className="page-story">
+      <header style={{ marginBottom: 28 }}>
+        <div className="uc">Story</div>
+        <div className="rule-terra kicker-rule" />
+        <h1 className="t-hero">Eight years of a new series</h1>
+        <p className="t-body" style={{ color: "var(--ink-2)", marginTop: 14 }}>
+          The weekly small-boats series begins on 1 January 2018. The shape of it has
+          changed more in eight years than most government data series do in a generation.
+        </p>
+      </header>
+
+      <StoryKpiLine
+        label="2018 total"
+        value={fmtN(firstYearTotal)}
+        suffix="migrants"
+        sparkData={annualSpark}
+        sparkColor="var(--accent)"
+      />
+      <StoryKpiLine
+        label={`${annual[annual.length - 1]?.y ?? "Latest"} total`}
+        value={fmtN(latestYearTotal)}
+        suffix="migrants"
+      />
+      <StoryKpiLine
+        label="Busiest single day"
+        value={fmtN(r?.busiestDay?.migrants)}
+        suffix={r?.busiestDay?.date}
+      />
+
+      {window.STORIES?.map((s, i) => (
+        <article key={s.id} style={{ marginTop: 36 }}>
+          <div className="uc">{s.kicker}</div>
+          <div
+            className={
+              i === 0 ? "rule-terra kicker-rule"
+              : i === 1 ? "rule-olive kicker-rule"
+              : "rule-gold kicker-rule"
+            }
+          />
+          <h2 className="t-section" style={{ marginBottom: 10 }}>{s.title}</h2>
+          <p className="t-body">
+            {s.body}
+            <span
+              className={
+                i === 0 ? "end-dot"
+                : i === 1 ? "end-dot end-dot-olive"
+                : "end-dot end-dot-gold"
+              }
+            />
+          </p>
+        </article>
+      ))}
+
+      <div className="callout" style={{ marginTop: 44 }}>
+        <div className="uc">A note on framing</div>
+        <div className="rule-terra kicker-rule" />
+        <p className="t-body" style={{ marginTop: 6 }}>
+          This page presents figures. It does not argue about them. Source fields and
+          methodology are in <span className="mono">/build</span>; the raw series is in{" "}
+          <span className="mono">/datasets</span>.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function DatasetsView() {
+  const catalogue = window.DATASET_CATALOGUE || [];
+  const meta = window.BOATS_META || {};
+  return (
+    <div className="page">
+      <header style={{ marginBottom: 36 }}>
+        <div className="uc">Datasets</div>
+        <div className="rule-olive kicker-rule" />
+        <h1 className="t-hero">What's loaded and where it lives</h1>
+        <p className="t-body caption-col" style={{ marginTop: 14, color: "var(--ink-2)" }}>
+          Every chart in this app reads from one of these globals. The canonical
+          schema is the docstring of{" "}
+          <span className="mono">scripts/build_boats_data.py</span> — update it there
+          first if the shape changes.
+        </p>
+      </header>
+
+      <div style={{ overflowX: "auto", marginBottom: 36 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Global</th>
+              <th>Shape</th>
+              <th>Size</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {catalogue.map((row) => (
+              <tr key={row.global}>
+                <td className="mono">{row.global}</td>
+                <td className="mono" style={{ fontSize: 13 }}>{row.shape}</td>
+                <td className="tnum">{row.size}</td>
+                <td>{row.notes}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <section>
+        <div className="uc">Provenance</div>
+        <div className="rule-gold kicker-rule" />
+        <h2 className="t-section" style={{ marginBottom: 10 }}>Where it came from</h2>
+        <dl
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(160px, 220px) 1fr",
+            rowGap: 10,
+            columnGap: 22,
+            margin: 0,
+          }}
+        >
+          <dt className="uc">Source file</dt>
+          <dd className="mono" style={{ margin: 0 }}>{meta.sourceFile || "—"}</dd>
+          <dt className="uc">Source dated</dt>
+          <dd className="tnum" style={{ margin: 0 }}>{meta.sourceDated || "—"}</dd>
+          <dt className="uc">Latest data point</dt>
+          <dd className="tnum" style={{ margin: 0 }}>{meta.latestDataPoint || "—"}</dd>
+          <dt className="uc">Regenerated</dt>
+          <dd className="tnum" style={{ margin: 0 }}>{meta.generatedAt || "—"}</dd>
+          <dt className="uc">Licence</dt>
+          <dd style={{ margin: 0 }}>{meta.licence || "—"}</dd>
+          <dt className="uc">Provider</dt>
+          <dd style={{ margin: 0 }}>{meta.provider || "—"}</dd>
+        </dl>
+      </section>
+    </div>
+  );
+}
+
+function BuildView() {
+  const meta = window.BOATS_META || {};
+  const notes = meta.notes || [];
+  return (
+    <div className="page-story">
+      <header style={{ marginBottom: 28 }}>
+        <div className="uc">Build</div>
+        <div className="rule-gold kicker-rule" />
+        <h1 className="t-hero">How the pipeline works</h1>
+      </header>
+
+      <section style={{ marginBottom: 36 }}>
+        <h2 className="t-section">Daily flow</h2>
+        <ol className="t-body" style={{ paddingLeft: 20 }}>
+          <li style={{ margin: "8px 0" }}>
+            <span className="mono">scripts/fetch_latest.py</span> scrapes the gov.uk
+            publication page, resolves the current ODS URL (the filename changes each
+            release), and downloads into <span className="mono">cache/</span> if it
+            hasn't already.
+          </li>
+          <li style={{ margin: "8px 0" }}>
+            <span className="mono">scripts/build_boats_data.py</span> reads the ODS and
+            writes <span className="mono">data/boats-data.js</span> — seven{" "}
+            <span className="mono">window.BOATS_*</span> globals.
+          </li>
+          <li style={{ margin: "8px 0" }}>
+            <span className="mono">scripts/bundle.py</span> concatenates{" "}
+            <span className="mono">src/*.jsx</span> + the data module into the{" "}
+            <span className="mono">&lt;script type="text/babel"&gt;</span> block in{" "}
+            <span className="mono">index.html</span>.
+          </li>
+          <li style={{ margin: "8px 0" }}>
+            <span className="mono">pytest</span> gates the commit — annual totals,
+            record sums, Saturday week-endings, no date gaps.
+          </li>
+          <li style={{ margin: "8px 0" }}>
+            GitHub Actions commits{" "}
+            <span className="mono">chore: data update &lt;YYYY-MM-DD&gt;</span> if
+            anything changed.
+          </li>
+        </ol>
+      </section>
+
+      <section>
+        <div className="uc">Notes from source</div>
+        <div className="rule-terra kicker-rule" />
+        <h2 className="t-section" style={{ marginBottom: 10 }}>Verbatim from the ODS</h2>
+        {notes.length === 0 ? (
+          <p className="t-caption">
+            No notes extracted yet. (Run the pipeline once to populate.)
+          </p>
+        ) : (
+          <ol className="t-body" style={{ paddingLeft: 20 }}>
+            {notes.map((n, i) => (
+              <li key={i} style={{ margin: "10px 0" }}>{n}</li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      <div className="callout" style={{ marginTop: 36 }}>
+        <div className="uc">Source</div>
+        <p className="t-body" style={{ marginTop: 6 }}>
+          <a href={meta.sourceUrl || "#"} target="_blank" rel="noopener noreferrer">
+            {meta.sourceUrl || "gov.uk publication page"}
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* --- src/root.jsx --- */
+/* =========================================================================
+   root.jsx — App shell, routing, persistent UI state.
+   This file is bundled LAST; it references every component defined earlier.
+   ========================================================================= */
+
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+const LS_KEY = "hode:v1";
+const DEFAULT_STATE = Object.freeze({
+  route: "dashboard",
+  accent: "forest",
+});
+
+function readPersisted() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return { ...DEFAULT_STATE };
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_STATE, ...parsed };
+  } catch {
+    return { ...DEFAULT_STATE };
+  }
+}
+
+function writePersisted(state) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  } catch {
+    /* storage disabled / quota exceeded — fail silently */
+  }
+}
+
+function DataMissingBanner() {
+  return (
+    <div className="callout" style={{ marginTop: 22 }}>
+      <div className="uc">Data module not generated</div>
+      <div className="rule-terra kicker-rule" />
+      <p className="t-body" style={{ marginTop: 6 }}>
+        The <span className="mono">data/boats-data.js</span> file has not yet been
+        built. Run the pipeline once to populate the views:
+      </p>
+      <pre
+        className="mono"
+        style={{
+          background: "var(--bg-2)",
+          padding: "12px 14px",
+          margin: "14px 0 0",
+          fontSize: 13,
+          overflowX: "auto",
+        }}
+      >{`python -m venv .venv
+.venv\\Scripts\\activate    # or: source .venv/bin/activate
+pip install -r requirements.txt
+python scripts/fetch_latest.py
+python scripts/build_boats_data.py cache/latest.ods data/
+python scripts/bundle.py`}</pre>
+    </div>
+  );
+}
+
+function App() {
+  const [state, setState] = useState(readPersisted);
+
+  useEffect(() => {
+    writePersisted(state);
+    document.documentElement.dataset.accent = state.accent;
+  }, [state]);
+
+  const [methodologyOpen, setMethodologyOpen] = useState(false);
+  const [tweaksOpen, setTweaksOpen] = useState(false);
+
+  const navigate = useCallback((route) => {
+    setState((s) => ({ ...s, route }));
+  }, []);
+
+  const setAccent = useCallback((accent) => {
+    setState((s) => ({ ...s, accent }));
+  }, []);
+
+  const hasData = typeof window !== "undefined" && !!window.BOATS_DAILY;
+
+  return (
+    <>
+      <SiteHeader
+        route={state.route}
+        onNavigate={navigate}
+        onOpenMethodology={() => setMethodologyOpen(true)}
+        onOpenTweaks={() => setTweaksOpen(true)}
+      />
+
+      <main className="fade-enter" key={state.route /* remount for fade on route change */}>
+        {!hasData && (
+          <div className="page">
+            <DataMissingBanner />
+          </div>
+        )}
+
+        {hasData && state.route === "dashboard"  && <DashboardView />}
+        {hasData && state.route === "story"      && <StoryView />}
+        {hasData && state.route === "datasets"   && <DatasetsView />}
+        {hasData && state.route === "build"      && <BuildView />}
+      </main>
+
+      <SiteFooter />
+
+      <MethodologyDrawer
+        open={methodologyOpen}
+        onClose={() => setMethodologyOpen(false)}
+      />
+      <TweakPanel
+        open={tweaksOpen}
+        onClose={() => setTweaksOpen(false)}
+        accent={state.accent}
+        onAccentChange={setAccent}
+      />
+    </>
+  );
+}
+
+/* Mount */
+const rootEl = document.getElementById("root");
+if (rootEl) {
+  ReactDOM.createRoot(rootEl).render(<App />);
+}
+/* BUNDLE_END */
+</script>
+</body>
+</html>
