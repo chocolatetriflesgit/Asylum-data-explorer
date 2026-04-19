@@ -75,7 +75,7 @@ function WeeklySeriesChart() {
     <Figure
       subtitle="Weekly totals"
       title="Migrants arriving by small boat, weekly"
-      caption="Weekly ending Saturday. Preventions (where reported from 2023) overlaid in terracotta."
+      caption="Weekly ending Sunday. Preventions (where reported from 2023) overlaid in terracotta."
       source="UK Home Office — SB_02"
     >
       <LineChart
