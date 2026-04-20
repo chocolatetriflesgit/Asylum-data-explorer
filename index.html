@@ -937,8 +937,11 @@ function RegionWorldMap({ data, width=720, height=380 }) {
   const byName = Object.fromEntries(data.map(d => [d.name, d.v]));
   const total = data.reduce((s, d) => s + d.v, 0);
   const vMax = Math.max(...data.map(d => d.v), 1);
-  // Perceptual sqrt curve so small regions are still visible.
-  const shade = v => 0.18 + Math.sqrt(v / vMax) * 0.78;
+  // Shared 6-stop palette, sqrt-scaled so small regions stay visible.
+  const fillFor = v => {
+    if (!(v > 0)) return ATLAS_PALETTE[0];
+    return atlasPaletteColor(Math.sqrt(v / vMax));
+  };
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
       <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block'}}>
@@ -952,7 +955,7 @@ function RegionWorldMap({ data, width=720, height=380 }) {
               onMouseLeave={hide}
               style={{cursor:'crosshair'}}>
               <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={10}
-                fill="var(--accent-gold)" fillOpacity={shade(v)}
+                fill={fillFor(v)}
                 stroke="var(--rule-2)" strokeWidth={0.75}/>
               <text x={r.x + r.w/2} y={r.y + r.h/2 + 4} textAnchor="middle"
                 fontSize={11} fontFamily="var(--serif)" fill="var(--ink)"
@@ -966,7 +969,7 @@ function RegionWorldMap({ data, width=720, height=380 }) {
         {byName['Other / Unclassified'] !== undefined && (
           <g onMouseMove={e => show(e, <span><b>Other / Unclassified</b> · <span className="tnum">{fmtN(byName['Other / Unclassified'])}</span> · Stateless, refugee, unknown</span>)} onMouseLeave={hide} style={{cursor:'crosshair'}}>
             <rect x={width-130} y={height-46} width={120} height={34} rx={6}
-              fill="var(--accent-gold)" fillOpacity={shade(byName['Other / Unclassified'])}
+              fill={fillFor(byName['Other / Unclassified'])}
               stroke="var(--rule-2)" strokeWidth={0.75}/>
             <text x={width-70} y={height-25} textAnchor="middle" fontSize="10.5" fontFamily="var(--serif)" fill="var(--ink)" style={{pointerEvents:'none'}}>Other / Unclassified</text>
           </g>
@@ -980,7 +983,12 @@ function RegionWorldMap({ data, width=720, height=380 }) {
 function RegionTable({ data }) {
   const total = data.reduce((s, d) => s + d.v, 0);
   const vMax = Math.max(...data.map(d => d.v), 1);
-  const shade = v => 0.18 + Math.sqrt(v / vMax) * 0.78;
+  // Legend swatches reuse the same 6-stop palette as the map, so the colour
+  // next to a region's name matches the colour painted on the map itself.
+  const fillFor = v => {
+    if (!(v > 0)) return ATLAS_PALETTE[0];
+    return atlasPaletteColor(Math.sqrt(v / vMax));
+  };
   return (
     <table style={{width:'100%',borderCollapse:'collapse',fontSize:13.5}}>
       <thead>
@@ -994,7 +1002,7 @@ function RegionTable({ data }) {
         {data.map(r => (
           <tr key={r.name} style={{borderBottom:'1px solid var(--rule)'}}>
             <td style={{padding:'10px 0',color:'var(--ink)'}}>
-              <span style={{display:'inline-block',width:12,height:12,marginRight:8,verticalAlign:'middle',background:'var(--accent-gold)',opacity:shade(r.v),borderRadius:2,border:'1px solid var(--rule-2)'}}/>
+              <span style={{display:'inline-block',width:12,height:12,marginRight:8,verticalAlign:'middle',background:fillFor(r.v),borderRadius:2,border:'1px solid var(--rule-2)'}}/>
               {r.name}
             </td>
             <td className="tnum" style={{padding:'10px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
@@ -1012,6 +1020,32 @@ function RegionTable({ data }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Shared 6-stop choropleth palette + interpolation helpers.
+// Used by both WorldMapChoropleth (dashboard Fig.08) and AtlasChoropleth
+// (top-level /atlas view). Defined here in charts.jsx so it is in scope
+// before atlas-view.jsx loads in the bundle.
+// ─────────────────────────────────────────────────────────────
+const ATLAS_PALETTE = ['#f5ecd8','#d4b86a','#b85c38','#6b4a2a','#2d4532','#1c3d2e'];
+
+function atlasLerpHex(a, b, t) {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const ar = (pa >> 16) & 255, ag = (pa >> 8) & 255, ab = pa & 255;
+  const br = (pb >> 16) & 255, bg = (pb >> 8) & 255, bb = pb & 255;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0')}`;
+}
+
+function atlasPaletteColor(t) {
+  const n = ATLAS_PALETTE.length - 1;
+  const x = Math.max(0, Math.min(1, t)) * n;
+  const i = Math.floor(x);
+  if (i >= n) return ATLAS_PALETTE[n];
+  return atlasLerpHex(ATLAS_PALETTE[i], ATLAS_PALETTE[i + 1], x - i);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Country-level choropleth — each country filled by its region's shade.
 // Falls back to the schematic RegionWorldMap if WORLD_MAP hasn't been
 // generated (i.e. scripts/build_world_map.py hasn't been run).
@@ -1023,7 +1057,12 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
   const byRegion = Object.fromEntries(data.map(d => [d.name, d.v]));
   const total = data.reduce((s, d) => s + d.v, 0);
   const vMax = Math.max(...data.map(d => d.v), 1);
-  const shade = v => 0.18 + Math.sqrt(v / vMax) * 0.78;
+  // sqrt compresses the long tail so mid-range regions reach the middle stops
+  // of the palette instead of all collapsing into the lightest band.
+  const fillFor = v => {
+    if (!(v > 0)) return ATLAS_PALETTE[0];
+    return atlasPaletteColor(Math.sqrt(v / vMax));
+  };
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
       <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block'}}>
@@ -1036,7 +1075,7 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
             // ISO alone isn't unique. Compose with name + index for a stable key.
             return (
               <path key={`${c.iso || ''}-${c.name}-${i}`} d={c.d}
-                fill="var(--accent-gold)" fillOpacity={shade(regionTotal)}
+                fill={fillFor(regionTotal)}
                 stroke="var(--rule-2)" strokeWidth={0.4}
                 onMouseMove={e => show(e, <span><b>{c.name}</b> · {c.region}{c.region !== 'Other / Unclassified' ? <> · region total <span className="tnum">{fmtN(regionTotal)}</span> · {pct.toFixed(1)}%</> : null}</span>)}
                 onMouseLeave={hide}
@@ -1048,7 +1087,7 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
         {byRegion['Other / Unclassified'] !== undefined && (
           <g onMouseMove={e => show(e, <span><b>Other / Unclassified</b> · <span className="tnum">{fmtN(byRegion['Other / Unclassified'])}</span> · Stateless, refugee, unknown</span>)} onMouseLeave={hide} style={{cursor:'crosshair'}}>
             <rect x={width-130} y={height-46} width={120} height={34} rx={6}
-              fill="var(--accent-gold)" fillOpacity={shade(byRegion['Other / Unclassified'])}
+              fill={fillFor(byRegion['Other / Unclassified'])}
               stroke="var(--rule-2)" strokeWidth={0.75}/>
             <text x={width-70} y={height-25} textAnchor="middle" fontSize="10.5" fontFamily="var(--serif)" fill="var(--ink)" style={{pointerEvents:'none'}}>Other / Unclassified</text>
           </g>
@@ -2716,27 +2755,9 @@ function resolveNat(mapCountryName) {
   return mapCountryName;
 }
 
-// Six-stop palette, lightest → darkest. Chosen to spread readable steps
-// across the whole distribution rather than relying on opacity of one hue.
-const ATLAS_PALETTE = ['#f5ecd8','#d4b86a','#b85c38','#6b4a2a','#2d4532','#1c3d2e'];
-
-function atlasLerpHex(a, b, t) {
-  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
-  const ar = (pa >> 16) & 255, ag = (pa >> 8) & 255, ab = pa & 255;
-  const br = (pb >> 16) & 255, bg = (pb >> 8) & 255, bb = pb & 255;
-  const r = Math.round(ar + (br - ar) * t);
-  const g = Math.round(ag + (bg - ag) * t);
-  const bl = Math.round(ab + (bb - ab) * t);
-  return `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0')}`;
-}
-
-function atlasPaletteColor(t) {
-  const n = ATLAS_PALETTE.length - 1;
-  const x = Math.max(0, Math.min(1, t)) * n;
-  const i = Math.floor(x);
-  if (i >= n) return ATLAS_PALETTE[n];
-  return atlasLerpHex(ATLAS_PALETTE[i], ATLAS_PALETTE[i + 1], x - i);
-}
+// ATLAS_PALETTE, atlasLerpHex and atlasPaletteColor are defined in charts.jsx
+// (loaded before this file in the bundle) so that both the dashboard's
+// WorldMapChoropleth and this top-level atlas view share the same 6-stop scale.
 
 function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, height=440 }) {
   const worldMap = (typeof WORLD_MAP !== 'undefined') ? WORLD_MAP : null;

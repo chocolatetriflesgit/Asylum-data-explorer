@@ -36,27 +36,9 @@ function resolveNat(mapCountryName) {
   return mapCountryName;
 }
 
-// Six-stop palette, lightest → darkest. Chosen to spread readable steps
-// across the whole distribution rather than relying on opacity of one hue.
-const ATLAS_PALETTE = ['#f5ecd8','#d4b86a','#b85c38','#6b4a2a','#2d4532','#1c3d2e'];
-
-function atlasLerpHex(a, b, t) {
-  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
-  const ar = (pa >> 16) & 255, ag = (pa >> 8) & 255, ab = pa & 255;
-  const br = (pb >> 16) & 255, bg = (pb >> 8) & 255, bb = pb & 255;
-  const r = Math.round(ar + (br - ar) * t);
-  const g = Math.round(ag + (bg - ag) * t);
-  const bl = Math.round(ab + (bb - ab) * t);
-  return `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0')}`;
-}
-
-function atlasPaletteColor(t) {
-  const n = ATLAS_PALETTE.length - 1;
-  const x = Math.max(0, Math.min(1, t)) * n;
-  const i = Math.floor(x);
-  if (i >= n) return ATLAS_PALETTE[n];
-  return atlasLerpHex(ATLAS_PALETTE[i], ATLAS_PALETTE[i + 1], x - i);
-}
+// ATLAS_PALETTE, atlasLerpHex and atlasPaletteColor are defined in charts.jsx
+// (loaded before this file in the bundle) so that both the dashboard's
+// WorldMapChoropleth and this top-level atlas view share the same 6-stop scale.
 
 function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, height=440 }) {
   const worldMap = (typeof WORLD_MAP !== 'undefined') ? WORLD_MAP : null;
