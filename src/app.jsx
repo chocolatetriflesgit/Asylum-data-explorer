@@ -1,310 +1,276 @@
-/* =========================================================================
-   app.jsx — chrome components: header, footer, search, methodology drawer.
-   Shared across every route.
-   ========================================================================= */
+// app.jsx — main application: header, router, index/story/build views
 
-/* Focus + Escape management for modal drawers. On open: remember the
-   previously-focused element, move focus onto the dialog, listen for
-   Escape. On close: return focus to the trigger. */
-function useDrawerA11y(open, onClose) {
-  const dialogRef = React.useRef(null);
-  const lastFocusRef = React.useRef(null);
-  React.useEffect(() => {
-    if (!open) return;
-    lastFocusRef.current = document.activeElement;
-    const focusTimer = setTimeout(() => dialogRef.current?.focus(), 0);
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      clearTimeout(focusTimer);
-      document.removeEventListener("keydown", onKey);
-      const prev = lastFocusRef.current;
-      if (prev && typeof prev.focus === "function") prev.focus();
-    };
-  }, [open, onClose]);
-  return dialogRef;
-}
+const { useState, useEffect, useRef, useMemo } = React;
 
-const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "story",     label: "Story" },
-  { id: "datasets",  label: "Datasets" },
-  { id: "build",     label: "Build" },
-];
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accent": "#1c3d2e"
+}/*EDITMODE-END*/;
 
-function SiteHeader({ route, onNavigate, onOpenMethodology, onOpenTweaks }) {
+// ─────────────────────────────────────────────────────────────
+// Header
+// ─────────────────────────────────────────────────────────────
+function Header({ route, setRoute, onSearch, onMethod }) {
+  const tabs = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'index', label: 'Stories' },
+    { id: 'datasets', label: 'Datasets' },
+    { id: 'build', label: 'Build a chart' },
+  ];
   return (
-    <header
-      style={{
-        borderBottom: "1px solid var(--rule)",
-        padding: "22px 48px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 28,
-      }}
-    >
-      <div>
-        <div className="uc">Home Office Data Explorer</div>
-        <div
-          className="t-sub"
-          style={{ marginTop: 2 }}
-        >
-          Small boats<span className="end-dot" />
-        </div>
-      </div>
-
-      <nav
-        aria-label="Primary"
-        style={{ display: "flex", gap: 6 }}
-      >
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            className="pressable"
-            aria-pressed={route === item.id}
-            onClick={() => onNavigate(item.id)}
-          >
-            {item.label}
+    <header style={{background:'var(--bg)',borderBottom:'1px solid var(--rule)',position:'sticky',top:0,zIndex:50,backdropFilter:'blur(6px)'}}>
+      <div style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:40}}>
+        <button onClick={()=>setRoute({name:'index'})} className="pressable" style={{display:'flex',alignItems:'baseline',gap:12,whiteSpace:'nowrap',flexShrink:0}}>
+          <span style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:600,color:'var(--accent)',letterSpacing:-0.2}}>Home Office</span>
+          <span style={{fontFamily:'var(--serif)',fontSize:15,fontStyle:'italic',color:'var(--muted)'}}>data explorer</span>
+        </button>
+        <nav style={{display:'flex',alignItems:'center',gap:28}}>
+          {tabs.map(t=>(
+            <button key={t.id} onClick={()=>setRoute({name:t.id})}
+              className="ulh"
+              style={{fontSize:13.5,color: route.name===t.id ? 'var(--accent)':'var(--ink-2)',
+                     borderBottom: route.name===t.id ? '1px solid var(--accent)':'1px solid transparent',
+                     paddingBottom:3}}>
+              {t.label}
+            </button>
+          ))}
+          <button onClick={onSearch} className="pressable" aria-label="Search" style={{fontSize:13.5,color:'var(--muted)',display:'flex',alignItems:'center',gap:6}}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/></svg>
+            <span>Search</span>
           </button>
-        ))}
-      </nav>
-
-      <div style={{ display: "flex", gap: 6 }}>
-        <SearchStub />
-        <button className="pressable" onClick={onOpenMethodology}>
-          Methodology
-        </button>
-        <button
-          className="pressable"
-          onClick={onOpenTweaks}
-          aria-label="Open theme tweak panel"
-          title="Tweak accent colour"
-        >
-          Tweaks
-        </button>
+          <button onClick={onMethod} className="ulh" style={{fontSize:13.5,color:'var(--muted)'}}>Methodology</button>
+        </nav>
       </div>
     </header>
   );
 }
 
-function SearchStub() {
-  const [value, setValue] = React.useState("");
-  return (
-    <input
-      type="search"
-      placeholder="Search"
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      style={{
-        font: "inherit",
-        border: "1px solid var(--rule-2)",
-        padding: "6px 10px",
-        background: "var(--bg)",
-        color: "var(--ink)",
-        width: 160,
-      }}
-    />
-  );
-}
+// ─────────────────────────────────────────────────────────────
+// Search modal (command palette style)
+// ─────────────────────────────────────────────────────────────
+function SearchModal({ open, onClose, onPick }) {
+  const [q, setQ] = useState('');
+  const inputRef = useRef(null);
+  useEffect(()=>{ if (open) setTimeout(()=>inputRef.current?.focus(), 40); }, [open]);
+  useEffect(()=>{
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return ()=>window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
-function SiteFooter() {
-  const meta = (typeof window !== "undefined" && window.BOATS_META) || null;
-  const sourceDated = meta?.sourceDated || "pending first fetch";
-  const latest = meta?.latestDataPoint || "—";
-  const generated = meta?.generatedAt ? meta.generatedAt.slice(0, 10) : "—";
+  const items = useMemo(()=>{
+    const stories = STORIES.map(s=>({kind:'Story', id:s.id, label:s.title, sub:s.kicker, go:{name:'story', id:s.id}}));
+    const datasets = DATASETS.map(d=>({kind:'Dataset', id:d.code, label:d.name, sub:d.code+' · '+d.rows+' rows', go:{name:'datasets'}}));
+    const all = [...stories, ...datasets];
+    if (!q) return all.slice(0,8);
+    const ql = q.toLowerCase();
+    return all.filter(i => i.label.toLowerCase().includes(ql) || i.sub.toLowerCase().includes(ql)).slice(0,10);
+  },[q]);
+
+  if (!open) return null;
   return (
-    <footer className="site-footer">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 28 }}>
-        <div>
-          <div className="uc">Source</div>
-          <div className="rule-terra kicker-rule" />
-          <p className="t-body">
-            UK Home Office —{" "}
-            <a
-              href="https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Migrants detected crossing the English Channel in small boats
-            </a>
-            . Published under the Open Government Licence v3.0.
-          </p>
+    <div style={{position:'fixed',inset:0,background:'rgba(26,26,23,.35)',zIndex:200,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:'12vh'}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'var(--bg)',border:'1px solid var(--rule-2)',boxShadow:'0 20px 60px rgba(0,0,0,.15)',width:'min(620px,92vw)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'18px 22px',borderBottom:'1px solid var(--rule)'}}>
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/></svg>
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search 1.24 million records, stories, datasets…"
+            style={{flex:1,border:'none',outline:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:17,color:'var(--ink)'}}/>
+          <span className="mono" style={{fontSize:11,color:'var(--muted-2)',border:'1px solid var(--rule-2)',padding:'2px 5px'}}>esc</span>
         </div>
-        <div>
-          <div className="uc">Pipeline</div>
-          <div className="rule-olive kicker-rule" />
-          <p className="t-body">
-            Source file dated <span className="tnum">{sourceDated}</span>.
-            Latest data point <span className="tnum">{latest}</span>.
-            Regenerated <span className="tnum">{generated}</span>.
-          </p>
-        </div>
-        <div>
-          <div className="uc">Notes</div>
-          <div className="rule-gold kicker-rule" />
-          <p className="t-body">
-            No editorial framing. Numbers trace to specific{" "}
-            <span className="mono">BOATS_*</span> fields.
-          </p>
+        <div style={{maxHeight:'50vh',overflowY:'auto'}}>
+          {items.length === 0 ? (
+            <div style={{padding:'32px 22px',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>No matches.</div>
+          ) : items.map((it,i)=>(
+            <button key={i} onClick={()=>{ onPick(it.go); onClose(); }}
+              style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'12px 22px',borderBottom:'1px solid var(--rule)',textAlign:'left'}}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--bg-2)'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <div>
+                <div style={{fontSize:14,color:'var(--ink)'}}>{it.label}</div>
+                <div style={{fontSize:11.5,color:'var(--muted)',marginTop:2}} className="uc">{it.kind} · {it.sub}</div>
+              </div>
+              <span style={{color:'var(--muted-2)'}}>↗</span>
+            </button>
+          ))}
         </div>
       </div>
-    </footer>
+    </div>
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Methodology drawer
+// ─────────────────────────────────────────────────────────────
 function MethodologyDrawer({ open, onClose }) {
-  const meta = (typeof window !== "undefined" && window.BOATS_META) || null;
-  const notes = meta?.notes || [];
-  const dialogRef = useDrawerA11y(open, onClose);
   return (
     <>
-      <div
-        className={"drawer-scrim" + (open ? " is-open" : "")}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <aside
-        ref={dialogRef}
-        tabIndex={-1}
-        className={"drawer" + (open ? " is-open" : "")}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Methodology"
-        aria-hidden={!open}
-      >
-        <div className="page-drawer">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <div>
-              <div className="uc">Methodology</div>
-              <div className="rule-terra kicker-rule" />
-              <h2 className="t-section">How the numbers are built</h2>
+      <div className={`drawer-scrim ${open?'open':''}`} onClick={onClose}/>
+      <aside className={`drawer ${open?'open':''}`}>
+        <div style={{padding:'32px 40px',borderBottom:'1px solid var(--rule)',display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+          <div>
+            <div className="uc" style={{color:'var(--accent-warn)',marginBottom:6}}>Notes on methodology</div>
+            <h2 style={{fontFamily:'var(--serif)',fontSize:28,margin:0,fontWeight:500,letterSpacing:-0.3}}>How these numbers are made</h2>
+          </div>
+          <button onClick={onClose} className="pressable" aria-label="Close" style={{fontSize:22,color:'var(--muted)'}}>×</button>
+        </div>
+        <div style={{padding:'28px 40px',fontSize:15,lineHeight:1.62,color:'var(--ink-2)'}}>
+          <p style={{margin:'0 0 16px',textWrap:'pretty'}}>Figures on this page are drawn from the Home Office Immigration Statistics quarterly release, published on the second Thursday of February, May, August and November. The dataset goes back to 1979 for asylum applications and to 2018 for small-boat arrivals.</p>
+
+          <h3 style={{fontFamily:'var(--serif)',fontSize:14,textTransform:'uppercase',letterSpacing:0.08,margin:'28px 0 8px',color:'var(--accent)'}}>Main applicants vs. dependants</h3>
+          <p style={{margin:'0 0 16px'}}>Unless otherwise stated, our counts refer to <em>main applicants</em> only. An asylum claim may cover dependants (spouse, children under 18) — including them roughly increases total counts by 25–30%.</p>
+
+          <h3 style={{fontFamily:'var(--serif)',fontSize:14,textTransform:'uppercase',letterSpacing:0.08,margin:'28px 0 8px',color:'var(--accent)'}}>Grant rate definition</h3>
+          <p style={{margin:'0 0 16px'}}>Grant rate is the share of <em>initial decisions</em> that resulted in asylum or humanitarian protection being granted, excluding withdrawn and non-substantive cases.</p>
+
+          <h3 style={{fontFamily:'var(--serif)',fontSize:14,textTransform:'uppercase',letterSpacing:0.08,margin:'28px 0 8px',color:'var(--accent)'}}>Small boats</h3>
+          <p style={{margin:'0 0 16px'}}>Small-boat arrivals are recorded by Border Force on arrival at Dover or on interception in the Channel. The series begins January 2018. Not every arrival lodges an asylum claim, although the majority do.</p>
+
+          <h3 style={{fontFamily:'var(--serif)',fontSize:14,textTransform:'uppercase',letterSpacing:0.08,margin:'28px 0 8px',color:'var(--accent)'}}>Updates and revisions</h3>
+          <p style={{margin:'0 0 16px'}}>Historic figures are occasionally revised by the Home Office when new returns are received or coding errors are corrected. We reflect the latest published revision and do not freeze snapshots. See the <span style={{borderBottom:'1px solid var(--accent)',color:'var(--accent)'}}>revision log</span> for a full history.</p>
+
+          <div style={{marginTop:32,padding:'16px 20px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)'}}>
+            <div className="uc" style={{color:'var(--accent)',marginBottom:6}}>Contact</div>
+            <div style={{fontSize:14}}>Questions, corrections, data requests: <span style={{borderBottom:'1px solid currentColor'}}>data@example.gov.uk</span></div>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Shared story card hero (tiny visual per story)
+// ─────────────────────────────────────────────────────────────
+function StoryHero({ kind }) {
+  if (kind === 'trend') return <Spark data={ASYLUM_ANNUAL} width={220} height={62}/>;
+  if (kind === 'bars') return (
+    <svg width="220" height="62" style={{display:'block'}}>
+      {[7850,5928,4310,3512,3180].map((v,i)=>(
+        <rect key={i} x={i*44} y={62-v/150} width={34} height={v/150} fill="var(--accent)"/>
+      ))}
+    </svg>
+  );
+  if (kind === 'backlog') return <Spark data={BACKLOG} width={220} height={62} stroke="var(--accent-warn)"/>;
+  if (kind === 'area') return (
+    <Spark data={ASYLUM_ANNUAL.map(d=>({y:d.y,v:d.boats}))} width={220} height={62} stroke="var(--accent-2)"/>
+  );
+  if (kind === 'ring') return (
+    <svg width="220" height="62" viewBox="0 0 220 62">
+      <g transform="translate(30,31)">
+        <circle r="22" fill="none" stroke="var(--bg-2)" strokeWidth="5"/>
+        <circle r="22" fill="none" stroke="var(--accent)" strokeWidth="5"
+          strokeDasharray={`${2*Math.PI*22}`}
+          strokeDashoffset={2*Math.PI*22*(1-.47)}
+          transform="rotate(-90)"/>
+        <text textAnchor="middle" y="5" fontFamily="var(--serif)" fontSize="16" fill="var(--ink)" style={{fontVariantNumeric:'tabular-nums'}}>47%</text>
+      </g>
+      <text x="68" y="28" fontFamily="var(--serif)" fontSize="11" fill="var(--muted)" className="uc">Grant rate</text>
+      <text x="68" y="46" fontFamily="var(--serif)" fontSize="12" fill="var(--ink-2)" style={{fontStyle:'italic'}}>up from 24% (2019)</text>
+    </svg>
+  );
+  if (kind === 'map') return (
+    <svg width="220" height="62" style={{display:'block'}}>
+      {REGIONS.slice(0,12).map((r,i)=>(
+        <rect key={i} x={i*18} y={62 - (r.v/15000)*56} width={14} height={(r.v/15000)*56} fill="var(--accent)" opacity={0.4 + (r.v/15000)*0.6}/>
+      ))}
+    </svg>
+  );
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Index view
+// ─────────────────────────────────────────────────────────────
+function IndexView({ setRoute }) {
+  const featured = STORIES[0];
+  const rest = STORIES.slice(1);
+  return (
+    <main className="fade-enter">
+      {/* hero / featured story */}
+      <section style={{maxWidth:1240,margin:'0 auto',padding:'56px 48px 40px',borderBottom:'1px solid var(--rule)'}}>
+        <div style={{display:'grid',gridTemplateColumns:'minmax(320px,420px) 1fr',gap:72,alignItems:'start'}}>
+          <div>
+            <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:18}}>
+              <span style={{background:'var(--accent-warn)',color:'var(--bg)',padding:'4px 9px',fontSize:10.5,letterSpacing:1.2,textTransform:'uppercase'}}>Featured</span>
+              <span className="uc" style={{color:'var(--muted)',paddingBottom:4,borderBottom:'1.5px solid var(--accent-2)'}}>{featured.kicker} · {featured.date}</span>
             </div>
-            <button className="pressable" onClick={onClose} aria-label="Close drawer">
-              Close
+            <h1 style={{fontFamily:'var(--serif)',fontSize:56,lineHeight:1,letterSpacing:-0.8,margin:'0 0 22px',fontWeight:400,color:'var(--ink)',textWrap:'balance'}}>
+              The <em style={{fontStyle:'italic',color:'var(--accent)'}}>long tail</em><br/>of the 2022 surge
+            </h1>
+            <p style={{fontSize:17.5,lineHeight:1.55,color:'var(--ink-2)',margin:'0 0 24px',textWrap:'pretty'}}>
+              {featured.dek} Eleven years of data, told in four charts — and the questions the numbers don't answer.
+            </p>
+            <div style={{display:'flex',gap:20,alignItems:'center',fontSize:13,color:'var(--muted)'}}>
+              <button onClick={()=>setRoute({name:'story',id:featured.id})}
+                style={{background:'var(--accent)',color:'var(--bg)',padding:'10px 18px',fontSize:13,letterSpacing:0.04,fontFamily:'var(--serif)'}}>
+                Read the story →
+              </button>
+              <span>{featured.reading} read</span>
+            </div>
+          </div>
+          <div>
+            <div style={{background:'var(--bg-2)',padding:'28px 32px',border:'1px solid var(--rule)'}}>
+              <LineChart
+                data={ASYLUM_ANNUAL}
+                title="Asylum applications, UK"
+                subtitle="Figure 01 · 2014–2024"
+                source="Home Office Immigration Statistics · ASY_D01"
+                annotations={[
+                  { y: 2023, label: 'Peak: 84,425', dx: -140, dy: -12 },
+                  { y: 2020, label: 'Pandemic', dx: -70, dy: 50 },
+                ]}
+                caption="Main applicants only. Excludes dependants. The 2024 figure is provisional and may be revised in the August release."
+                width={720} height={320}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Key numbers strip */}
+      <section style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px',borderBottom:'1px solid var(--rule)'}}>
+        <div className="uc" style={{marginBottom:18,color:'var(--muted)'}}>At a glance · 2024</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:0,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)'}}>
+          {[
+            { l:'Applications', v:'80,782', d:'↓ 4.3% vs 2023'},
+            { l:'Grant rate', v:'47%', d:'up from 24% (2019)'},
+            { l:'Backlog', v:'91,200', d:'↓ 31% in one year'},
+            { l:'Small-boat arrivals', v:'36,816', d:'↑ 25% vs 2023'},
+            { l:'Resettled', v:'12,410', d:'across four schemes'},
+          ].map((s,i)=>(
+            <div key={i} style={{padding:'22px 24px',borderRight: i<4?'1px solid var(--rule)':'none'}}>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>{s.l}</div>
+              <div style={{fontFamily:'var(--serif)',fontSize:32,fontWeight:400,color:'var(--ink)',letterSpacing:-0.3,lineHeight:1}} className="tnum">{s.v}</div>
+              <div style={{fontSize:12.5,color:'var(--muted)',marginTop:8,fontStyle:'italic'}}>{s.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Story grid */}
+      <section style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
+        <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:24}}>
+          <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,margin:0,letterSpacing:-0.2}}>Recent stories</h2>
+          <div className="uc" style={{color:'var(--muted)'}}>Showing {rest.length} of {STORIES.length - 1 + 24} · <span style={{borderBottom:'1px solid currentColor',cursor:'pointer'}}>All stories</span></div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
+          {rest.map(s=>(
+            <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})}
+              style={{background:'var(--bg)',padding:'26px 28px 24px',textAlign:'left',border:'none',cursor:'pointer',transition:'background .15s',display:'flex',flexDirection:'column',gap:16,minHeight:260}}
+              onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-2)'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='var(--bg)'}}>
+              <div className="uc" style={{color:'var(--accent-warn)',paddingBottom:4,borderBottom:'1.5px solid var(--accent-warn)',display:'inline-block'}}>{s.kicker}</div>
+              <div style={{fontFamily:'var(--serif)',fontSize:22,lineHeight:1.15,letterSpacing:-0.2,color:'var(--ink)',textWrap:'balance'}}>{s.title}</div>
+              <div style={{fontSize:14,lineHeight:1.5,color:'var(--ink-2)',textWrap:'pretty',flex:1}}>{s.dek}</div>
+              <div style={{borderTop:'1px solid var(--rule)',paddingTop:14,display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
+                <div className="uc" style={{color:'var(--muted)'}}>{s.date} · {s.reading}</div>
+                <StoryHero kind={s.hero}/>
+              </div>
             </button>
-          </div>
-
-          <p className="t-body" style={{ marginTop: 22 }}>
-            Every chart and KPI reads from a <span className="mono">BOATS_*</span>{" "}
-            global produced by <span className="mono">scripts/build_boats_data.py</span>.
-            The source is a weekly ODS from gov.uk; the build pipeline is the schema
-            source of truth.
-          </p>
-
-          <div className="callout">
-            <div className="uc">Provenance</div>
-            <p className="t-body" style={{ marginTop: 6 }}>
-              Source file:{" "}
-              <span className="mono">{meta?.sourceFile || "—"}</span>.
-              Regenerated{" "}
-              <span className="tnum">
-                {meta?.generatedAt ? meta.generatedAt.slice(0, 10) : "—"}
-              </span>
-              .
-            </p>
-          </div>
-
-          <div className="uc" style={{ marginTop: 28 }}>Notes from source</div>
-          <div className="rule-olive kicker-rule" />
-          {notes.length === 0 ? (
-            <p className="t-caption">
-              No notes extracted. (The ODS has not yet been built — run{" "}
-              <span className="mono">scripts/build_boats_data.py</span>.)
-            </p>
-          ) : (
-            <ol style={{ paddingLeft: 18, margin: 0 }}>
-              {notes.map((n, i) => (
-                <li key={i} className="t-body" style={{ margin: "10px 0" }}>
-                  {n}
-                </li>
-              ))}
-            </ol>
-          )}
+          ))}
         </div>
-      </aside>
-    </>
+      </section>
+    </main>
   );
 }
 
-const ACCENT_OPTIONS = [
-  { id: "forest", hex: "#1c3d2e" },
-  { id: "navy",   hex: "#1c2d4a" },
-  { id: "sage",   hex: "#4a6a4a" },
-  { id: "umber",  hex: "#6a4a2a" },
-  { id: "plum",   hex: "#4a2a3a" },
-  { id: "ink",    hex: "#1a1a17" },
-];
-
-function TweakPanel({ open, onClose, accent, onAccentChange }) {
-  const dialogRef = useDrawerA11y(open, onClose);
-  return (
-    <>
-      <div
-        className={"drawer-scrim" + (open ? " is-open" : "")}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <aside
-        ref={dialogRef}
-        tabIndex={-1}
-        className={"drawer" + (open ? " is-open" : "")}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Theme tweaks"
-        aria-hidden={!open}
-      >
-        <div className="page-drawer">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <div>
-              <div className="uc">Tweaks</div>
-              <div className="rule-accent kicker-rule" />
-              <h2 className="t-section">Accent</h2>
-            </div>
-            <button className="pressable" onClick={onClose}>Close</button>
-          </div>
-
-          <p className="t-caption" style={{ marginTop: 18 }}>
-            The only user-tweakable token. Everything that reads{" "}
-            <span className="mono">var(--accent)</span> updates live.
-          </p>
-
-          <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
-            {ACCENT_OPTIONS.map((opt) => {
-              const isActive = accent === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  className="pressable"
-                  onClick={() => onAccentChange(opt.id)}
-                  aria-pressed={isActive}
-                  title={opt.id}
-                  style={{
-                    width: 44,
-                    height: 44,
-                    background: opt.hex,
-                    border: 0,
-                    padding: 0,
-                    outline: isActive ? "2px solid var(--ink)" : "none",
-                    outlineOffset: 2,
-                  }}
-                />
-              );
-            })}
-          </div>
-
-          <div className="uc" style={{ marginTop: 36 }}>Sample</div>
-          <div className="rule-terra kicker-rule" />
-          <div style={{ marginTop: 10 }}>
-            <span className="tick tick-accent" />
-            <span className="t-body">Primary series (forest by default)</span>
-          </div>
-          <div style={{ marginTop: 6 }}>
-            <span className="tick" />
-            <span className="t-body">Attention / refusals (terracotta, fixed)</span>
-          </div>
-        </div>
-      </aside>
-    </>
-  );
-}
+Object.assign(window, { Header, SearchModal, MethodologyDrawer, IndexView, TWEAK_DEFAULTS });

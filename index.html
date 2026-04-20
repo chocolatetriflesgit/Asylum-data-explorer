@@ -1,221 +1,109 @@
 <!doctype html>
-<html lang="en-GB">
+<html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Home Office Data Explorer</title>
 <meta name="description" content="A browser-based data explorer for UK Home Office small-boats crossing data." />
-
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..900;1,8..60,300..900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
-<!-- React + Babel (single-file architecture: no build step at runtime) -->
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  /* =========================================================================
-     Design tokens — mirrors design/tokens.md exactly.
-     Update design/tokens.md first if you need to change anything here.
-     ========================================================================= */
   :root {
-    /* Neutrals */
-    --bg:       #fbfaf7;
-    --bg-2:     #f5f2ea;
-    --bg-3:     #efe9db;
-    --ink:      #1a1a17;
-    --ink-2:    #3a342a;
-    --muted:    #7a6d5a;
-    --muted-2:  #9a8f78;
-    --rule:     #e8e2d4;
-    --rule-2:   #d6cdb8;
-
-    /* Accents */
-    --accent:       #1c3d2e;   /* forest (primary / default) */
-    --accent-2:     #5a7d3b;   /* olive */
-    --accent-warn:  #b85c38;   /* terracotta */
-    --accent-gold:  #8a6d3b;   /* gold / umber */
-
-    /* Typography */
-    --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
-    --font-mono:  "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-
-    /* Layout max-widths */
-    --max-dashboard: 1300px;
-    --max-footer:    1240px;
-    --max-story:     720px;
-    --max-caption:   640px;
+    --bg: #fbfaf7;
+    --bg-2: #f5f2ea;
+    --bg-3: #efe9db;
+    --ink: #1a1a17;
+    --ink-2: #3a342a;
+    --muted: #7a6d5a;
+    --muted-2: #9a8f78;
+    --rule: #e8e2d4;
+    --rule-2: #d6cdb8;
+    --accent: #1c3d2e;           /* forest */
+    --accent-2: #5a7d3b;          /* olive */
+    --accent-warn: #b85c38;       /* terracotta */
+    --accent-gold: #8a6d3b;
+    --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
   }
-
-  /* Accent override palette (wired through the tweak panel in root.jsx).
-     Nothing else should be user-tweakable — the semantic roles are fixed. */
-  :root[data-accent="forest"] { --accent: #1c3d2e; }
-  :root[data-accent="navy"]   { --accent: #1c2d4a; }
-  :root[data-accent="sage"]   { --accent: #4a6a4a; }
-  :root[data-accent="umber"]  { --accent: #6a4a2a; }
-  :root[data-accent="plum"]   { --accent: #4a2a3a; }
-  :root[data-accent="ink"]    { --accent: #1a1a17; }
-
-  /* =========================================================================
-     Base
-     ========================================================================= */
-  * { box-sizing: border-box; }
-
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: var(--bg);
-    color: var(--ink);
-  }
-
-  body {
-    font-family: var(--font-serif);
-    font-size: 16px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    font-feature-settings: "onum" 1, "kern" 1;
-  }
-
-  h1, h2, h3, h4, h5, h6 { font-weight: 400; margin: 0; }
-  p { margin: 0 0 1em; }
-  a { color: var(--accent); text-decoration-color: var(--rule-2); text-underline-offset: 3px; }
-  a:hover { text-decoration-color: var(--accent); }
-
-  /* Typographic scale — use these classes rather than inventing new sizes.
-     Rhythm ladder for margins (only these values): 6, 8, 10, 14, 18, 22, 28, 36, 44. */
-  .t-hero    { font-size: 42px; letter-spacing: -0.4px; line-height: 1.04; }
-  .t-section { font-size: 28px; letter-spacing: -0.2px; line-height: 1.1; }
-  .t-sub     { font-size: 19px; font-weight: 500; letter-spacing: -0.1px; line-height: 1.2; }
-  .t-body    { font-size: 16px; line-height: 1.5; }
-  .t-caption { font-size: 12.5px; font-style: italic; color: var(--muted); line-height: 1.5; }
-  .t-axis    { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .t-kpi     { font-size: 42px; letter-spacing: -0.4px; line-height: 1; font-variant-numeric: tabular-nums; }
-
-  /* Small utilities */
-  .uc { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-  .sc { font-variant: small-caps; letter-spacing: 0.06em; text-transform: lowercase; }
-  .tnum { font-variant-numeric: tabular-nums; }
-  .mono { font-family: var(--font-mono); }
-
-  /* Rules / borders */
-  .rule { border: 0; border-top: 1px solid var(--rule); margin: 28px 0; }
-  .rule-strong { border: 0; border-top: 1px solid var(--rule-2); margin: 28px 0; }
-
-  /* Kicker rules (2px accent strap under a kicker label) */
-  .kicker-rule,
-  .rule-terra  { width: 36px; height: 2px; background: var(--accent-warn); border: 0; margin: 0 0 10px; }
-  .rule-olive  { background: var(--accent-2); }
-  .rule-gold   { background: var(--accent-gold); }
-  .rule-accent { background: var(--accent); }
-
-  /* End-of-paragraph dot */
-  .end-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-warn); margin-left: 6px; vertical-align: 2px; }
-  .end-dot-olive { background: var(--accent-2); }
-  .end-dot-gold  { background: var(--accent-gold); }
-
-  /* Tick marker (legend indicator) */
-  .tick { display: inline-block; width: 10px; height: 2px; background: var(--accent-warn); margin-right: 6px; vertical-align: 3px; }
-  .tick-olive  { background: var(--accent-2); }
-  .tick-gold   { background: var(--accent-gold); }
-  .tick-accent { background: var(--accent); }
-
-  /* Containers */
-  .page        { max-width: var(--max-dashboard); margin: 0 auto; padding: 36px 48px 80px; }
-  .page-story  { max-width: var(--max-story);     margin: 0 auto; padding: 36px 24px 80px; }
-  .page-drawer { padding: 28px 40px; }
-  .caption-col { max-width: var(--max-caption); }
-
-  /* Chart wrapper (tooltips anchor inside) */
-  .chart-wrap { position: relative; margin: 0 0 28px; }
-
-  /* KPI cards */
-  .kpi-grid   { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-  .kpi        { position: relative; padding: 22px 18px 18px; background: var(--bg-2); }
-  .kpi::before { content: ""; position: absolute; top: 0; left: 0; width: 36px; height: 3px; background: var(--accent-warn); }
-  .kpi.olive::before  { background: var(--accent-2); }
-  .kpi.gold::before   { background: var(--accent-gold); }
-  .kpi.accent::before { background: var(--accent); }
-  .kpi.ink::before    { background: var(--ink); }
-  .kpi .kpi-label { color: var(--muted); margin-bottom: 6px; }
-
-  /* Chart row */
-  .chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 28px; }
-
-  /* Buttons / pressables */
-  button { font: inherit; color: inherit; background: transparent; border: 1px solid var(--rule-2); padding: 6px 14px; cursor: pointer; }
-  button.pressable { transition: opacity 150ms ease; }
-  button.pressable:hover { opacity: 0.75; }
-  button[aria-pressed="true"], button.is-active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 2px; }
-  input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
-  [role="dialog"]:focus-visible { outline: none; }
-
-  /* Tooltip */
-  .tooltip {
-    position: absolute;
-    background: var(--ink);
-    color: var(--bg);
-    font-size: 12px;
-    padding: 8px 10px;
-    pointer-events: none;
-    white-space: nowrap;
-    transition: opacity 120ms ease;
-    z-index: 10;
-    font-variant-numeric: tabular-nums;
-  }
-  .tooltip::after {
-    content: "";
-    position: absolute;
-    bottom: -5px;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: var(--ink);
-    border-bottom-width: 0;
-  }
-
-  /* Drawer */
-  .drawer-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.3); opacity: 0; pointer-events: none; transition: opacity 300ms cubic-bezier(.2,.7,.2,1); z-index: 20; }
-  .drawer-scrim.is-open { opacity: 1; pointer-events: auto; }
-  .drawer { position: fixed; top: 0; right: 0; height: 100vh; width: min(520px, 92vw); background: var(--bg); border-left: 1px solid var(--rule-2); transform: translateX(100%); transition: transform 300ms cubic-bezier(.2,.7,.2,1); z-index: 30; overflow-y: auto; }
-  .drawer.is-open { transform: translateX(0); }
-
-  /* Range slider */
-  input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; }
-  input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: var(--rule-2); }
-  input[type="range"]::-moz-range-track { height: 2px; background: var(--rule-2); }
-  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); margin-top: -6px; }
-  input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); }
-
-  /* Motion */
-  .fade-enter { opacity: 1; transform: translateY(0); }
-  @media (prefers-reduced-motion: no-preference) {
-    .fade-enter { animation: fadeIn 350ms ease; }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-  }
-
-  /* Methodology callout */
-  .callout { background: var(--bg-3); padding: 18px 22px; border-left: 2px solid var(--accent-warn); margin: 22px 0; }
-
-  /* Footer */
-  footer.site-footer { max-width: var(--max-footer); margin: 0 auto; padding: 36px 48px; color: var(--muted); border-top: 1px solid var(--rule); }
-
-  /* Tables (used in /datasets) */
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
-  th { color: var(--muted); font-weight: 500; }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--serif);font-feature-settings:"onum" 1,"kern" 1}
+  body{font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;color:inherit;cursor:pointer;background:none;border:none;padding:0}
+  .mono{font-family:var(--mono);font-feature-settings:"tnum" 1}
+  .tnum{font-variant-numeric:tabular-nums}
+  .sc{font-variant:small-caps;letter-spacing:.06em;text-transform:lowercase}
+  .uc{letter-spacing:.08em;text-transform:uppercase;font-size:11px;color:var(--muted)}
+  /* scrollbar */
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--rule-2);border-radius:0}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  /* tweak panel */
+  .tweak-panel{position:fixed;bottom:20px;right:20px;background:#fff;border:1px solid var(--rule-2);box-shadow:0 4px 20px rgba(0,0,0,.08);padding:16px 18px;z-index:100;min-width:220px;display:none;font-size:13px}
+  .tweak-panel.open{display:block}
+  .swatch{width:22px;height:22px;border-radius:50%;border:1px solid var(--rule-2);cursor:pointer;transition:transform .1s}
+  .swatch:hover{transform:scale(1.1)}
+  .swatch.active{outline:2px solid var(--ink);outline-offset:2px}
+  /* tiny transitions */
+  .fade-enter{animation:fadeIn .35s ease both}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .pressable{transition:opacity .15s}
+  .pressable:hover{opacity:.7}
+  /* drawer */
+  .drawer-scrim{position:fixed;inset:0;background:rgba(26,26,23,.3);z-index:80;opacity:0;pointer-events:none;transition:opacity .25s}
+  .drawer-scrim.open{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(520px,92vw);background:var(--bg);border-left:1px solid var(--rule-2);transform:translateX(100%);transition:transform .3s cubic-bezier(.2,.7,.2,1);z-index:90;overflow-y:auto}
+  .drawer.open{transform:translateX(0)}
+  /* tooltip */
+  .tt{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);padding:8px 10px;font-size:12px;line-height:1.4;transform:translate(-50%,calc(-100% - 10px));white-space:nowrap;z-index:20;opacity:0;transition:opacity .12s}
+  .tt.on{opacity:1}
+  .tt:after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--ink)}
+  /* range */
+  input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;width:100%}
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--rule-2)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);margin-top:-6px;border:2px solid var(--bg)}
+  input[type=range]::-moz-range-track{height:2px;background:var(--rule-2)}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);border:2px solid var(--bg)}
+  /* link underline on hover */
+  .ulh{border-bottom:1px solid transparent;transition:border-color .15s}
+  .ulh:hover{border-bottom-color:currentColor}
+  /* checkbox */
+  .chk{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+  .chk input{appearance:none;width:14px;height:14px;border:1px solid var(--rule-2);background:#fff;margin:0;position:relative}
+  .chk input:checked{background:var(--accent);border-color:var(--accent)}
+  .chk input:checked:after{content:"";position:absolute;inset:2px;background:var(--bg);clip-path:polygon(14% 44%,0 60%,38% 100%,100% 22%,84% 6%,38% 70%)}
+  /* segmented */
+  .seg{display:inline-flex;border:1px solid var(--rule-2);background:#fff}
+  .seg button{padding:6px 12px;font-size:12px;letter-spacing:.04em;color:var(--muted);border-right:1px solid var(--rule-2)}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--accent);color:var(--bg)}
+  /* accent rule under kickers */
+  .kicker-rule{display:inline-block;padding-bottom:6px;border-bottom:2px solid var(--accent-warn);margin-bottom:10px}
+  .rule-olive{border-bottom:2px solid var(--accent-2)}
+  .rule-gold{border-bottom:2px solid var(--accent-gold)}
+  .rule-terra{border-bottom:2px solid var(--accent-warn)}
+  .rule-accent{border-bottom:2px solid var(--accent)}
+  .end-dot:after{content:"";display:inline-block;width:6px;height:6px;background:var(--accent-warn);margin-left:8px;vertical-align:1px;border-radius:50%}
+  .end-dot-olive:after{background:var(--accent-2)}
+  .end-dot-gold:after{background:var(--accent-gold)}
+  .tick{display:inline-block;width:10px;height:2px;background:var(--accent-warn);margin-right:8px;vertical-align:4px}
+  .tick-olive{background:var(--accent-2)}
+  .tick-gold{background:var(--accent-gold)}
+  .tick-accent{background:var(--accent)}
+  .kpi-card{background:#fff;border:1px solid var(--rule);padding:22px 24px;position:relative}
+  .kpi-card:before{content:"";position:absolute;top:0;left:0;width:36px;height:3px;background:var(--accent-warn)}
+  .kpi-card.olive:before{background:var(--accent-2)}
+  .kpi-card.gold:before{background:var(--accent-gold)}
+  .kpi-card.accent:before{background:var(--accent)}
+  .kpi-card.ink:before{background:var(--ink)}
 </style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 </head>
 <body>
 <div id="root"></div>
-
 <script type="text/babel" data-presets="env,react" id="app-bundle">
 /* BUNDLE_START — everything between these markers is overwritten by scripts/bundle.py. Do not edit by hand. */
 /* --- data/boats-data.js --- */
@@ -229,1409 +117,1814 @@ window.BOATS_RECORDS = {"busiestDay":{"date":"2022-09-03","migrants":1305},"busi
 window.BOATS_META = {"sourceFile":"latest.ods","sourceDated":"2026-04-19","latestDataPoint":"2026-04-16","generatedAt":"2026-04-19T23:13:27+00:00","provider":"UK Home Office","licence":"Open Government Licence v3.0","sourceUrl":"https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats","notes":["1. These statistics are taken from provisional operational data and are subject to change. They may differ from figures published in the final official statistics on Illegal entry routes  to the UK, which will have undergone a more thorough quality assurance process. The data may also differ from daily figures previously published by the Ministry of Defence, due to the point at which arrivals are counted and differences in the counting of \u2018boats\u2019 compared to \u2018events\u2019. This means that total arrivals over long time periods should be similar between the two sources, but Home Office figures for number of boats detected will be higher than the Ministry of Defence\u2019s figures where boats arriving together would be counted as one. The quarterly Illegal entry routes  to the UK statistical release presents final and authoritative statistics on small boat arrivals.","2. A \u2018small boat\u2019 is one of a number of vessels used by individuals who cross the English Channel, with the aim of gaining entry to the UK without a visa or permission to enter \u2013 either directly by landing in the UK or having been intercepted at sea by the authorities and brought ashore. The most common small vessels detected making these types of crossings are rigid-hulled inflatable boats (RHIBs), dinghies and kayaks.","3. The arrivals data includes individuals who:- Are detected on arrival in the UK- Are detected in the Channel by UK authorities and subsequently brought to the UK","4. The arrivals data does not include individuals who:- Arrive in the UK on larger vessels, such as go-fast craft, yachts (except those arriving in the area of operations of small boats), motor cruisers, tugs and fishing vessels \u2013 although these are rarely used by people arriving via illegal routes at present- Arrive in the UK clandestinely on larger vessels not referenced above, including where hidden in a vehicle on a ferry- Arrive in the UK undetected, or where there have been reports of people making the crossing, but no actual encounters","5. \u2018Boats involved in uncontrolled landings\u2019 are a subset of \u2018boats detected\u2019. Uncontrolled landings are boats which have been recorded as arriving in the UK without interception. Any people detected in uncontrolled landings are counted in the \u2018Migrants arrived\u2019 figures.","6. The data in table SB_01 covers arrivals only, and relates to daily totals. The data in table SB_02 covers both arrivals and preventions, and relates to weekly totals - the data is shown on the last day of the week period, but the activity may have occurred on any day within that week period.","7. Data on preventions are operational estimates collected and provided to the UK by French authorities.","8. The prevention data includes:- Individuals who are prevented from departing France, or those who return to France- Finds of general maritime equipment- Arrests of facilitators linked to small boats crossings","9. The preventions  data does not include:- General dispersal of migrants","Related information","Immigration system statistics (for quarterly data on small boat crossings and other illegal entry routes from 2018 onwards)","Migrants detected crossing the English Channel in small boats - monthly data (for data on daily small boat crossings, from 14 April 2022 to 30 January 2023)"]};
 
 
+/* --- data/hotels-data.js --- */
+/* AUTO-GENERATED by scripts/build_hotels.py. Do not edit. */
+window.HOTELS = [{"date": "2022-12-31", "persons_in_hotels": 45753}, {"date": "2023-03-31", "persons_in_hotels": 47490}, {"date": "2023-06-30", "persons_in_hotels": 50520}, {"date": "2023-09-30", "persons_in_hotels": 56018}, {"date": "2023-12-31", "persons_in_hotels": 45744}, {"date": "2024-03-31", "persons_in_hotels": 34486}, {"date": "2024-06-30", "persons_in_hotels": 29561}, {"date": "2024-09-30", "persons_in_hotels": 35628}, {"date": "2024-12-31", "persons_in_hotels": 38054}, {"date": "2025-03-31", "persons_in_hotels": 32326}, {"date": "2025-06-30", "persons_in_hotels": 32041}, {"date": "2025-09-30", "persons_in_hotels": 36273}, {"date": "2025-12-31", "persons_in_hotels": 30657}];
+window.HOTELS_META = {"source": "asylum-seekers-receipt-support-datasets-dec-2025.xlsx", "generatedAt": "2026-04-20T12:41:30+00:00", "provider": "UK Home Office", "licence": "Open Government Licence v3.0", "sourceUrl": "https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables", "accommodationType": "Contingency Accommodation - Hotel", "snapshots": 13};
+
+
+/* --- data/nat-full-data.js --- */
+/* AUTO-GENERATED by scripts/build_nat_full.py. Do not edit. */
+window.NAT_FULL = [{"name": "Eritrea", "v": 8430, "grant": 0.858}, {"name": "Pakistan", "v": 7851, "grant": 0.328}, {"name": "Iran", "v": 6265, "grant": 0.561}, {"name": "Afghanistan", "v": 5427, "grant": 0.31}, {"name": "Sudan", "v": 5112, "grant": 0.922}, {"name": "India", "v": 4764, "grant": 0.002}, {"name": "Somalia", "v": 4379, "grant": 0.331}, {"name": "Bangladesh", "v": 4011, "grant": 0.137}, {"name": "Vietnam", "v": 2268, "grant": 0.124}, {"name": "Brazil", "v": 2145, "grant": 0.003}, {"name": "Ethiopia", "v": 1955, "grant": 0.552}, {"name": "Nigeria", "v": 1902, "grant": 0.257}, {"name": "Syria", "v": 1705, "grant": 0.054}, {"name": "Yemen", "v": 1682, "grant": 0.956}, {"name": "Iraq", "v": 1616, "grant": 0.258}, {"name": "Albania", "v": 1584, "grant": 0.026}, {"name": "Sri Lanka", "v": 1539, "grant": 0.263}, {"name": "Turkey", "v": 1438, "grant": 0.168}, {"name": "China", "v": 1302, "grant": 0.063}, {"name": "Stateless", "v": 1124, "grant": 0.669}, {"name": "Refugee", "v": 920, "grant": 0.952}, {"name": "Ukraine", "v": 886, "grant": 0.112}, {"name": "Kuwait", "v": 878, "grant": 0.353}, {"name": "Palestine", "v": 873, "grant": 0.819}, {"name": "Georgia", "v": 866, "grant": 0.015}, {"name": "Myanmar (Burma)", "v": 779, "grant": 0.852}, {"name": "Egypt", "v": 682, "grant": 0.147}, {"name": "Libya", "v": 666, "grant": 0.407}, {"name": "Cameroon", "v": 568, "grant": 0.522}, {"name": "Nepal", "v": 448, "grant": 0.008}, {"name": "Ghana", "v": 437, "grant": 0.175}, {"name": "Uzbekistan", "v": 354, "grant": 0.112}, {"name": "Algeria", "v": 343, "grant": 0.163}, {"name": "South Sudan", "v": 332, "grant": 0.827}, {"name": "Uganda", "v": 324, "grant": 0.716}, {"name": "Kazakhstan", "v": 320, "grant": 0.113}, {"name": "Tajikistan", "v": 311, "grant": 0.238}, {"name": "Morocco", "v": 284, "grant": 0.257}, {"name": "Sierra Leone", "v": 278, "grant": 0.427}, {"name": "Kenya", "v": 245, "grant": 0.233}, {"name": "Tanzania", "v": 211, "grant": 0.378}, {"name": "Jordan", "v": 205, "grant": 0.161}, {"name": "Kyrgyzstan", "v": 193, "grant": 0.092}, {"name": "Colombia", "v": 191, "grant": 0.059}, {"name": "Botswana", "v": 189, "grant": 0.064}, {"name": "Honduras", "v": 179, "grant": 0.215}, {"name": "Zimbabwe", "v": 167, "grant": 0.219}, {"name": "Gambia, The", "v": 155, "grant": 0.259}, {"name": "Malaysia", "v": 144, "grant": 0.219}, {"name": "Thailand", "v": 139, "grant": 0.028}, {"name": "Guinea", "v": 137, "grant": 0.262}, {"name": "Saudi Arabia", "v": 120, "grant": 0.464}, {"name": "United States", "v": 118, "grant": 0.017}, {"name": "Senegal", "v": 114, "grant": 0.162}, {"name": "Indonesia", "v": 103, "grant": 0.143}, {"name": "Tunisia", "v": 100, "grant": 0.117}, {"name": "Congo (Democratic Republic)", "v": 97, "grant": 0.311}, {"name": "Russia", "v": 95, "grant": 0.391}, {"name": "Trinidad and Tobago", "v": 95, "grant": 0.153}, {"name": "Peru", "v": 87, "grant": 0.024}, {"name": "Poland", "v": 86, "grant": 0.009}, {"name": "Philippines", "v": 84, "grant": 0.031}, {"name": "Azerbaijan", "v": 73, "grant": 0.229}, {"name": "St Lucia", "v": 73, "grant": 0.11}, {"name": "St Vincent and the Grenadines", "v": 71, "grant": 0.217}, {"name": "Other and unknown", "v": 64, "grant": 0.081}, {"name": "Romania", "v": 63, "grant": 0.0}, {"name": "Lebanon", "v": 62, "grant": 0.28}, {"name": "South Africa", "v": 62, "grant": 0.067}, {"name": "Grenada", "v": 61, "grant": 0.176}, {"name": "Mauritius", "v": 59, "grant": 0.062}, {"name": "Nicaragua", "v": 59, "grant": 0.324}, {"name": "Bolivia", "v": 44, "grant": 0.03}, {"name": "Chad", "v": 44, "grant": 0.264}, {"name": "Mexico", "v": 42, "grant": 0.162}, {"name": "Jamaica", "v": 40, "grant": 0.129}, {"name": "Ivory Coast", "v": 37, "grant": 0.118}, {"name": "Ecuador", "v": 34, "grant": 0.056}, {"name": "Hungary", "v": 32, "grant": 0.0}, {"name": "Namibia", "v": 30, "grant": 0.087}, {"name": "East Timor", "v": 29, "grant": 0.005}, {"name": "Guyana", "v": 29, "grant": 0.639}, {"name": "Venezuela", "v": 29, "grant": 0.243}, {"name": "Bahrain", "v": 26, "grant": 0.133}, {"name": "Congo", "v": 26, "grant": 0.154}, {"name": "Lithuania", "v": 24, "grant": 0.0}, {"name": "El Salvador", "v": 23, "grant": 0.438}, {"name": "Malawi", "v": 23, "grant": 0.273}, {"name": "Mali", "v": 23, "grant": 0.346}, {"name": "St Kitts and Nevis", "v": 23, "grant": 0.105}, {"name": "Angola", "v": 22, "grant": 0.205}, {"name": "Guatemala", "v": 22, "grant": 0.111}, {"name": "Burundi", "v": 21, "grant": 0.5}, {"name": "Oman", "v": 21, "grant": 0.344}, {"name": "Slovakia", "v": 21, "grant": 0.0}, {"name": "Cuba", "v": 20, "grant": 0.158}, {"name": "Czechia", "v": 20, "grant": 0.0}, {"name": "Israel", "v": 20, "grant": 0.061}, {"name": "Kosovo", "v": 20, "grant": 0.027}, {"name": "Portugal", "v": 20, "grant": 0.0}, {"name": "Italy", "v": 19, "grant": 0.0}, {"name": "Hong Kong", "v": 17, "grant": 0.222}, {"name": "Rwanda", "v": 17, "grant": 0.189}, {"name": "Liberia", "v": 15, "grant": 0.062}, {"name": "Niger", "v": 15, "grant": 0.2}, {"name": "Spain", "v": 15, "grant": 0.0}, {"name": "Zambia", "v": 15, "grant": 0.5}, {"name": "Barbados", "v": 14, "grant": 0.077}, {"name": "Bulgaria", "v": 14, "grant": 0.0}, {"name": "Argentina", "v": 13, "grant": 0.0}, {"name": "Dominica", "v": 13, "grant": 0.214}, {"name": "Mongolia", "v": 13, "grant": 0.125}, {"name": "Moldova", "v": 12, "grant": 0.037}, {"name": "Panama", "v": 10, "grant": 0.0}, {"name": "Canada", "v": 9, "grant": 0.1}, {"name": "France", "v": 9, "grant": 0.0}, {"name": "Greece", "v": 9, "grant": 0.0}, {"name": "Latvia", "v": 9, "grant": 0.0}, {"name": "Sweden", "v": 9, "grant": 0.0}, {"name": "Armenia", "v": 8, "grant": 0.091}, {"name": "Mauritania", "v": 8, "grant": 0.545}, {"name": "Netherlands", "v": 8, "grant": 0.111}, {"name": "Chile", "v": 7, "grant": 0.0}, {"name": "Togo", "v": 7, "grant": 0.25}, {"name": "Turkmenistan", "v": 7, "grant": 0.294}, {"name": "Belarus", "v": 6, "grant": 0.533}, {"name": "Cyprus", "v": 6, "grant": 0.0}, {"name": "Eswatini", "v": 6, "grant": 0.286}, {"name": "Paraguay", "v": 6, "grant": 0.077}, {"name": "Antigua and Barbuda", "v": 5, "grant": 0.3}, {"name": "Burkina Faso", "v": 5, "grant": 0.273}, {"name": "Costa Rica", "v": 5, "grant": 0.0}, {"name": "Mozambique", "v": 5, "grant": 0.0}, {"name": "Qatar", "v": 5, "grant": 0.286}, {"name": "Australia", "v": 4, "grant": 0.0}, {"name": "Benin", "v": 4, "grant": 0.129}, {"name": "North Macedonia", "v": 4, "grant": 0.0}, {"name": "South Korea", "v": 4, "grant": 0.0}, {"name": "Western Sahara", "v": 4, "grant": 0.167}, {"name": "British overseas citizens", "v": 3, "grant": 0.5}, {"name": "Central African Republic", "v": 3, "grant": 0.5}, {"name": "Djibouti", "v": 3, "grant": 0.2}, {"name": "Fiji", "v": 3, "grant": 0.0}, {"name": "Germany", "v": 3, "grant": 0.0}, {"name": "Maldives", "v": 3, "grant": 0.0}, {"name": "New Zealand", "v": 3, "grant": 0.0}, {"name": "North Korea", "v": 3, "grant": 0.0}, {"name": "Singapore", "v": 3, "grant": 0.0}, {"name": "Taiwan", "v": 3, "grant": 0.0}, {"name": "United Arab Emirates", "v": 3, "grant": 0.0}, {"name": "Belize", "v": 2, "grant": 0.0}, {"name": "Croatia", "v": 2, "grant": 0.0}, {"name": "Dominican Republic", "v": 2, "grant": 0.0}, {"name": "Gabon", "v": 2, "grant": 0.5}, {"name": "Haiti", "v": 2, "grant": 0.8}, {"name": "Papua New Guinea", "v": 2, "grant": 0.4}, {"name": "Seychelles", "v": 2, "grant": 0.0}, {"name": "Austria", "v": 1, "grant": 0.0}, {"name": "Bahamas, The", "v": 1, "grant": 0.0}, {"name": "Belgium", "v": 1, "grant": 0.0}, {"name": "Brunei", "v": 1, "grant": 0.0}, {"name": "Cambodia", "v": 1, "grant": 0.0}, {"name": "Cape Verde", "v": 1, "grant": 0.0}, {"name": "Comoros", "v": 1, "grant": null}, {"name": "Cyprus (Northern part of)", "v": 1, "grant": 0.0}, {"name": "Denmark", "v": 1, "grant": null}, {"name": "Equatorial Guinea", "v": 1, "grant": 0.0}, {"name": "Finland", "v": 1, "grant": 0.0}, {"name": "Former Yugoslavia", "v": 1, "grant": null}, {"name": "Guinea-Bissau", "v": 1, "grant": 0.25}, {"name": "Ireland", "v": 1, "grant": 0.0}, {"name": "Lesotho", "v": 1, "grant": 0.0}, {"name": "Norway", "v": 1, "grant": 0.0}, {"name": "Tonga", "v": 1, "grant": 0.0}, {"name": "Vanuatu", "v": 1, "grant": 0.25}];
+window.NAT_FULL_META = {"year": 2025, "source": "asylum-claims-datasets-dec-2025.xlsx", "generatedAt": "2026-04-20T12:33:56+00:00", "provider": "UK Home Office", "licence": "Open Government Licence v3.0", "sourceUrl": "https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables"};
+
+
+/* --- data/nat-quarterly-data.js --- */
+/* AUTO-GENERATED by scripts/build_nat_quarterly.py. Do not edit. */
+window.NAT_QUARTERLY = {"quarters": ["2024 Q1", "2024 Q2", "2024 Q3", "2024 Q4", "2025 Q1", "2025 Q2", "2025 Q3", "2025 Q4"], "series": [{"name": "Pakistan", "data": [1643, 1758, 1951, 2137, 2175, 2056, 2184, 1436]}, {"name": "Eritrea", "data": [901, 734, 1106, 1737, 1620, 2384, 2791, 1635]}, {"name": "Afghanistan", "data": [1421, 1114, 2265, 2054, 1063, 1458, 1873, 1033]}, {"name": "Iran", "data": [1177, 1238, 1789, 1788, 936, 1470, 2324, 1535]}, {"name": "Sudan", "data": [750, 1150, 1132, 1282, 987, 1374, 1550, 1201]}, {"name": "India", "data": [1018, 921, 1081, 1161, 1105, 1150, 1429, 1080]}, {"name": "Bangladesh", "data": [1157, 1270, 1130, 1200, 1094, 981, 1048, 888]}, {"name": "Syria", "data": [773, 1052, 1711, 1979, 374, 382, 603, 346]}, {"name": "Vietnam", "data": [1379, 1518, 1188, 768, 756, 729, 439, 344]}, {"name": "Somalia", "data": [132, 216, 378, 551, 615, 1331, 1545, 888]}, {"name": "Brazil", "data": [482, 465, 555, 543, 592, 541, 552, 460]}, {"name": "Albania", "data": [461, 489, 771, 533, 391, 444, 445, 304]}, {"name": "Turkey", "data": [506, 599, 677, 548, 260, 384, 545, 249]}, {"name": "Nigeria", "data": [359, 499, 488, 473, 448, 453, 508, 493]}, {"name": "Iraq", "data": [401, 453, 540, 502, 281, 443, 502, 390]}, {"name": "Yemen", "data": [80, 98, 413, 993, 369, 718, 372, 223]}, {"name": "Sri Lanka", "data": [390, 461, 435, 438, 311, 370, 413, 445]}, {"name": "Ethiopia", "data": [124, 120, 221, 362, 348, 565, 593, 449]}, {"name": "China", "data": [403, 318, 375, 350, 336, 330, 338, 298]}, {"name": "Refugee", "data": [119, 255, 322, 416, 353, 385, 115, 67]}]};
+window.NAT_QUARTERLY_META = {"source": "asylum-claims-datasets-dec-2025.xlsx", "generatedAt": "2026-04-20T12:35:32+00:00", "provider": "UK Home Office", "licence": "Open Government Licence v3.0", "sourceUrl": "https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables", "topN": 20, "quartersCovered": 8};
+
+
+/* --- data/resettlement-data.js --- */
+/* AUTO-GENERATED by scripts/build_resettlement.py. Do not edit. */
+window.RESETTLEMENT_SERIES = [{"name": "ACRS", "2023": 784, "2024": 2009, "2025": 1271}, {"name": "ARAP", "2023": 2898, "2024": 5116, "2025": 4599}, {"name": "UK Resettlement Scheme", "2023": 485, "2024": 678, "2025": 525}, {"name": "Community Sponsorship", "2023": 145, "2024": 99, "2025": 12}, {"name": "Mandate Scheme", "2023": 15, "2024": 23, "2025": 6}, {"name": "Afghan Resettlement Programme", "2023": 0, "2024": 8, "2025": 4}];
+window.RESETTLEMENT_META = {"source": "resettlement-scheme-datasets-dec-2025.xlsx", "generatedAt": "2026-04-20T12:49:03+00:00", "provider": "UK Home Office", "licence": "Open Government Licence v3.0", "sourceUrl": "https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables", "years": [2023, 2024, 2025], "notes": ["ACRS = Afghan Citizens Resettlement Scheme (Pathways 1 + 2 + 3 summed).", "ARAP = Afghan Relocations and Assistance Policy, including ARR legacy cases.", "Community-sponsored rows are pulled into their own bucket regardless of the base scheme.", "Ukraine schemes (Family Scheme / Homes for Ukraine) are tracked in a separate publication and are NOT included."]};
+
+
 /* --- src/data.jsx --- */
-/* =========================================================================
-   data.jsx — hard-coded shell data that isn't derived from the ODS.
+// data.jsx — shared data for the Home Office Data Explorer
 
-   CLAUDE.md says this file holds "asylum / backlog / regions / stories" —
-   the legacy Home Office data-explorer shell. Here we keep it small: just
-   enough scaffolding for the story and datasets views to reference. Anything
-   numeric about small boats MUST come from window.BOATS_*, not from here.
-
-   Editing rule: when BOATS_ANNUAL changes, update ASYLUM_ANNUAL.boats in
-   the same commit (see CLAUDE.md § "Things that look like problems").
-   ========================================================================= */
-
-/* Annual asylum figures — shell data. `boats` column duplicates BOATS_ANNUAL
-   but lives here so the shell's legacy charts work without a data fetch. */
-window.ASYLUM_ANNUAL = window.ASYLUM_ANNUAL || [
-  { y: 2018, applications: 29382, decisions: 14583, granted: 4914, boats: 299 },
-  { y: 2019, applications: 35738, decisions: 20103, granted: 6236, boats: 1843 },
-  { y: 2020, applications: 36041, decisions: 14795, granted: 6896, boats: 8462 },
-  { y: 2021, applications: 48540, decisions: 13888, granted: 9973, boats: 28526 },
-  { y: 2022, applications: 74751, decisions: 18699, granted: 13703, boats: 45755 },
-  { y: 2023, applications: 67337, decisions: 86798, granted: 32557, boats: 29437 },
-  { y: 2024, applications: 108138, decisions: 98754, granted: 40565, boats: 36816 },
+// UK asylum applications 2014–2024 (main applicants, annual)
+const ASYLUM_ANNUAL = [
+  { y: 2014, v: 24914, boats: 0 },
+  { y: 2015, v: 32414, boats: 0 },
+  { y: 2016, v: 30747, boats: 0 },
+  { y: 2017, v: 26547, boats: 0 },
+  { y: 2018, v: 29504, boats: 299 },
+  { y: 2019, v: 35737, boats: 1843 },
+  { y: 2020, v: 29815, boats: 8462 },
+  { y: 2021, v: 48540, boats: 28526 },
+  { y: 2022, v: 74751, boats: 45755 },
+  { y: 2023, v: 84425, boats: 29437 },
+  { y: 2024, v: 80782, boats: 36816 },
 ];
 
-/* A few narrative anchors — used by the /story view. Numbers are illustrative
-   placeholders and should be replaced with derivations from BOATS_* once the
-   pipeline is live. */
-window.STORIES = window.STORIES || [
+// Top nationalities 2024 (applications, main applicants)
+const TOP_NATIONALITIES = [
+  { name: 'Pakistan',    v: 7850, grant: 0.56 },
+  { name: 'Afghanistan', v: 5928, grant: 0.98 },
+  { name: 'Iran',        v: 4310, grant: 0.85 },
+  { name: 'Eritrea',     v: 3512, grant: 0.92 },
+  { name: 'Bangladesh',  v: 3180, grant: 0.11 },
+  { name: 'Sudan',       v: 3074, grant: 0.99 },
+  { name: 'Syria',       v: 2184, grant: 0.99 },
+  { name: 'Vietnam',     v: 2050, grant: 0.18 },
+  { name: 'Turkey',      v: 1960, grant: 0.44 },
+  { name: 'India',       v: 1820, grant: 0.04 },
+];
+
+// Top 5 nationality series 2020–2024
+const NAT_SERIES = {
+  years: [2020, 2021, 2022, 2023, 2024],
+  series: [
+    { name: 'Pakistan',    data: [1569, 2337, 4922, 7521, 7850] },
+    { name: 'Afghanistan', data: [2772, 8633, 9577, 6625, 5928] },
+    { name: 'Iran',        data: [4339, 5974, 8586, 5820, 4310] },
+    { name: 'Eritrea',     data: [2183, 2834, 5000, 4462, 3512] },
+    { name: 'Syria',       data: [1270, 2219, 3107, 2505, 2184] },
+  ],
+};
+
+// Initial decisions 2024
+const DECISIONS_2024 = [
+  { label: 'Granted asylum', v: 34200, color: 'var(--accent-2)' },
+  { label: 'Granted humanitarian / other', v: 4800, color: 'var(--accent-gold)' },
+  { label: 'Refused',        v: 27800, color: 'var(--accent-warn)' },
+  { label: 'Withdrawn',      v: 5600, color: 'var(--muted-2)' },
+];
+
+// Backlog 2018–2024 (pending initial decision)
+const BACKLOG = [
+  { y: 2018, v: 27800 },
+  { y: 2019, v: 39100 },
+  { y: 2020, v: 52700 },
+  { y: 2021, v: 76800 },
+  { y: 2022, v: 109600 },
+  { y: 2023, v: 132200 },
+  { y: 2024, v: 91200 },
+];
+
+// Resettlement schemes 2024
+const RESETTLEMENT = [
+  { name: 'ACRS (Afghan)',      v: 4820 },
+  { name: 'ARAP (Afghan)',       v: 3140 },
+  { name: 'Ukraine family',      v: 2260 },
+  { name: 'UKRS (UNHCR)',        v: 1680 },
+  { name: 'Community sponsorship', v: 510 },
+];
+
+// UK regions — applications 2024
+const REGIONS = [
+  { name: 'London',              v: 14200 },
+  { name: 'North West',          v: 11400 },
+  { name: 'Yorkshire & Humber',  v: 9600 },
+  { name: 'West Midlands',        v: 9100 },
+  { name: 'South East',           v: 8200 },
+  { name: 'East of England',      v: 6800 },
+  { name: 'North East',           v: 6100 },
+  { name: 'East Midlands',        v: 5700 },
+  { name: 'South West',           v: 4400 },
+  { name: 'Scotland',             v: 3100 },
+  { name: 'Wales',                v: 1500 },
+  { name: 'Northern Ireland',     v: 680  },
+];
+
+// Stories on the index page
+const STORIES = [
   {
-    id: "beginnings",
-    kicker: "2018",
-    title: "An almost-zero baseline",
-    body:
-      "When the weekly series begins in January 2018, English Channel crossings are rare. Whole months pass with single-digit arrivals. The 2018 annual total is lower than a single busy day five years later.",
+    id: 'long-tail',
+    kicker: 'Applications',
+    title: 'The long tail of the 2022 surge',
+    dek: 'UK asylum applications peaked at 84,425 in 2023 — the highest since the modern series began — before easing marginally in 2024.',
+    author: 'Data Team',
+    date: '14 April 2026',
+    reading: '8 min',
+    tag: 'Featured',
+    hero: 'trend',
   },
   {
-    id: "inflection",
-    kicker: "2020",
-    title: "Inflection",
-    body:
-      "Arrivals rise sharply through 2020, redefining the baseline. By the end of the year the daily average is an order of magnitude above 2019.",
+    id: 'pakistan',
+    kicker: 'Nationality',
+    title: 'Pakistan overtakes Afghanistan',
+    dek: 'For the first time in the post-2020 series, Pakistani nationals filed more applications than any other group in 2024.',
+    date: '02 April 2026',
+    reading: '5 min',
+    hero: 'bars',
   },
   {
-    id: "plateau",
-    kicker: "2023–present",
-    title: "A rougher plateau",
-    body:
-      "Annual totals stop their steep climb but remain at a level that would have been unthinkable five years earlier. Preventions, newly reported from 2023, add a second line to the picture.",
+    id: 'backlog',
+    kicker: 'Decisions',
+    title: 'The backlog, unwound',
+    dek: 'The queue of undecided cases has fallen from 132,000 to 91,200 in a year — but average wait times remain historically high.',
+    date: '28 March 2026',
+    reading: '6 min',
+    hero: 'backlog',
+  },
+  {
+    id: 'boats',
+    kicker: 'Arrivals',
+    title: 'Small boats, seven years on',
+    dek: 'Channel crossings by small boat have passed 200,000 since 2018. How the composition of arrivals has changed.',
+    date: '21 March 2026',
+    reading: '7 min',
+    hero: 'area',
+  },
+  {
+    id: 'grant-rate',
+    kicker: 'Outcomes',
+    title: 'Why the grant rate doubled',
+    dek: 'The share of claims granted at initial decision rose from 24% in 2019 to 47% in 2024. A closer look at what changed.',
+    date: '12 March 2026',
+    reading: '4 min',
+    hero: 'ring',
+  },
+  {
+    id: 'regions',
+    kicker: 'Geography',
+    title: 'Where claimants are housed',
+    dek: 'Dispersal accommodation is concentrated in just eleven local authorities — together hosting nearly a third of all asylum seekers.',
+    date: '04 March 2026',
+    reading: '5 min',
+    hero: 'map',
   },
 ];
 
-/* Dataset catalogue — rendered as a table on /datasets. Kept here, not
-   generated, because the description is editorial, not mechanical. */
-window.DATASET_CATALOGUE = window.DATASET_CATALOGUE || [
-  { global: "BOATS_DAILY",    shape: "[{d, m, b}]",                     size: "~3,000 rows", notes: "Daily migrants + boats from 2018-01-01." },
-  { global: "BOATS_WEEKLY",   shape: "[{we, m, b, p, e}]",              size: "~400 rows",   notes: "Week-ending Saturdays; p/e null before 2023." },
-  { global: "BOATS_MONTHLY",  shape: "[{month, m, b}]",                 size: "~100 rows",   notes: "Aggregated from BOATS_DAILY." },
-  { global: "BOATS_ANNUAL",   shape: "[{y, m, b, perBoat}]",            size: "~9 rows",     notes: "Per-boat = migrants / boats." },
-  { global: "BOATS_YOY",      shape: "{YYYY: [cum_day_1..366]}",        size: "9 keys",      notes: "Cumulative by day-of-year; null past latest." },
-  { global: "BOATS_RECORDS",  shape: "{busiest*, total*, firstDate, latestDate, daysCovered}", size: "1 object",   notes: "Scalar highlights." },
-  { global: "BOATS_META",     shape: "{sourceFile, sourceDated, latestDataPoint, generatedAt, provider, licence, sourceUrl, notes[]}", size: "1 object", notes: "Provenance + methodology text." },
+// Datasets shown on the browse list
+const DATASETS = [
+  { code: 'ASY_D01', name: 'Asylum applications, by nationality',    rows: '1,248,220', updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D02', name: 'Initial decisions on asylum applications', rows: '884,014',   updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D03', name: 'Age and sex of asylum applicants',         rows: '492,100',   updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D04', name: 'Appeals outcomes',                         rows: '221,400',   updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'IRR_D01', name: 'Irregular migration to the UK',            rows: '618,900',   updated: '05 Apr 2026', freq: 'Monthly'   },
+  { code: 'RES_D01', name: 'Refugee resettlement and family schemes',  rows: '94,820',    updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'RES_D02', name: 'Ukraine schemes visa statistics',          rows: '318,400',   updated: '12 Apr 2026', freq: 'Monthly'   },
+  { code: 'ASY_D05', name: 'Support provided to asylum seekers',       rows: '412,200',   updated: '12 Apr 2026', freq: 'Quarterly' },
 ];
+
+Object.assign(window, {
+  ASYLUM_ANNUAL, TOP_NATIONALITIES, NAT_SERIES, DECISIONS_2024,
+  BACKLOG, RESETTLEMENT, REGIONS, STORIES, DATASETS,
+});
 
 
 /* --- src/charts.jsx --- */
-/* =========================================================================
-   charts.jsx — SVG chart primitives + shared utilities.
-   Every visual rule comes from design/tokens.md. If this file and tokens.md
-   disagree, tokens.md wins — update the code to match.
+// charts.jsx — SVG charts with interactive tooltips
 
-   Exports (as top-level consts/functions in the bundled scope):
-     fmtK, fmtN                — number formatters
-     useTooltip                — tooltip hook
-     MULTI_COLORS              — series colour rotation
-     Tooltip, Figure           — shared presentation
-     LineChart                 — single- or multi-series line chart
-     Spark                     — tiny inline spark line
-     ChartGrid                 — horizontal grid + x/y axes helper
-   ========================================================================= */
-
-const MULTI_COLORS = [
-  "var(--accent)",
-  "var(--accent-warn)",
-  "var(--accent-2)",
-  "var(--accent-gold)",
-  "var(--muted)",
-];
-
-/* ---------- Number formatting ---------- */
-
-const fmtN = (v) => {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  return new Intl.NumberFormat("en-GB").format(Math.round(v));
-};
-
-const fmtK = (v) => {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  const n = Number(v);
-  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "m";
-  if (Math.abs(n) >= 1_000)     return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "k";
-  return String(Math.round(n));
-};
-
-/* ---------- Tooltip ---------- */
-
+// ─────────────────────────────────────────────────────────────
+// Tooltip helper hook
+// ─────────────────────────────────────────────────────────────
 function useTooltip() {
-  const [tip, setTip] = React.useState(null);
-  const show = React.useCallback((x, y, label) => {
-    setTip({ x, y, label });
-  }, []);
-  const hide = React.useCallback(() => setTip(null), []);
-  return { tip, show, hide };
-}
-
-function Tooltip({ tip }) {
-  if (!tip) return null;
-  return (
-    <div
-      className="tooltip"
-      style={{
-        left: tip.x,
-        top: tip.y - 12,
-        transform: "translate(-50%, -100%)",
-      }}
-    >
-      {tip.label}
-    </div>
+  const [tt, setTt] = React.useState(null);
+  const show = (e, content) => {
+    const r = e.currentTarget.closest('.chart-wrap')?.getBoundingClientRect?.();
+    if (!r) return;
+    setTt({ x: e.clientX - r.left, y: e.clientY - r.top, content });
+  };
+  const hide = () => setTt(null);
+  const node = tt && (
+    <div className="tt on" style={{ left: tt.x, top: tt.y }}>{tt.content}</div>
   );
+  return { show, hide, node };
 }
 
-/* ---------- Figure wrapper (title / caption / source) ---------- */
+const fmtK = v => {
+  if (v >= 1000) return (v/1000).toFixed(v >= 10000 ? 0 : 1) + 'k';
+  return String(v);
+};
+const fmtN = v => v.toLocaleString('en-GB');
 
-function Figure({ subtitle, title, caption, source, width, children }) {
+// ─────────────────────────────────────────────────────────────
+// Line chart — single series with optional annotations
+// ─────────────────────────────────────────────────────────────
+function LineChart({
+  data, width=720, height=320, annotations=[],
+  stroke='var(--accent)', area=true, title='', subtitle='', source='',
+  yearRange=null,
+  caption=null,
+  showLabels=false,
+  showLine=true,
+  xLabelFmt=null,
+}) {
+  const { show, hide, node } = useTooltip();
+  const pad = { t: 16, r: 24, b: 32, l: 48 };
+  const W = width, H = height;
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+
+  // filter by yearRange
+  const filtered = yearRange
+    ? data.filter(d => d.y >= yearRange[0] && d.y <= yearRange[1])
+    : data;
+  const d = filtered.length ? filtered : data;
+
+  const xs = d.map(p => p.y);
+  const ys = d.map(p => p.v);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMax = Math.max(...ys) * 1.1;
+  const x = v => pad.l + (xMax === xMin ? iw/2 : ((v - xMin) / (xMax - xMin)) * iw);
+  const y = v => pad.t + (1 - v/yMax) * ih;
+  const pts = d.map(p => `${x(p.y)},${y(p.v)}`).join(' ');
+  const areaPath = d.length
+    ? `M${x(d[0].y)},${y(0)} L${d.map(p=>`${x(p.y)},${y(p.v)}`).join(' L')} L${x(d[d.length-1].y)},${y(0)} Z`
+    : '';
+
+  const step = yMax / 4;
+  const yTicks = Array.from({length:5}, (_,i) => Math.round(i*step/5000)*5000).filter((v,i,a)=>a.indexOf(v)===i);
+
   return (
-    <figure className="chart-wrap" style={{ margin: 0, width }}>
-      {(subtitle || title) && (
-        <figcaption style={{ marginBottom: 14 }}>
-          {subtitle && <div className="uc">{subtitle}</div>}
-          {subtitle && <div className="rule-terra kicker-rule" />}
-          {title && <div className="t-sub">{title}</div>}
+    <figure className="chart-wrap" style={{ position:'relative', margin:0 }}>
+      {title && (
+        <figcaption style={{marginBottom:14}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>{subtitle}</div>
+          <div style={{fontSize:19,fontWeight:500,letterSpacing:-0.1,color:'var(--ink)'}}>{title}</div>
         </figcaption>
       )}
-      {children}
-      {caption && (
-        <div className="t-caption caption-col" style={{ marginTop: 10 }}>
-          {caption}
-        </div>
-      )}
-      {source && (
-        <div className="uc" style={{ marginTop: 12 }}>Source: {source}</div>
-      )}
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        <defs>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.18"/>
+            <stop offset="100%" stopColor={stroke} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        {yTicks.map(t=>(
+          <g key={t}>
+            <line x1={pad.l} x2={W-pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth="1"/>
+            <text x={pad.l-10} y={y(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
+          </g>
+        ))}
+        {d.map((p,i)=>({p,i}))
+           .filter(({i})=>i%Math.max(1,Math.ceil(d.length/8))===0 || i===d.length-1)
+           .map(({p,i})=>(
+          <text key={`xt-${i}`} x={x(p.y)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+            {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
+          </text>
+        ))}
+        <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
+        {area && <path d={areaPath} fill="url(#areaGrad)"/>}
+        {showLine && <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"/>}
+        {d.map((p,i)=>(
+          <g key={`pt-${i}`}>
+            <circle cx={x(p.y)} cy={y(p.v)} r={showLine ? 3 : 4} fill={stroke}/>
+            <circle cx={x(p.y)} cy={y(p.v)} r="14" fill="transparent"
+              onMouseMove={e=>show(e, <span><b>{p.label ?? p.y}</b> · <span className="tnum">{fmtN(p.v)}</span></span>)}
+              onMouseLeave={hide}
+              style={{cursor:'crosshair'}}
+            />
+            {showLabels && (
+              <text x={x(p.y)} y={y(p.v)-10} textAnchor="middle" fontSize="10.5" fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+                {fmtK(p.v)}
+              </text>
+            )}
+          </g>
+        ))}
+        {annotations.map((a,i)=>{
+          const pt = d.find(p=>p.y===a.y); if(!pt) return null;
+          const px = x(pt.y), py = y(pt.v);
+          const dx = a.dx||30, dy = a.dy||-26;
+          return (
+            <g key={i}>
+              <circle cx={px} cy={py} r="5" fill="none" stroke={stroke} strokeWidth="1"/>
+              <line x1={px} y1={py} x2={px+dx} y2={py+dy} stroke={stroke} strokeWidth="0.8"/>
+              <text x={px+dx+4} y={py+dy+4} fontSize="11.5" fill="var(--ink-2)" style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{a.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+      {caption && <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5,maxWidth:640}}>{caption}</div>}
+      {source && <div className="uc" style={{marginTop:12,color:'var(--muted-2)'}}>Source: {source}</div>}
+      {node}
     </figure>
   );
 }
 
-/* ---------- Scale helpers ---------- */
-
-function linearScale(domain, range) {
-  const [d0, d1] = domain;
-  const [r0, r1] = range;
-  const span = d1 - d0 || 1;
-  const fn = (v) => r0 + ((v - d0) / span) * (r1 - r0);
-  fn.invert = (px) => d0 + ((px - r0) / (r1 - r0)) * span;
-  fn.domain = domain;
-  fn.range = range;
-  return fn;
-}
-
-/* ---------- "Nice" tick generator ---------- */
-
-function niceTicks(min, max, target = 5) {
-  if (min === max) {
-    return [min];
-  }
-  const span = max - min;
-  const step0 = span / target;
-  const pow = Math.pow(10, Math.floor(Math.log10(step0)));
-  const rel = step0 / pow;
-  const step = (rel >= 5 ? 10 : rel >= 2 ? 5 : rel >= 1 ? 2 : 1) * pow;
-  const start = Math.ceil(min / step) * step;
-  const out = [];
-  for (let v = start; v <= max + 1e-9; v += step) {
-    out.push(Math.round(v / step) * step);
-  }
-  return out;
-}
-
-/* ---------- ChartGrid (axes + horizontal grid) ---------- */
-
-function ChartGrid({
-  xScale,
-  yScale,
-  plotTop,
-  plotBottom,
-  plotLeft,
-  plotRight,
-  xTicks,
-  yTicks,
-  formatX = String,
-  formatY = fmtK,
-}) {
-  const ySafe = yTicks || niceTicks(yScale.domain[0], yScale.domain[1], 5);
-  const xSafe = xTicks || [];
-  return (
-    <g aria-hidden="true">
-      {ySafe.map((v, i) => (
-        <g key={`y-${i}`}>
-          <line
-            x1={plotLeft}
-            x2={plotRight}
-            y1={yScale(v)}
-            y2={yScale(v)}
-            stroke="var(--rule)"
-            strokeWidth="1"
-          />
-          <text
-            x={plotLeft - 10}
-            y={yScale(v) + 4}
-            textAnchor="end"
-            className="t-axis"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            {formatY(v)}
-          </text>
-        </g>
-      ))}
-      <line
-        x1={plotLeft}
-        x2={plotRight}
-        y1={plotBottom}
-        y2={plotBottom}
-        stroke="var(--rule-2)"
-        strokeWidth="1"
-      />
-      {xSafe.map((t, i) => (
-        <text
-          key={`x-${i}`}
-          x={xScale(t.value)}
-          y={plotBottom + 18}
-          textAnchor="middle"
-          className="t-axis"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
-          {t.label ?? formatX(t.value)}
-        </text>
-      ))}
-    </g>
-  );
-}
-
-/* ---------- LineChart ---------- */
-
-/**
- * Render one or more line series.
- *
- * props:
- *   series:        [{ name, data: [{x, y}], color? }]   (null y values are skipped)
- *   xAccessor:     (x) => number   — default: identity
- *   yAccessor:     (y) => number   — default: identity
- *   xTickFormat:   (x) => string   — formats labels for x-axis + tooltip
- *   width/height:  SVG dims
- *   fill:          whether to render the 18%->0% area gradient (primary series only)
- *   annotations:   [{ seriesIndex, x, label }]
- *   xTicks:        [{ value, label? }] — explicit tick positions
- */
-function LineChart({
-  series,
-  width = 640,
-  height = 320,
-  fill = true,
-  annotations = [],
-  xTickFormat = String,
-  xTicks,
-  yTickFormat = fmtK,
-  tooltipLabel,
-}) {
-  const padding = { top: 22, right: 24, bottom: 36, left: 48 };
-  const plotLeft = padding.left;
-  const plotRight = width - padding.right;
-  const plotTop = padding.top;
-  const plotBottom = height - padding.bottom;
-
-  const { tip, show, hide } = useTooltip();
-  const isMulti = series.length > 1;
-
-  const allX = series.flatMap((s) => s.data.map((d) => d.x));
-  const allY = series.flatMap((s) =>
-    s.data.map((d) => d.y).filter((v) => v !== null && v !== undefined)
-  );
-  const xMin = Math.min(...allX);
-  const xMax = Math.max(...allX);
-  const yMaxRaw = Math.max(0, ...allY);
-  const yMax = yMaxRaw === 0 ? 1 : yMaxRaw * 1.08;
-
-  const x = linearScale([xMin, xMax], [plotLeft, plotRight]);
-  const y = linearScale([0, yMax], [plotBottom, plotTop]);
-
-  const wrapRef = React.useRef(null);
-  const svgRef = React.useRef(null);
-
-  const handleHover = (event, seriesName, xVal, yVal) => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const rect = wrap.getBoundingClientRect();
-    const px = event.clientX - rect.left;
-    const py = event.clientY - rect.top;
-    const label =
-      tooltipLabel?.({ seriesName, x: xVal, y: yVal }) ??
-      `${xTickFormat(xVal)} · ${isMulti ? `${seriesName}: ` : ""}${fmtN(yVal)}`;
-    show(px, py, label);
-  };
-
-  const toPath = (data) => {
-    let d = "";
-    let pen = false;
-    for (const pt of data) {
-      if (pt.y === null || pt.y === undefined) {
-        pen = false;
-        continue;
-      }
-      const cmd = pen ? "L" : "M";
-      d += `${cmd}${x(pt.x).toFixed(2)} ${y(pt.y).toFixed(2)} `;
-      pen = true;
-    }
-    return d.trim();
-  };
-
-  const gradId = `grad-${React.useId().replace(/:/g, "")}`;
+// ─────────────────────────────────────────────────────────────
+// Multi-line chart
+// ─────────────────────────────────────────────────────────────
+const MULTI_COLORS = ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)', 'var(--accent-gold)', 'var(--muted)'];
+function MultiLineChart({ years, series, width=720, height=300, showLabels=false }) {
+  const { show, hide, node } = useTooltip();
+  const pad = { t: 16, r: 120, b: 32, l: 48 };
+  const W = width, H = height;
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const allV = series.flatMap(s=>s.data);
+  const yMax = Math.max(...allV) * 1.12;
+  const x = i => pad.l + (i/(years.length-1))*iw;
+  const y = v => pad.t + (1 - v/yMax)*ih;
+  const yTicks = [0, yMax*0.25, yMax*0.5, yMax*0.75, yMax].map(v=>Math.round(v/1000)*1000).filter((v,i,a)=>a.indexOf(v)===i);
 
   return (
-    <div ref={wrapRef} style={{ position: "relative" }}>
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="xMidYMid meet"
-        width="100%"
-        height={height}
-        role="img"
-      >
-        <defs>
-          {fill && series[0] && (
-            <linearGradient
-              id={gradId}
-              x1="0"
-              x2="0"
-              y1={plotTop}
-              y2={plotBottom}
-              gradientUnits="userSpaceOnUse"
-            >
-              <stop offset="0%" stopColor={series[0].color || MULTI_COLORS[0]} stopOpacity="0.18" />
-              <stop offset="100%" stopColor={series[0].color || MULTI_COLORS[0]} stopOpacity="0" />
-            </linearGradient>
-          )}
-        </defs>
-
-        <ChartGrid
-          xScale={x}
-          yScale={y}
-          plotTop={plotTop}
-          plotBottom={plotBottom}
-          plotLeft={plotLeft}
-          plotRight={plotRight}
-          xTicks={xTicks}
-          formatY={yTickFormat}
-        />
-
-        {fill && series[0] && (() => {
-          const primary = series[0];
-          const pts = primary.data.filter((d) => d.y !== null && d.y !== undefined);
-          if (pts.length < 2) return null;
-          const path =
-            `M${x(pts[0].x).toFixed(2)} ${plotBottom} ` +
-            pts.map((p) => `L${x(p.x).toFixed(2)} ${y(p.y).toFixed(2)}`).join(" ") +
-            ` L${x(pts[pts.length - 1].x).toFixed(2)} ${plotBottom} Z`;
-          return <path d={path} fill={`url(#${gradId})`} />;
-        })()}
-
-        {series.map((s, i) => {
-          const color = s.color || (isMulti ? MULTI_COLORS[i % MULTI_COLORS.length] : MULTI_COLORS[0]);
-          const strokeWidth = isMulti ? 1.4 : 1.8;
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        {yTicks.map(t=>(
+          <g key={t}>
+            <line x1={pad.l} x2={W-pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)"/>
+            <text x={pad.l-10} y={y(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
+          </g>
+        ))}
+        {years.map((yr,i)=>(
+          <text key={yr} x={x(i)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+        ))}
+        <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
+        {series.map((s,si)=>{
+          const color = MULTI_COLORS[si % MULTI_COLORS.length];
+          const pts = s.data.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+          const last = s.data.length-1;
           return (
-            <g key={s.name || i}>
-              <path
-                d={toPath(s.data)}
-                fill="none"
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              {s.data.map((pt, j) => {
-                if (pt.y === null || pt.y === undefined) return null;
-                return (
-                  <g key={j}>
-                    <circle
-                      cx={x(pt.x)}
-                      cy={y(pt.y)}
-                      r={3}
-                      fill={color}
-                    />
-                    <circle
-                      cx={x(pt.x)}
-                      cy={y(pt.y)}
-                      r={14}
-                      fill="transparent"
-                      style={{ cursor: "crosshair" }}
-                      onMouseEnter={(e) => handleHover(e, s.name, pt.x, pt.y)}
-                      onMouseMove={(e) => handleHover(e, s.name, pt.x, pt.y)}
-                      onMouseLeave={hide}
-                    />
-                  </g>
-                );
-              })}
+            <g key={`${si}-${s.name}`}>
+              <polyline points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>
+              {s.data.map((v,i)=>(
+                <g key={i}>
+                  <circle cx={x(i)} cy={y(v)} r="2.6" fill={color}/>
+                  <circle cx={x(i)} cy={y(v)} r="12" fill="transparent"
+                    onMouseMove={e=>show(e, <span><b>{s.name}</b> · {years[i]} · <span className="tnum">{fmtN(v)}</span></span>)}
+                    onMouseLeave={hide}
+                  />
+                </g>
+              ))}
+              <text x={x(last)+10} y={y(s.data[last])+4} fontSize="12" fill={color} style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{s.name}</text>
+              {showLabels && s.data.map((v,i)=>(
+                <text key={`lbl-${i}`} x={x(i)} y={y(v)-8} textAnchor="middle" fontSize="10" fill={color} style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
+              ))}
             </g>
           );
         })}
+      </svg>
+      {node}
+    </figure>
+  );
+}
 
-        {annotations.map((a, i) => {
-          const s = series[a.seriesIndex ?? 0];
-          if (!s) return null;
-          const pt = s.data.find((d) => d.x === a.x);
-          if (!pt || pt.y === null) return null;
+// ─────────────────────────────────────────────────────────────
+// Stacked columns — two series stacked at each x
+// ─────────────────────────────────────────────────────────────
+function StackedColumns({ data, series=['A','B'], colors=['var(--accent)','var(--accent-warn)'], width=720, height=340, showLabels=false }) {
+  const { show, hide, node } = useTooltip();
+  const pad = { t: 16, r: 24, b: 32, l: 48 };
+  const W=width, H=height, iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
+  const totals = data.map(d => (d.a||0) + (d.b||0));
+  const yMax = (Math.max(...totals, 1)) * 1.1;
+  const bw = Math.max(8, (iw/data.length) * 0.55);
+  const xCenter = i => pad.l + ((i+0.5)/data.length)*iw;
+  const yPx = v => pad.t + (1 - v/yMax)*ih;
+  const step = yMax/4;
+  const yTicks = [0,1,2,3,4].map(i=>Math.round(i*step/1000)*1000).filter((v,i,a)=>a.indexOf(v)===i);
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        {yTicks.map(t=>(
+          <g key={t}>
+            <line x1={pad.l} x2={W-pad.r} y1={yPx(t)} y2={yPx(t)} stroke="var(--rule)"/>
+            <text x={pad.l-10} y={yPx(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
+          </g>
+        ))}
+        {data.map((d,i)=>{
+          const aH = (d.a||0)/yMax*ih;
+          const bH = (d.b||0)/yMax*ih;
+          const aY = H-pad.b - aH;
+          const bY = aY - bH;
+          const cx = xCenter(i);
           return (
-            <g key={`ann-${i}`}>
-              <circle
-                cx={x(pt.x)}
-                cy={y(pt.y)}
-                r={5}
-                fill="none"
-                stroke="var(--ink)"
-                strokeWidth="1"
-              />
-              <line
-                x1={x(pt.x)}
-                y1={y(pt.y) - 6}
-                x2={x(pt.x) + 18}
-                y2={y(pt.y) - 28}
-                stroke="var(--ink-2)"
-                strokeWidth="0.8"
-              />
-              <text
-                x={x(pt.x) + 22}
-                y={y(pt.y) - 28}
-                className="t-caption"
-                style={{ fontFamily: "var(--font-serif)" }}
-                fill="var(--ink-2)"
-              >
-                {a.label}
+            <g key={i} onMouseMove={e=>show(e, <span><b>{d.label ?? d.y}</b> · {series[0]} <span className="tnum">{fmtN(d.a||0)}</span> · {series[1]} <span className="tnum">{fmtN(d.b||0)}</span></span>)} onMouseLeave={hide} style={{cursor:'crosshair'}}>
+              <rect x={cx-bw/2} y={aY} width={bw} height={aH} fill={colors[0]}/>
+              {(d.b||0) > 0 && <rect x={cx-bw/2} y={bY} width={bw} height={bH} fill={colors[1]}/>}
+              <text x={cx} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{d.label ?? d.y}</text>
+              {showLabels && (
+                <text x={cx} y={bY-4} textAnchor="middle" fontSize="10.5" fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK((d.a||0)+(d.b||0))}</text>
+              )}
+            </g>
+          );
+        })}
+        <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
+      </svg>
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Horizontal bar chart
+// ─────────────────────────────────────────────────────────────
+function BarChart({ data, width=720, height=null, valueFmt=fmtN, color='var(--accent)', showGrant=false }) {
+  const { show, hide, node } = useTooltip();
+  const rowH = 30;
+  const H = height || data.length * rowH + 16;
+  const pad = { t: 8, r: 90, b: 8, l: 130 };
+  const iw = width - pad.l - pad.r;
+  const vMax = Math.max(...data.map(d=>d.v));
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={H} viewBox={`0 0 ${width} ${H}`} style={{display:'block'}}>
+        {data.map((d,i)=>{
+          const y = pad.t + i*rowH;
+          const w = (d.v/vMax)*iw;
+          return (
+            <g key={d.name}
+              onMouseMove={e=>show(e, <span><b>{d.name}</b> · <span className="tnum">{valueFmt(d.v)}</span>{showGrant && d.grant !== undefined ? <> · grant rate <span className="tnum">{Math.round(d.grant*100)}%</span></> : null}</span>)}
+              onMouseLeave={hide}
+              style={{cursor:'crosshair'}}>
+              <text x={pad.l-10} y={y+rowH/2+4} textAnchor="end" fontSize="13" fill="var(--ink-2)" style={{fontFamily:'var(--serif)'}}>{d.name}</text>
+              <rect x={pad.l} y={y+6} width={iw} height={rowH-12} fill="var(--bg-2)"/>
+              <rect x={pad.l} y={y+6} width={w} height={rowH-12} fill={color}/>
+              <text x={pad.l+w+8} y={y+rowH/2+4} fontSize="12" fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{valueFmt(d.v)}</text>
+              {showGrant && d.grant !== undefined && (
+                <text x={width-8} y={y+rowH/2+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)',fontStyle:'italic'}}>{Math.round(d.grant*100)}% grant</text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Stacked bar / decisions breakdown
+// ─────────────────────────────────────────────────────────────
+function StackedBar({ data, width=720, height=80 }) {
+  const { show, hide, node } = useTooltip();
+  const total = data.reduce((s,d)=>s+d.v,0);
+  let cum = 0;
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block'}}>
+        {data.map((d,i)=>{
+          const w = (d.v/total)*width;
+          const x = cum;
+          cum += w;
+          return (
+            <g key={d.label}
+              onMouseMove={e=>show(e, <span><b>{d.label}</b> · <span className="tnum">{fmtN(d.v)}</span> · {Math.round(d.v/total*100)}%</span>)}
+              onMouseLeave={hide}
+              style={{cursor:'crosshair'}}>
+              <rect x={x} y={20} width={w-1} height={36} fill={d.color}/>
+              <text x={x} y={15} fontSize="11" fill="var(--muted)" className="uc" style={{fontFamily:'var(--serif)'}}>
+                {d.label}
+              </text>
+              <text x={x} y={72} fontSize="12" fill="var(--ink)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+                {fmtN(d.v)} <tspan fill="var(--muted)">· {Math.round(d.v/total*100)}%</tspan>
               </text>
             </g>
           );
         })}
       </svg>
-      <Tooltip tip={tip} />
-    </div>
+      {node}
+    </figure>
   );
 }
 
-/* ---------- Spark (inline micro chart) ---------- */
-
-function Spark({ data, width = 140, height = 36, color = "var(--accent)" }) {
-  const pts = data.filter((d) => d.y !== null && d.y !== undefined);
-  if (pts.length < 2) return <svg width={width} height={height} />;
-  const xMin = Math.min(...pts.map((d) => d.x));
-  const xMax = Math.max(...pts.map((d) => d.x));
-  const yMax = Math.max(...pts.map((d) => d.y));
-  const x = linearScale([xMin, xMax], [1, width - 1]);
-  const y = linearScale([0, yMax === 0 ? 1 : yMax], [height - 2, 2]);
-  const d =
-    pts.map((p, i) => `${i ? "L" : "M"}${x(p.x).toFixed(1)} ${y(p.y).toFixed(1)}`).join(" ");
+// ─────────────────────────────────────────────────────────────
+// Tiny sparkline (for index cards)
+// ─────────────────────────────────────────────────────────────
+function Spark({ data, width=180, height=48, stroke='var(--accent)', area=true }) {
+  const pad = 4;
+  const xs = data.map(p=>p.y), ys = data.map(p=>p.v);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMax = Math.max(...ys) * 1.1;
+  const x = v => pad + ((v-xMin)/(xMax-xMin))*(width-2*pad);
+  const y = v => pad + (1 - v/yMax)*(height-2*pad);
+  const pts = data.map(p=>`${x(p.y)},${y(p.v)}`).join(' ');
+  const areaPath = `M${x(data[0].y)},${y(0)} L${pts.split(' ').join(' L')} L${x(data[data.length-1].y)},${y(0)} Z`;
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      width={width}
-      height={height}
-      role="img"
-      aria-hidden="true"
-    >
-      <path d={d} fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={width} height={height} style={{display:'block'}}>
+      {area && <path d={areaPath} fill={stroke} fillOpacity="0.12"/>}
+      <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.3"/>
     </svg>
   );
 }
 
-
-/* --- src/app.jsx --- */
-/* =========================================================================
-   app.jsx — chrome components: header, footer, search, methodology drawer.
-   Shared across every route.
-   ========================================================================= */
-
-/* Focus + Escape management for modal drawers. On open: remember the
-   previously-focused element, move focus onto the dialog, listen for
-   Escape. On close: return focus to the trigger. */
-function useDrawerA11y(open, onClose) {
-  const dialogRef = React.useRef(null);
-  const lastFocusRef = React.useRef(null);
-  React.useEffect(() => {
-    if (!open) return;
-    lastFocusRef.current = document.activeElement;
-    const focusTimer = setTimeout(() => dialogRef.current?.focus(), 0);
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      clearTimeout(focusTimer);
-      document.removeEventListener("keydown", onKey);
-      const prev = lastFocusRef.current;
-      if (prev && typeof prev.focus === "function") prev.focus();
-    };
-  }, [open, onClose]);
-  return dialogRef;
+// ─────────────────────────────────────────────────────────────
+// Donut / ring for grant rate
+// ─────────────────────────────────────────────────────────────
+function Ring({ value, size=140, stroke=14, label='', sub='' }) {
+  const r = size/2 - stroke/2;
+  const c = 2*Math.PI*r;
+  const off = c * (1 - value);
+  return (
+    <div style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:4}}>
+      <svg width={size} height={size}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--bg-2)" strokeWidth={stroke}/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--accent)" strokeWidth={stroke}
+          strokeDasharray={c} strokeDashoffset={off}
+          transform={`rotate(-90 ${size/2} ${size/2})`}
+          style={{transition:'stroke-dashoffset .5s ease'}}/>
+        <text x={size/2} y={size/2+2} textAnchor="middle" fontSize="26" fill="var(--ink)" style={{fontFamily:'var(--serif)',fontVariantNumeric:'tabular-nums'}}>
+          {Math.round(value*100)}%
+        </text>
+      </svg>
+      {label && <div className="uc" style={{color:'var(--muted)'}}>{label}</div>}
+      {sub && <div style={{fontSize:12,color:'var(--muted)',fontStyle:'italic'}}>{sub}</div>}
+    </div>
+  );
 }
 
-const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "story",     label: "Story" },
-  { id: "datasets",  label: "Datasets" },
-  { id: "build",     label: "Build" },
-];
-
-function SiteHeader({ route, onNavigate, onOpenMethodology, onOpenTweaks }) {
+// ─────────────────────────────────────────────────────────────
+// Choropleth-ish region list (ranked bars)
+// ─────────────────────────────────────────────────────────────
+function RegionList({ data }) {
+  const vMax = Math.max(...data.map(d=>d.v));
   return (
-    <header
-      style={{
-        borderBottom: "1px solid var(--rule)",
-        padding: "22px 48px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 28,
-      }}
-    >
-      <div>
-        <div className="uc">Home Office Data Explorer</div>
-        <div
-          className="t-sub"
-          style={{ marginTop: 2 }}
-        >
-          Small boats<span className="end-dot" />
+    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+      {data.map(d=>(
+        <div key={d.name} style={{display:'grid',gridTemplateColumns:'170px 1fr 60px',alignItems:'center',gap:16,fontSize:13,padding:'6px 0',borderBottom:'1px dotted var(--rule)'}}>
+          <span>{d.name}</span>
+          <div style={{position:'relative',height:14,background:'var(--bg-2)'}}>
+            <div style={{position:'absolute',inset:0,width:`${(d.v/vMax)*100}%`,background:'var(--accent)'}}/>
+          </div>
+          <span className="tnum" style={{textAlign:'right',color:'var(--ink-2)'}}>{fmtN(d.v)}</span>
         </div>
-      </div>
+      ))}
+    </div>
+  );
+}
 
-      <nav
-        aria-label="Primary"
-        style={{ display: "flex", gap: 6 }}
-      >
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            className="pressable"
-            aria-pressed={route === item.id}
-            onClick={() => onNavigate(item.id)}
-          >
-            {item.label}
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, Spark, Ring, RegionList, fmtK, fmtN });
+
+
+/* --- src/app.jsx --- */
+// app.jsx — main application: header, router, index/story/build views
+
+const { useState, useEffect, useRef, useMemo } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accent": "#1c3d2e"
+}/*EDITMODE-END*/;
+
+// ─────────────────────────────────────────────────────────────
+// Header
+// ─────────────────────────────────────────────────────────────
+function Header({ route, setRoute, onSearch, onMethod }) {
+  const tabs = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'index', label: 'Stories' },
+    { id: 'datasets', label: 'Datasets' },
+    { id: 'build', label: 'Build a chart' },
+  ];
+  return (
+    <header style={{background:'var(--bg)',borderBottom:'1px solid var(--rule)',position:'sticky',top:0,zIndex:50,backdropFilter:'blur(6px)'}}>
+      <div style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:40}}>
+        <button onClick={()=>setRoute({name:'index'})} className="pressable" style={{display:'flex',alignItems:'baseline',gap:12,whiteSpace:'nowrap',flexShrink:0}}>
+          <span style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:600,color:'var(--accent)',letterSpacing:-0.2}}>Home Office</span>
+          <span style={{fontFamily:'var(--serif)',fontSize:15,fontStyle:'italic',color:'var(--muted)'}}>data explorer</span>
+        </button>
+        <nav style={{display:'flex',alignItems:'center',gap:28}}>
+          {tabs.map(t=>(
+            <button key={t.id} onClick={()=>setRoute({name:t.id})}
+              className="ulh"
+              style={{fontSize:13.5,color: route.name===t.id ? 'var(--accent)':'var(--ink-2)',
+                     borderBottom: route.name===t.id ? '1px solid var(--accent)':'1px solid transparent',
+                     paddingBottom:3}}>
+              {t.label}
+            </button>
+          ))}
+          <button onClick={onSearch} className="pressable" aria-label="Search" style={{fontSize:13.5,color:'var(--muted)',display:'flex',alignItems:'center',gap:6}}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/></svg>
+            <span>Search</span>
           </button>
-        ))}
-      </nav>
-
-      <div style={{ display: "flex", gap: 6 }}>
-        <SearchStub />
-        <button className="pressable" onClick={onOpenMethodology}>
-          Methodology
-        </button>
-        <button
-          className="pressable"
-          onClick={onOpenTweaks}
-          aria-label="Open theme tweak panel"
-          title="Tweak accent colour"
-        >
-          Tweaks
-        </button>
+          <button onClick={onMethod} className="ulh" style={{fontSize:13.5,color:'var(--muted)'}}>Methodology</button>
+        </nav>
       </div>
     </header>
   );
 }
 
-function SearchStub() {
-  const [value, setValue] = React.useState("");
-  return (
-    <input
-      type="search"
-      placeholder="Search"
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      style={{
-        font: "inherit",
-        border: "1px solid var(--rule-2)",
-        padding: "6px 10px",
-        background: "var(--bg)",
-        color: "var(--ink)",
-        width: 160,
-      }}
-    />
-  );
-}
+// ─────────────────────────────────────────────────────────────
+// Search modal (command palette style)
+// ─────────────────────────────────────────────────────────────
+function SearchModal({ open, onClose, onPick }) {
+  const [q, setQ] = useState('');
+  const inputRef = useRef(null);
+  useEffect(()=>{ if (open) setTimeout(()=>inputRef.current?.focus(), 40); }, [open]);
+  useEffect(()=>{
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return ()=>window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
-function SiteFooter() {
-  const meta = (typeof window !== "undefined" && window.BOATS_META) || null;
-  const sourceDated = meta?.sourceDated || "pending first fetch";
-  const latest = meta?.latestDataPoint || "—";
-  const generated = meta?.generatedAt ? meta.generatedAt.slice(0, 10) : "—";
+  const items = useMemo(()=>{
+    const stories = STORIES.map(s=>({kind:'Story', id:s.id, label:s.title, sub:s.kicker, go:{name:'story', id:s.id}}));
+    const datasets = DATASETS.map(d=>({kind:'Dataset', id:d.code, label:d.name, sub:d.code+' · '+d.rows+' rows', go:{name:'datasets'}}));
+    const all = [...stories, ...datasets];
+    if (!q) return all.slice(0,8);
+    const ql = q.toLowerCase();
+    return all.filter(i => i.label.toLowerCase().includes(ql) || i.sub.toLowerCase().includes(ql)).slice(0,10);
+  },[q]);
+
+  if (!open) return null;
   return (
-    <footer className="site-footer">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 28 }}>
-        <div>
-          <div className="uc">Source</div>
-          <div className="rule-terra kicker-rule" />
-          <p className="t-body">
-            UK Home Office —{" "}
-            <a
-              href="https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Migrants detected crossing the English Channel in small boats
-            </a>
-            . Published under the Open Government Licence v3.0.
-          </p>
+    <div style={{position:'fixed',inset:0,background:'rgba(26,26,23,.35)',zIndex:200,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:'12vh'}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'var(--bg)',border:'1px solid var(--rule-2)',boxShadow:'0 20px 60px rgba(0,0,0,.15)',width:'min(620px,92vw)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'18px 22px',borderBottom:'1px solid var(--rule)'}}>
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/></svg>
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search 1.24 million records, stories, datasets…"
+            style={{flex:1,border:'none',outline:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:17,color:'var(--ink)'}}/>
+          <span className="mono" style={{fontSize:11,color:'var(--muted-2)',border:'1px solid var(--rule-2)',padding:'2px 5px'}}>esc</span>
         </div>
-        <div>
-          <div className="uc">Pipeline</div>
-          <div className="rule-olive kicker-rule" />
-          <p className="t-body">
-            Source file dated <span className="tnum">{sourceDated}</span>.
-            Latest data point <span className="tnum">{latest}</span>.
-            Regenerated <span className="tnum">{generated}</span>.
-          </p>
-        </div>
-        <div>
-          <div className="uc">Notes</div>
-          <div className="rule-gold kicker-rule" />
-          <p className="t-body">
-            No editorial framing. Numbers trace to specific{" "}
-            <span className="mono">BOATS_*</span> fields.
-          </p>
+        <div style={{maxHeight:'50vh',overflowY:'auto'}}>
+          {items.length === 0 ? (
+            <div style={{padding:'32px 22px',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>No matches.</div>
+          ) : items.map((it,i)=>(
+            <button key={i} onClick={()=>{ onPick(it.go); onClose(); }}
+              style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'12px 22px',borderBottom:'1px solid var(--rule)',textAlign:'left'}}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--bg-2)'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <div>
+                <div style={{fontSize:14,color:'var(--ink)'}}>{it.label}</div>
+                <div style={{fontSize:11.5,color:'var(--muted)',marginTop:2}} className="uc">{it.kind} · {it.sub}</div>
+              </div>
+              <span style={{color:'var(--muted-2)'}}>↗</span>
+            </button>
+          ))}
         </div>
       </div>
-    </footer>
+    </div>
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Methodology drawer
+// ─────────────────────────────────────────────────────────────
 function MethodologyDrawer({ open, onClose }) {
-  const meta = (typeof window !== "undefined" && window.BOATS_META) || null;
-  const notes = meta?.notes || [];
-  const dialogRef = useDrawerA11y(open, onClose);
   return (
     <>
-      <div
-        className={"drawer-scrim" + (open ? " is-open" : "")}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <aside
-        ref={dialogRef}
-        tabIndex={-1}
-        className={"drawer" + (open ? " is-open" : "")}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Methodology"
-        aria-hidden={!open}
-      >
-        <div className="page-drawer">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <div>
-              <div className="uc">Methodology</div>
-              <div className="rule-terra kicker-rule" />
-              <h2 className="t-section">How the numbers are built</h2>
+      <div className={`drawer-scrim ${open?'open':''}`} onClick={onClose}/>
+      <aside className={`drawer ${open?'open':''}`}>
+        <div style={{padding:'32px 40px',borderBottom:'1px solid var(--rule)',display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+          <div>
+            <div className="uc" style={{color:'var(--accent-warn)',marginBottom:6}}>Notes on methodology</div>
+            <h2 style={{fontFamily:'var(--serif)',fontSize:28,margin:0,fontWeight:500,letterSpacing:-0.3}}>How these numbers are made</h2>
+          </div>
+          <button onClick={onClose} className="pressable" aria-label="Close" style={{fontSize:22,color:'var(--muted)'}}>×</button>
+        </div>
+        <div style={{padding:'28px 40px',fontSize:15,lineHeight:1.62,color:'var(--ink-2)'}}>
+          <p style={{margin:'0 0 16px',textWrap:'pretty'}}>Figures on this page are drawn from the Home Office Immigration Statistics quarterly release, published on the second Thursday of February, May, August and November. The dataset goes back to 1979 for asylum applications and to 2018 for small-boat arrivals.</p>
+
+          <h3 style={{fontFamily:'var(--serif)',fontSize:14,textTransform:'uppercase',letterSpacing:0.08,margin:'28px 0 8px',color:'var(--accent)'}}>Main applicants vs. dependants</h3>
+          <p style={{margin:'0 0 16px'}}>Unless otherwise stated, our counts refer to <em>main applicants</em> only. An asylum claim may cover dependants (spouse, children under 18) — including them roughly increases total counts by 25–30%.</p>
+
+          <h3 style={{fontFamily:'var(--serif)',fontSize:14,textTransform:'uppercase',letterSpacing:0.08,margin:'28px 0 8px',color:'var(--accent)'}}>Grant rate definition</h3>
+          <p style={{margin:'0 0 16px'}}>Grant rate is the share of <em>initial decisions</em> that resulted in asylum or humanitarian protection being granted, excluding withdrawn and non-substantive cases.</p>
+
+          <h3 style={{fontFamily:'var(--serif)',fontSize:14,textTransform:'uppercase',letterSpacing:0.08,margin:'28px 0 8px',color:'var(--accent)'}}>Small boats</h3>
+          <p style={{margin:'0 0 16px'}}>Small-boat arrivals are recorded by Border Force on arrival at Dover or on interception in the Channel. The series begins January 2018. Not every arrival lodges an asylum claim, although the majority do.</p>
+
+          <h3 style={{fontFamily:'var(--serif)',fontSize:14,textTransform:'uppercase',letterSpacing:0.08,margin:'28px 0 8px',color:'var(--accent)'}}>Updates and revisions</h3>
+          <p style={{margin:'0 0 16px'}}>Historic figures are occasionally revised by the Home Office when new returns are received or coding errors are corrected. We reflect the latest published revision and do not freeze snapshots. See the <span style={{borderBottom:'1px solid var(--accent)',color:'var(--accent)'}}>revision log</span> for a full history.</p>
+
+          <div style={{marginTop:32,padding:'16px 20px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)'}}>
+            <div className="uc" style={{color:'var(--accent)',marginBottom:6}}>Contact</div>
+            <div style={{fontSize:14}}>Questions, corrections, data requests: <span style={{borderBottom:'1px solid currentColor'}}>data@example.gov.uk</span></div>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Shared story card hero (tiny visual per story)
+// ─────────────────────────────────────────────────────────────
+function StoryHero({ kind }) {
+  if (kind === 'trend') return <Spark data={ASYLUM_ANNUAL} width={220} height={62}/>;
+  if (kind === 'bars') return (
+    <svg width="220" height="62" style={{display:'block'}}>
+      {[7850,5928,4310,3512,3180].map((v,i)=>(
+        <rect key={i} x={i*44} y={62-v/150} width={34} height={v/150} fill="var(--accent)"/>
+      ))}
+    </svg>
+  );
+  if (kind === 'backlog') return <Spark data={BACKLOG} width={220} height={62} stroke="var(--accent-warn)"/>;
+  if (kind === 'area') return (
+    <Spark data={ASYLUM_ANNUAL.map(d=>({y:d.y,v:d.boats}))} width={220} height={62} stroke="var(--accent-2)"/>
+  );
+  if (kind === 'ring') return (
+    <svg width="220" height="62" viewBox="0 0 220 62">
+      <g transform="translate(30,31)">
+        <circle r="22" fill="none" stroke="var(--bg-2)" strokeWidth="5"/>
+        <circle r="22" fill="none" stroke="var(--accent)" strokeWidth="5"
+          strokeDasharray={`${2*Math.PI*22}`}
+          strokeDashoffset={2*Math.PI*22*(1-.47)}
+          transform="rotate(-90)"/>
+        <text textAnchor="middle" y="5" fontFamily="var(--serif)" fontSize="16" fill="var(--ink)" style={{fontVariantNumeric:'tabular-nums'}}>47%</text>
+      </g>
+      <text x="68" y="28" fontFamily="var(--serif)" fontSize="11" fill="var(--muted)" className="uc">Grant rate</text>
+      <text x="68" y="46" fontFamily="var(--serif)" fontSize="12" fill="var(--ink-2)" style={{fontStyle:'italic'}}>up from 24% (2019)</text>
+    </svg>
+  );
+  if (kind === 'map') return (
+    <svg width="220" height="62" style={{display:'block'}}>
+      {REGIONS.slice(0,12).map((r,i)=>(
+        <rect key={i} x={i*18} y={62 - (r.v/15000)*56} width={14} height={(r.v/15000)*56} fill="var(--accent)" opacity={0.4 + (r.v/15000)*0.6}/>
+      ))}
+    </svg>
+  );
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Index view
+// ─────────────────────────────────────────────────────────────
+function IndexView({ setRoute }) {
+  const featured = STORIES[0];
+  const rest = STORIES.slice(1);
+  return (
+    <main className="fade-enter">
+      {/* hero / featured story */}
+      <section style={{maxWidth:1240,margin:'0 auto',padding:'56px 48px 40px',borderBottom:'1px solid var(--rule)'}}>
+        <div style={{display:'grid',gridTemplateColumns:'minmax(320px,420px) 1fr',gap:72,alignItems:'start'}}>
+          <div>
+            <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:18}}>
+              <span style={{background:'var(--accent-warn)',color:'var(--bg)',padding:'4px 9px',fontSize:10.5,letterSpacing:1.2,textTransform:'uppercase'}}>Featured</span>
+              <span className="uc" style={{color:'var(--muted)',paddingBottom:4,borderBottom:'1.5px solid var(--accent-2)'}}>{featured.kicker} · {featured.date}</span>
             </div>
-            <button className="pressable" onClick={onClose} aria-label="Close drawer">
-              Close
+            <h1 style={{fontFamily:'var(--serif)',fontSize:56,lineHeight:1,letterSpacing:-0.8,margin:'0 0 22px',fontWeight:400,color:'var(--ink)',textWrap:'balance'}}>
+              The <em style={{fontStyle:'italic',color:'var(--accent)'}}>long tail</em><br/>of the 2022 surge
+            </h1>
+            <p style={{fontSize:17.5,lineHeight:1.55,color:'var(--ink-2)',margin:'0 0 24px',textWrap:'pretty'}}>
+              {featured.dek} Eleven years of data, told in four charts — and the questions the numbers don't answer.
+            </p>
+            <div style={{display:'flex',gap:20,alignItems:'center',fontSize:13,color:'var(--muted)'}}>
+              <button onClick={()=>setRoute({name:'story',id:featured.id})}
+                style={{background:'var(--accent)',color:'var(--bg)',padding:'10px 18px',fontSize:13,letterSpacing:0.04,fontFamily:'var(--serif)'}}>
+                Read the story →
+              </button>
+              <span>{featured.reading} read</span>
+            </div>
+          </div>
+          <div>
+            <div style={{background:'var(--bg-2)',padding:'28px 32px',border:'1px solid var(--rule)'}}>
+              <LineChart
+                data={ASYLUM_ANNUAL}
+                title="Asylum applications, UK"
+                subtitle="Figure 01 · 2014–2024"
+                source="Home Office Immigration Statistics · ASY_D01"
+                annotations={[
+                  { y: 2023, label: 'Peak: 84,425', dx: -140, dy: -12 },
+                  { y: 2020, label: 'Pandemic', dx: -70, dy: 50 },
+                ]}
+                caption="Main applicants only. Excludes dependants. The 2024 figure is provisional and may be revised in the August release."
+                width={720} height={320}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Key numbers strip */}
+      <section style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px',borderBottom:'1px solid var(--rule)'}}>
+        <div className="uc" style={{marginBottom:18,color:'var(--muted)'}}>At a glance · 2024</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:0,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)'}}>
+          {[
+            { l:'Applications', v:'80,782', d:'↓ 4.3% vs 2023'},
+            { l:'Grant rate', v:'47%', d:'up from 24% (2019)'},
+            { l:'Backlog', v:'91,200', d:'↓ 31% in one year'},
+            { l:'Small-boat arrivals', v:'36,816', d:'↑ 25% vs 2023'},
+            { l:'Resettled', v:'12,410', d:'across four schemes'},
+          ].map((s,i)=>(
+            <div key={i} style={{padding:'22px 24px',borderRight: i<4?'1px solid var(--rule)':'none'}}>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>{s.l}</div>
+              <div style={{fontFamily:'var(--serif)',fontSize:32,fontWeight:400,color:'var(--ink)',letterSpacing:-0.3,lineHeight:1}} className="tnum">{s.v}</div>
+              <div style={{fontSize:12.5,color:'var(--muted)',marginTop:8,fontStyle:'italic'}}>{s.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Story grid */}
+      <section style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
+        <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:24}}>
+          <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,margin:0,letterSpacing:-0.2}}>Recent stories</h2>
+          <div className="uc" style={{color:'var(--muted)'}}>Showing {rest.length} of {STORIES.length - 1 + 24} · <span style={{borderBottom:'1px solid currentColor',cursor:'pointer'}}>All stories</span></div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
+          {rest.map(s=>(
+            <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})}
+              style={{background:'var(--bg)',padding:'26px 28px 24px',textAlign:'left',border:'none',cursor:'pointer',transition:'background .15s',display:'flex',flexDirection:'column',gap:16,minHeight:260}}
+              onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-2)'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='var(--bg)'}}>
+              <div className="uc" style={{color:'var(--accent-warn)',paddingBottom:4,borderBottom:'1.5px solid var(--accent-warn)',display:'inline-block'}}>{s.kicker}</div>
+              <div style={{fontFamily:'var(--serif)',fontSize:22,lineHeight:1.15,letterSpacing:-0.2,color:'var(--ink)',textWrap:'balance'}}>{s.title}</div>
+              <div style={{fontSize:14,lineHeight:1.5,color:'var(--ink-2)',textWrap:'pretty',flex:1}}>{s.dek}</div>
+              <div style={{borderTop:'1px solid var(--rule)',paddingTop:14,display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
+                <div className="uc" style={{color:'var(--muted)'}}>{s.date} · {s.reading}</div>
+                <StoryHero kind={s.hero}/>
+              </div>
             </button>
-          </div>
-
-          <p className="t-body" style={{ marginTop: 22 }}>
-            Every chart and KPI reads from a <span className="mono">BOATS_*</span>{" "}
-            global produced by <span className="mono">scripts/build_boats_data.py</span>.
-            The source is a weekly ODS from gov.uk; the build pipeline is the schema
-            source of truth.
-          </p>
-
-          <div className="callout">
-            <div className="uc">Provenance</div>
-            <p className="t-body" style={{ marginTop: 6 }}>
-              Source file:{" "}
-              <span className="mono">{meta?.sourceFile || "—"}</span>.
-              Regenerated{" "}
-              <span className="tnum">
-                {meta?.generatedAt ? meta.generatedAt.slice(0, 10) : "—"}
-              </span>
-              .
-            </p>
-          </div>
-
-          <div className="uc" style={{ marginTop: 28 }}>Notes from source</div>
-          <div className="rule-olive kicker-rule" />
-          {notes.length === 0 ? (
-            <p className="t-caption">
-              No notes extracted. (The ODS has not yet been built — run{" "}
-              <span className="mono">scripts/build_boats_data.py</span>.)
-            </p>
-          ) : (
-            <ol style={{ paddingLeft: 18, margin: 0 }}>
-              {notes.map((n, i) => (
-                <li key={i} className="t-body" style={{ margin: "10px 0" }}>
-                  {n}
-                </li>
-              ))}
-            </ol>
-          )}
+          ))}
         </div>
-      </aside>
-    </>
+      </section>
+    </main>
   );
 }
 
-const ACCENT_OPTIONS = [
-  { id: "forest", hex: "#1c3d2e" },
-  { id: "navy",   hex: "#1c2d4a" },
-  { id: "sage",   hex: "#4a6a4a" },
-  { id: "umber",  hex: "#6a4a2a" },
-  { id: "plum",   hex: "#4a2a3a" },
-  { id: "ink",    hex: "#1a1a17" },
-];
-
-function TweakPanel({ open, onClose, accent, onAccentChange }) {
-  const dialogRef = useDrawerA11y(open, onClose);
-  return (
-    <>
-      <div
-        className={"drawer-scrim" + (open ? " is-open" : "")}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <aside
-        ref={dialogRef}
-        tabIndex={-1}
-        className={"drawer" + (open ? " is-open" : "")}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Theme tweaks"
-        aria-hidden={!open}
-      >
-        <div className="page-drawer">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <div>
-              <div className="uc">Tweaks</div>
-              <div className="rule-accent kicker-rule" />
-              <h2 className="t-section">Accent</h2>
-            </div>
-            <button className="pressable" onClick={onClose}>Close</button>
-          </div>
-
-          <p className="t-caption" style={{ marginTop: 18 }}>
-            The only user-tweakable token. Everything that reads{" "}
-            <span className="mono">var(--accent)</span> updates live.
-          </p>
-
-          <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
-            {ACCENT_OPTIONS.map((opt) => {
-              const isActive = accent === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  className="pressable"
-                  onClick={() => onAccentChange(opt.id)}
-                  aria-pressed={isActive}
-                  title={opt.id}
-                  style={{
-                    width: 44,
-                    height: 44,
-                    background: opt.hex,
-                    border: 0,
-                    padding: 0,
-                    outline: isActive ? "2px solid var(--ink)" : "none",
-                    outlineOffset: 2,
-                  }}
-                />
-              );
-            })}
-          </div>
-
-          <div className="uc" style={{ marginTop: 36 }}>Sample</div>
-          <div className="rule-terra kicker-rule" />
-          <div style={{ marginTop: 10 }}>
-            <span className="tick tick-accent" />
-            <span className="t-body">Primary series (forest by default)</span>
-          </div>
-          <div style={{ marginTop: 6 }}>
-            <span className="tick" />
-            <span className="t-body">Attention / refusals (terracotta, fixed)</span>
-          </div>
-        </div>
-      </aside>
-    </>
-  );
-}
+Object.assign(window, { Header, SearchModal, MethodologyDrawer, IndexView, TWEAK_DEFAULTS });
 
 
 /* --- src/dashboard-view.jsx --- */
-/* =========================================================================
-   dashboard-view.jsx — /dashboard route.
+// dashboard-view.jsx — synchronised dashboard with pride-of-place KPIs + charts + tables
 
-   The visible core of the product. KPI strip, primary time series, year-on-
-   year cumulative lines, annual totals table. Every number traces to a
-   BOATS_* field. No hardcoded statistics in here.
-   ========================================================================= */
+const { useState: uSD, useMemo: uMD } = React;
 
-function StaleBanner() {
-  const meta = window.BOATS_META;
-  if (!meta?.latestDataPoint) return null;
-  const latest = new Date(meta.latestDataPoint + "T00:00:00Z");
-  const now = new Date();
-  const ageDays = Math.floor((now - latest) / 86400000);
-  if (ageDays <= 14) return null;
+function DashboardView({ setRoute }) {
+  const [range, setRange] = uSD([2018, 2024]);
+  const [focus, setFocus] = uSD('all'); // all | applications | decisions | geography
+
+  const filteredAnnual = uMD(()=>ASYLUM_ANNUAL.filter(d => d.y >= range[0] && d.y <= range[1]), [range]);
+  const latest = ASYLUM_ANNUAL[ASYLUM_ANNUAL.length - 1];
+  const prev = ASYLUM_ANNUAL[ASYLUM_ANNUAL.length - 2];
+  const pctChange = ((latest.v - prev.v) / prev.v * 100).toFixed(1);
+  const boatsPct = ((latest.boats - prev.boats) / prev.boats * 100).toFixed(1);
+  const filteredBacklog = uMD(()=>BACKLOG.filter(d => d.y >= range[0] && d.y <= range[1]), [range]);
+  const decisionsTotal = DECISIONS_2024.reduce((s,d)=>s+d.v,0);
+  const grantRate = (DECISIONS_2024[0].v + DECISIONS_2024[1].v) / decisionsTotal;
+
+  // Preventions + interceptions (BOATS_WEEKLY.p / .e) — null before first reported week.
+  const boatsWeekly = typeof BOATS_WEEKLY !== 'undefined' ? BOATS_WEEKLY : [];
+  const preventions2024 = boatsWeekly
+    .filter(w => w.we?.startsWith('2024') && w.p != null)
+    .reduce((s,w) => s + w.p, 0);
+  const preventionsFirstWeek = boatsWeekly.find(w => w.p != null)?.we ?? null;
+  const interceptionsWeekly = boatsWeekly
+    .filter(w => w.e != null)
+    .map((w, i) => ({ y: i, v: w.e, label: w.we }));
+  const interceptionsFirstWe = interceptionsWeekly[0]?.label ?? null;
+  const interceptionsLastWe = interceptionsWeekly[interceptionsWeekly.length - 1]?.label ?? null;
+
+  // Phase 4 placeholders — hydrate from globals when data lands.
+  const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : null;
+  const natQuarterly = typeof NAT_QUARTERLY !== 'undefined' ? NAT_QUARTERLY : null;
+  const resettlementSeries = typeof RESETTLEMENT_SERIES !== 'undefined' ? RESETTLEMENT_SERIES : null;
+  const resettlementYears = typeof RESETTLEMENT_META !== 'undefined' ? RESETTLEMENT_META.years : [2022,2023,2024];
+  const hotels = typeof HOTELS !== 'undefined' ? HOTELS : null;
+
+  // Derive "top nationality + QoQ delta" from NAT_QUARTERLY when available.
+  const topNatCard = (() => {
+    if (!natQuarterly || !natQuarterly.quarters?.length || !natQuarterly.series?.length) return null;
+    const qs = natQuarterly.quarters;
+    const lastIdx = qs.length - 1;
+    const prevIdx = Math.max(0, lastIdx - 1);
+    // Find the series with the highest value in the latest quarter.
+    let top = natQuarterly.series[0];
+    for (const s of natQuarterly.series) {
+      if ((s.data[lastIdx] ?? 0) > (top.data[lastIdx] ?? 0)) top = s;
+    }
+    const now = top.data[lastIdx] ?? 0;
+    const was = top.data[prevIdx] ?? 0;
+    const delta = was === 0 ? null : ((now - was) / was * 100);
+    return { name: top.name, v: now, delta, quarter: qs[lastIdx], prevQuarter: qs[prevIdx] };
+  })();
+
+  // Hotels KPI: latest value + previous for delta, if data is present.
+  const hotelsCard = (() => {
+    if (!hotels || !hotels.length) return null;
+    const last = hotels[hotels.length - 1];
+    const prev2 = hotels[hotels.length - 2];
+    const delta = prev2 ? ((last.persons_in_hotels - prev2.persons_in_hotels) / prev2.persons_in_hotels * 100) : null;
+    return { ...last, delta };
+  })();
+
   return (
-    <div className="callout">
-      <div className="uc">Stale source</div>
-      <div className="rule-terra kicker-rule" />
-      <p className="t-body" style={{ marginTop: 6 }}>
-        Latest data point is{" "}
-        <span className="tnum">{ageDays}</span> days old (
-        <span className="tnum">{meta.latestDataPoint}</span>). The pipeline may
-        not be running — check GitHub Actions.
-      </p>
-    </div>
-  );
-}
-
-function KpiStrip() {
-  const r = window.BOATS_RECORDS;
-  if (!r) return null;
-  return (
-    <section className="kpi-grid" style={{ marginBottom: 36 }}>
-      <div className="kpi accent">
-        <div className="uc kpi-label">Total migrants</div>
-        <div className="t-kpi">{fmtN(r.totalMigrants)}</div>
-        <div className="t-caption">
-          Since {r.firstDate} · {fmtN(r.daysCovered)} days
+    <main className="fade-enter" style={{maxWidth:1300,margin:'0 auto',padding:'36px 48px 80px'}}>
+      {/* title strip */}
+      <div style={{borderBottom:'1px solid var(--rule)',paddingBottom:22,marginBottom:28,display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:40,flexWrap:'wrap'}}>
+        <div>
+          <div className="kicker-rule" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,textTransform:'uppercase',fontWeight:500}}>Live dashboard · Q1 2026</div>
+          <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'6px 0 10px'}}>Asylum &amp; resettlement at a glance</h1>
+          <p style={{fontSize:15.5,color:'var(--ink-2)',maxWidth:680,margin:0,lineHeight:1.5}}>
+            Eight key figures, six charts, and the regional table — all driven by a single time-range filter. Updated when the Home Office releases its quarterly figures.
+          </p>
+        </div>
+        <div style={{minWidth:320}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+            <span className="uc" style={{color:'var(--muted)'}}><span className="tick tick-accent"/>Filter range</span>
+            <span className="uc tnum" style={{color:'var(--accent)'}}>{range[0]}–{range[1]}</span>
+          </div>
+          <div style={{display:'flex',gap:10,alignItems:'center'}}>
+            <input type="range" min={2014} max={2024} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
+            <input type="range" min={2014} max={2024} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
+          </div>
+          <div style={{marginTop:14,display:'flex',gap:6,flexWrap:'wrap'}}>
+            {[
+              { id:'all', label:'All' },
+              { id:'applications', label:'Applications and journeys' },
+              { id:'decisions', label:'Decisions' },
+              { id:'geography', label:'Geography' },
+            ].map(f => (
+              <button key={f.id} onClick={()=>setFocus(f.id)}
+                style={{
+                  fontSize:11.5,letterSpacing:0.04,padding:'5px 11px',
+                  fontFamily:'var(--serif)',
+                  background: focus===f.id ? 'var(--accent)' : '#fff',
+                  color: focus===f.id ? 'var(--bg)' : 'var(--ink-2)',
+                  border:'1px solid var(--rule-2)',
+                }}>{f.label}</button>
+            ))}
+          </div>
         </div>
       </div>
-      <div className="kpi olive">
-        <div className="uc kpi-label">Total boats</div>
-        <div className="t-kpi">{fmtN(r.totalBoats)}</div>
-        <div className="t-caption">Average ~{(r.totalMigrants / Math.max(1, r.totalBoats)).toFixed(1)} migrants per boat</div>
-      </div>
-      <div className="kpi">
-        <div className="uc kpi-label">Busiest day</div>
-        <div className="t-kpi">{fmtN(r.busiestDay?.migrants)}</div>
-        <div className="t-caption tnum">{r.busiestDay?.date}</div>
-      </div>
-      <div className="kpi gold">
-        <div className="uc kpi-label">Busiest month</div>
-        <div className="t-kpi">{fmtN(r.busiestMonth?.migrants)}</div>
-        <div className="t-caption tnum">{r.busiestMonth?.month}</div>
-      </div>
-    </section>
+
+      {/* KPI strip — pride of place */}
+      <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:36}}>
+        {[
+          { cls:'accent', label:'Applications · 2024',     v:fmtN(latest.v),    d:`${pctChange}% vs 2023`, dPos:+pctChange<0 },
+          { cls:'',       label:'Small-boat arrivals',     v:fmtN(latest.boats), d:`${boatsPct}% vs 2023`, dPos:+boatsPct<0 },
+          { cls:'ink',    label:'Preventions · 2024',      v:fmtN(preventions2024), d:preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true },
+          { cls:'olive',  label:'Grant rate',               v:`${Math.round(grantRate*100)}%`,  d:'from 24% in 2019',   dPos:true },
+          { cls:'gold',   label:'Backlog',                  v:fmtN(91200),        d:'↓ from 132k peak',    dPos:true },
+        ].map((k,i)=>(
+          <div key={i} className={`kpi-card ${k.cls}`}>
+            <div className="uc" style={{color:'var(--muted)',marginBottom:12}}>{k.label}</div>
+            <div style={{fontFamily:'var(--serif)',fontSize:42,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">{k.v}</div>
+            <div style={{fontSize:13,color: k.dPos ? 'var(--accent-2)' : 'var(--accent-warn)',marginTop:10,fontStyle:'italic'}}>{k.d}</div>
+          </div>
+        ))}
+      </section>
+
+      {/* second row — secondary KPIs */}
+      <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:44,paddingBottom:36,borderBottom:'1px solid var(--rule)'}}>
+        {[
+          { cls:'ink',    label:'Initial decisions',        v:fmtN(decisionsTotal),  d:`${Math.round(DECISIONS_2024[0].v/decisionsTotal*100)}% granted asylum`, pending:false},
+          { cls:'accent', label:'Resettled under schemes',  v:fmtN(12410),           d:'Across 5 programmes', pending:false},
+          { cls:'olive',  label:'Appeals allowed',          v:'36%',                 d:'of 41k heard in 2024', pending:false},
+          topNatCard
+            ? { cls:'gold', label:`Top nationality · ${topNatCard.quarter}`, v:topNatCard.name, d: topNatCard.delta==null ? `${fmtN(topNatCard.v)} apps` : `${topNatCard.delta>=0?'+':''}${topNatCard.delta.toFixed(1)}% vs ${topNatCard.prevQuarter}`, pending:false }
+            : { cls:'gold', label:'Top nationality · Q-o-Q',  v:'—',                   d:'Data pending', pending:true },
+          hotelsCard
+            ? { cls:'ink', label:`In asylum hotels · ${hotelsCard.date}`, v:fmtN(hotelsCard.persons_in_hotels), d: hotelsCard.delta==null ? 'latest snapshot' : `${hotelsCard.delta>=0?'+':''}${hotelsCard.delta.toFixed(1)}% vs prior`, pending:false }
+            : { cls:'ink', label:'In asylum hotels',            v:'—',                   d:'Data pending', pending:true },
+        ].map((k,i)=>(
+          <div key={i} className={`kpi-card ${k.cls}`} style={k.pending?{opacity:0.6}:{}}>
+            <div className="uc" style={{color:'var(--muted)',marginBottom:12}}>{k.label}</div>
+            <div style={{fontFamily:'var(--serif)',fontSize: k.pending?24: (typeof k.v === 'string' && k.v.length>8 ? 22 : 32),fontWeight:400,letterSpacing:-0.3,lineHeight:1,color:'var(--ink)'}} className="tnum">{k.v}</div>
+            <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic'}}>{k.d}</div>
+          </div>
+        ))}
+      </section>
+
+      {/* Main chart grid — 2 columns */}
+      {(focus === 'all' || focus === 'applications') && (
+        <section style={{marginBottom:44}}>
+          <DashSectionHeader kicker="Applications and journeys" title="Volume and composition" accent="var(--accent-warn)"/>
+          <div style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:20}}>
+            <DashFrame number="01" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}>
+              <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={720} height={280}
+                annotations={[
+                  range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
+                ].filter(Boolean)}
+                source="Home Office · ASY_D01"/>
+            </DashFrame>
+            <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals" sub={`UK · ${range[0]}–${range[1]}`}>
+              <LineChart data={ASYLUM_ANNUAL.map(d=>({y:d.y,v:d.boats}))} yearRange={range}
+                stroke="var(--accent-warn)" width={520} height={280}
+                source="Home Office · IRR_D01"/>
+            </DashFrame>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
+            <DashFrame number="03" kickerColor="var(--accent-gold)" title="Top five nationalities" sub="2020–2024">
+              <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={760} height={260}/>
+            </DashFrame>
+            <DashFrame number="03a" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}>
+              <NationalitiesTable data={natFull}/>
+            </DashFrame>
+          </div>
+          {interceptionsWeekly.length > 0 && (
+            <DashFrame number="04" kickerColor="var(--accent)" title="Weekly interceptions" sub={`Border Force events · ${interceptionsFirstWe}–${interceptionsLastWe}`} style={{marginTop:20}}>
+              <LineChart data={interceptionsWeekly} width={1120} height={220}
+                stroke="var(--accent)" area={true} showLine={true}
+                xLabelFmt={(_, i, p) => p?.label ? p.label.slice(0,7) : ''}
+                caption="Events in which Border Force prevented a crossing in progress. Weekly totals; preventions counted separately (see KPI strip)."
+                source="Home Office · SB_02"/>
+            </DashFrame>
+          )}
+        </section>
+      )}
+
+      {(focus === 'all' || focus === 'decisions') && (
+        <section style={{marginBottom:44}}>
+          <DashSectionHeader kicker="Decisions" title="Outcomes and the backlog" accent="var(--accent-2)"/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+            <DashFrame number="04" kickerColor="var(--accent-warn)" title="Initial decisions, 2024" sub="Share of substantive outcomes">
+              <StackedBar data={DECISIONS_2024} width={600} height={110}/>
+              <div style={{marginTop:18,display:'grid',gridTemplateColumns:'auto 1fr',gap:12,alignItems:'center'}}>
+                <Ring value={grantRate} size={110} stroke={12} label="Grant rate" sub="2024"/>
+                <div style={{fontSize:14,lineHeight:1.5,color:'var(--ink-2)',textWrap:'pretty'}}>
+                  Nearly half of all decided cases in 2024 resulted in a grant of protection — <em>double</em> the rate five years earlier. Most of the shift reflects changes in nationality composition (Afghan and Sudanese claims have very high grant rates).
+                </div>
+              </div>
+            </DashFrame>
+            <DashFrame number="05" kickerColor="var(--accent-gold)" title="Pending cases (backlog)" sub={`${range[0]}–${range[1]}`}>
+              <LineChart data={BACKLOG} yearRange={range} width={560} height={260}
+                stroke="var(--accent-gold)"
+                annotations={[
+                  range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'Peak 132k', dx:-80, dy:-10 },
+                ].filter(Boolean)}
+                source="Home Office · ASY_D02"/>
+            </DashFrame>
+          </div>
+        </section>
+      )}
+
+      {(focus === 'all' || focus === 'geography') && (
+        <section style={{marginBottom:44}}>
+          <DashSectionHeader kicker="Geography" title="Where people apply, and where they're housed" accent="var(--accent-gold)"/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+            <DashFrame number="06" kickerColor="var(--accent-warn)" title="Applications by region" sub="UK · 2024">
+              <BarChart data={REGIONS} width={560} color="var(--accent)"/>
+            </DashFrame>
+            <DashFrame number="07" kickerColor="var(--accent-2)" title="Top nationalities" sub="UK · 2024" tableSub="Grant rate from ASY_D02">
+              <BarChart data={TOP_NATIONALITIES.slice(0,8)} width={560} color="var(--accent-warn)" showGrant={true}/>
+            </DashFrame>
+          </div>
+        </section>
+      )}
+
+      {/* Resettlement table */}
+      {(focus === 'all' || focus === 'decisions') && (
+        <section style={{marginTop:44,paddingTop:30,borderTop:'1px solid var(--rule)'}}>
+          <DashSectionHeader kicker="Resettlement" title="Arrivals by scheme" accent="var(--accent)"/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+            <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'22px 26px'}}>
+              {resettlementSeries ? (
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}>
+                  <thead>
+                    <tr>
+                      <th className="uc" style={{padding:'0 0 12px',textAlign:'left',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>Scheme</th>
+                      {resettlementYears.map(y => (
+                        <th key={y} className="uc" style={{padding:'0 0 12px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>{y}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resettlementSeries.map((r,i)=>(
+                      <tr key={r.name} style={{borderBottom:'1px solid var(--rule)'}}>
+                        <td style={{padding:'13px 0',color:'var(--ink)'}}><span className="tick" style={{background:['var(--accent)','var(--accent-2)','var(--accent-warn)','var(--accent-gold)','var(--muted)'][i%5]}}/>{r.name}</td>
+                        {resettlementYears.map((y,j) => (
+                          <td key={y} className="tnum" style={{padding:'13px 0',textAlign:'right',color: j===resettlementYears.length-1 ? 'var(--ink)' : 'var(--muted)',fontWeight: j===resettlementYears.length-1 ? 500 : 400}}>{r[y]!=null ? fmtN(r[y]) : '—'}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}>
+                  <thead>
+                    <tr>
+                      <th className="uc" style={{padding:'0 0 12px',textAlign:'left',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>Scheme</th>
+                      <th className="uc" style={{padding:'0 0 12px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>2024 arrivals</th>
+                      <th className="uc" style={{padding:'0 0 12px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>Share</th>
+                      <th className="uc" style={{padding:'0 0 12px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>2022–23 <span style={{fontStyle:'italic',fontWeight:400,textTransform:'none'}}>data pending</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {RESETTLEMENT.map((r,i)=>{
+                      const total = RESETTLEMENT.reduce((s,x)=>s+x.v,0);
+                      return (
+                        <tr key={r.name} style={{borderBottom:'1px solid var(--rule)'}}>
+                          <td style={{padding:'13px 0',color:'var(--ink)'}}><span className="tick" style={{background:['var(--accent)','var(--accent-2)','var(--accent-warn)','var(--accent-gold)','var(--muted)'][i]}}/>{r.name}</td>
+                          <td className="tnum" style={{padding:'13px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
+                          <td className="tnum" style={{padding:'13px 0',textAlign:'right',color:'var(--muted)'}}>{Math.round(r.v/total*100)}%</td>
+                          <td className="tnum" style={{padding:'13px 0',textAlign:'right',color:'var(--muted-2)',fontStyle:'italic'}}>—</td>
+                        </tr>
+                      );
+                    })}
+                    <tr>
+                      <td style={{padding:'13px 0',color:'var(--ink)',fontWeight:500,fontStyle:'italic'}}>Total</td>
+                      <td className="tnum" style={{padding:'13px 0',textAlign:'right',fontWeight:500}}>{fmtN(RESETTLEMENT.reduce((s,x)=>s+x.v,0))}</td>
+                      <td className="tnum" style={{padding:'13px 0',textAlign:'right',color:'var(--muted)'}}>100%</td>
+                      <td className="tnum" style={{padding:'13px 0',textAlign:'right',color:'var(--muted-2)'}}>—</td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+              <div className="uc" style={{color:'var(--muted-2)',marginTop:14}}>Source: Home Office · RES_D01</div>
+            </div>
+            <div style={{border:'1px solid var(--rule)',background:'var(--bg-2)',padding:'26px 28px'}}>
+              <div style={{fontFamily:'var(--serif)',fontSize:17,fontWeight:500,color:'var(--ink)',marginBottom:14}} className="rule-terra" >
+                <span style={{paddingBottom:8,display:'inline-block'}}>What the numbers mean</span>
+              </div>
+              <p style={{fontSize:14.5,lineHeight:1.6,color:'var(--ink-2)',margin:'0 0 14px',textWrap:'pretty'}}>
+                The five schemes on the left are the main routes for people arriving as refugees <em>by invitation</em> — distinct from those who claim asylum after arrival. Together they brought around 12,400 people to the UK in 2024.
+              </p>
+              <p style={{fontSize:14.5,lineHeight:1.6,color:'var(--ink-2)',margin:'0 0 14px',textWrap:'pretty'}}>
+                ACRS and ARAP continue to dominate — both are the legacy of the 2021 Afghan evacuation. The Ukraine schemes are winding down as their successor, the <em>Ukraine Permission Extension</em>, moves people onto domestic visas.
+              </p>
+              <div style={{marginTop:20,paddingTop:18,borderTop:'1px dotted var(--rule-2)',display:'flex',justifyContent:'space-between',fontSize:12.5,color:'var(--muted)'}}>
+                <span className="uc"><span className="tick tick-accent"/>Read: Resettlement explained</span>
+                <span className="ulh" style={{color:'var(--accent)',cursor:'pointer'}}>Full story →</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+    </main>
   );
 }
 
-function WeeklySeriesChart() {
-  const weekly = window.BOATS_WEEKLY || [];
-  if (!weekly.length) return null;
-
-  const toX = (s) => +new Date(s + "T00:00:00Z");
-  const migrants = weekly.map((w) => ({ x: toX(w.we), y: w.m }));
-  const preventions = weekly
-    .map((w) => ({ x: toX(w.we), y: w.p }));
-
-  const years = Array.from(
-    new Set(weekly.map((w) => w.we.slice(0, 4)))
-  ).map((y) => ({ value: +new Date(`${y}-07-01T00:00:00Z`), label: y }));
-
+// Section header with coloured rule
+function DashSectionHeader({ kicker, title, accent }) {
   return (
-    <Figure
-      subtitle="Weekly totals"
-      title="Migrants arriving by small boat, weekly"
-      caption="Weekly ending Sunday. Preventions (where reported from 2023) overlaid in terracotta."
-      source="UK Home Office — SB_02"
-    >
-      <LineChart
-        series={[
-          { name: "Arrivals",    data: migrants,    color: "var(--accent)" },
-          { name: "Preventions", data: preventions, color: "var(--accent-warn)" },
-        ]}
-        width={820}
-        height={320}
-        xTicks={years}
-        xTickFormat={(ms) => new Date(ms).toISOString().slice(0, 10)}
-        tooltipLabel={({ seriesName, x, y }) =>
-          `${new Date(x).toISOString().slice(0, 10)} · ${seriesName}: ${fmtN(y)}`
-        }
-      />
-    </Figure>
-  );
-}
-
-function YoYCumulativeChart() {
-  const yoy = window.BOATS_YOY || {};
-  const years = Object.keys(yoy).sort();
-  if (!years.length) return null;
-
-  const series = years.map((y) => ({
-    name: y,
-    data: yoy[y].map((v, i) => ({ x: i, y: v })),
-  }));
-
-  const monthTicks = [
-    { value: 0,   label: "Jan" },
-    { value: 31,  label: "Feb" },
-    { value: 59,  label: "Mar" },
-    { value: 90,  label: "Apr" },
-    { value: 120, label: "May" },
-    { value: 151, label: "Jun" },
-    { value: 181, label: "Jul" },
-    { value: 212, label: "Aug" },
-    { value: 243, label: "Sep" },
-    { value: 273, label: "Oct" },
-    { value: 304, label: "Nov" },
-    { value: 334, label: "Dec" },
-  ];
-
-  return (
-    <Figure
-      subtitle="Year-on-year"
-      title="Cumulative arrivals by day of year"
-      caption="Each line is one year, running from 1 January. The current year stops at the latest data point — no interpolation past it."
-      source="UK Home Office — SB_01"
-    >
-      <LineChart
-        series={series}
-        width={820}
-        height={360}
-        fill={false}
-        xTicks={monthTicks}
-        xTickFormat={(doy) => `day ${doy + 1}`}
-        tooltipLabel={({ seriesName, x, y }) =>
-          `${seriesName} · day ${x + 1}: ${fmtN(y)}`
-        }
-      />
-    </Figure>
-  );
-}
-
-function AnnualTotalsTable() {
-  const annual = window.BOATS_ANNUAL || [];
-  if (!annual.length) return null;
-  return (
-    <section style={{ marginTop: 36 }}>
-      <div className="uc">Annual totals</div>
-      <div className="rule-gold kicker-rule" />
-      <h2 className="t-section" style={{ marginBottom: 18 }}>
-        Every year since 2018
-      </h2>
-      <div style={{ overflowX: "auto" }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Year</th>
-              <th style={{ textAlign: "right" }}>Migrants</th>
-              <th style={{ textAlign: "right" }}>Boats</th>
-              <th style={{ textAlign: "right" }}>Per boat</th>
-              <th style={{ width: 160 }}>Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {annual.map((row) => {
-              const monthly = (window.BOATS_MONTHLY || []).filter((m) =>
-                m.month.startsWith(String(row.y))
-              );
-              const spark = monthly.map((m, i) => ({ x: i, y: m.m }));
-              return (
-                <tr key={row.y}>
-                  <td className="tnum">{row.y}</td>
-                  <td className="tnum" style={{ textAlign: "right" }}>{fmtN(row.m)}</td>
-                  <td className="tnum" style={{ textAlign: "right" }}>{fmtN(row.b)}</td>
-                  <td className="tnum" style={{ textAlign: "right" }}>{row.perBoat ?? "—"}</td>
-                  <td>
-                    <Spark data={spark} width={140} height={28} color="var(--accent)" />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:18,paddingBottom:12,borderBottom:`1px solid var(--rule)`}}>
+      <div>
+        <div className="uc" style={{color:accent,display:'inline-block',paddingBottom:6,borderBottom:`2px solid ${accent}`,marginBottom:10}}>{kicker}</div>
+        <h2 style={{fontFamily:'var(--serif)',fontSize:26,fontWeight:500,letterSpacing:-0.2,margin:0,color:'var(--ink)'}}>{title}</h2>
       </div>
-    </section>
-  );
-}
-
-function DashboardView() {
-  return (
-    <div className="page">
-      <StaleBanner />
-      <header style={{ marginBottom: 36 }}>
-        <div className="uc">Dashboard</div>
-        <div className="rule-terra kicker-rule" />
-        <h1 className="t-hero">Small boats crossings at a glance</h1>
-        <p className="t-body caption-col" style={{ marginTop: 14, color: "var(--ink-2)" }}>
-          Headline numbers, weekly series, and year-on-year comparison. Every figure
-          traces back to a <span className="mono">BOATS_*</span> global built from
-          the gov.uk source ODS.
-        </p>
-      </header>
-
-      <KpiStrip />
-
-      <div className="chart-row">
-        <WeeklySeriesChart />
-        <YoYCumulativeChart />
-      </div>
-
-      <AnnualTotalsTable />
+      <div className="uc" style={{color:'var(--muted)'}}>↓ Export section</div>
     </div>
   );
 }
+
+// Scrollable full-nationalities table with sortable columns
+function NationalitiesTable({ data }) {
+  const [sortBy, setSortBy] = uSD('v');
+  const [asc, setAsc] = uSD(false);
+
+  if (!data || !data.length) {
+    return (
+      <div style={{padding:'48px 0',textAlign:'center',color:'var(--muted-2)',fontSize:13,fontStyle:'italic',border:'1px dashed var(--rule-2)'}}>
+        Data pending — NAT_FULL not yet loaded
+      </div>
+    );
+  }
+
+  const sorted = [...data].sort((a,b) => {
+    const av = a[sortBy], bv = b[sortBy];
+    if (typeof av === 'string') return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return asc ? av - bv : bv - av;
+  });
+
+  const click = (col) => () => {
+    if (sortBy === col) setAsc(!asc);
+    else { setSortBy(col); setAsc(col === 'name'); }
+  };
+  const arrow = (col) => sortBy===col ? (asc?' ↑':' ↓') : '';
+
+  return (
+    <div style={{maxHeight:260,overflowY:'auto'}}>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+        <thead style={{position:'sticky',top:0,background:'#fff'}}>
+          <tr>
+            <th className="uc" onClick={click('name')} style={{textAlign:'left',padding:'6px 8px 6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Nationality{arrow('name')}</th>
+            <th className="uc" onClick={click('v')}    style={{textAlign:'right',padding:'6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Apps{arrow('v')}</th>
+            <th className="uc" onClick={click('grant')}style={{textAlign:'right',padding:'6px 0 6px 8px',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Grant{arrow('grant')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((r,i)=>(
+            <tr key={r.name} style={{borderBottom:'1px dotted var(--rule)'}}>
+              <td style={{padding:'5px 8px 5px 0',color:'var(--ink)'}}>{r.name}</td>
+              <td className="tnum" style={{padding:'5px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
+              <td className="tnum" style={{padding:'5px 0 5px 8px',textAlign:'right',color:'var(--muted)'}}>{r.grant!=null ? Math.round(r.grant*100)+'%' : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Framed figure card with number + coloured kicker
+function DashFrame({ number, kickerColor, title, sub, children, style={} }) {
+  return (
+    <div style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule)'}}>
+        <div>
+          <div style={{fontSize:10.5,letterSpacing:0.12,textTransform:'uppercase',color:kickerColor,fontWeight:500,display:'inline-block',paddingBottom:4,borderBottom:`1.5px solid ${kickerColor}`,marginBottom:8}}>Fig. {number}</div>
+          <div style={{fontFamily:'var(--serif)',fontSize:18,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>{title}</div>
+          {sub && <div style={{fontSize:12.5,color:'var(--muted)',marginTop:3,fontStyle:'italic'}}>{sub}</div>}
+        </div>
+        <div style={{display:'flex',gap:10,fontSize:11,color:'var(--muted-2)'}} className="uc">
+          <span className="pressable" style={{cursor:'pointer'}}>↓</span>
+          <span className="pressable" style={{cursor:'pointer'}}>⇢</span>
+          <span className="pressable" style={{cursor:'pointer'}}>⎘</span>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+Object.assign(window, { DashboardView });
 
 
 /* --- src/views-story-build.jsx --- */
-/* =========================================================================
-   views-story-build.jsx — /story, /datasets, /build routes.
+// views-story-build.jsx — Story view (deep narrative + charts) and Build-your-own view
 
-   Story     narrative prose with inline sparks. Tone neutral per CLAUDE.md
-             § Copy & framing.
-   Datasets  table of available BOATS_* globals with schema snippets.
-   Build     methodology, source links, notes lifted verbatim from
-             BOATS_META.notes.
-   ========================================================================= */
+const { useState: uS2, useMemo: uM2, useEffect: uE2 } = React;
 
-/* ---------- /story ---------- */
+// ─────────────────────────────────────────────────────────────
+// Story view
+// ─────────────────────────────────────────────────────────────
+function StoryView({ id, setRoute, onMethod }) {
+  const story = STORIES.find(s => s.id === id) || STORIES[0];
+  const [range, setRange] = uS2([2014, 2024]);
+  const [mode, setMode] = uS2('line'); // line | bar
+  const [compareOn, setCompareOn] = uS2(true);
 
-function StoryKpiLine({ label, value, suffix, sparkData, sparkColor }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 18,
-        padding: "14px 0",
-        borderBottom: "1px solid var(--rule)",
-      }}
-    >
-      <div>
-        <div className="uc">{label}</div>
-        <div className="t-sub tnum" style={{ marginTop: 2 }}>
-          {value}
-          {suffix && <span className="t-caption" style={{ marginLeft: 6 }}>{suffix}</span>}
+    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 100px'}}>
+      {/* breadcrumb */}
+      <div style={{fontSize:12.5,color:'var(--muted)',marginBottom:24}} className="uc">
+        <span style={{cursor:'pointer'}} onClick={()=>setRoute({name:'index'})}>Stories</span>
+        <span style={{margin:'0 10px'}}>/</span>
+        <span>{story.kicker}</span>
+      </div>
+
+      {/* story header */}
+      <header style={{display:'grid',gridTemplateColumns:'1fr 340px',gap:72,borderBottom:'1px solid var(--rule)',paddingBottom:36,marginBottom:40}}>
+        <div>
+          <div className="uc" style={{color:'var(--accent-warn)',marginBottom:14,display:'inline-block',paddingBottom:5,borderBottom:'2px solid var(--accent-warn)'}}>{story.kicker} · Story</div>
+          <h1 style={{fontFamily:'var(--serif)',fontSize:54,lineHeight:1.02,letterSpacing:-0.6,fontWeight:400,margin:'0 0 22px',textWrap:'balance',color:'var(--ink)'}}>
+            The <em style={{fontStyle:'italic',color:'var(--accent)'}}>long tail</em> of the 2022 surge
+          </h1>
+          <p style={{fontSize:19,lineHeight:1.5,color:'var(--ink-2)',margin:0,textWrap:'pretty',maxWidth:640}}>
+            UK asylum applications peaked at 84,425 in 2023 — the highest since the modern series began in 1979 — before easing marginally in 2024. But the composition of who is claiming, and who is being granted protection, has shifted profoundly.
+          </p>
+        </div>
+        <aside style={{fontSize:12.5,color:'var(--muted)',borderLeft:'1px solid var(--rule)',paddingLeft:32,display:'flex',flexDirection:'column',gap:14}}>
+          <div><span className="uc" style={{display:'block',marginBottom:4}}>By</span>Data team, Home Office</div>
+          <div><span className="uc" style={{display:'block',marginBottom:4}}>Published</span>{story.date}</div>
+          <div><span className="uc" style={{display:'block',marginBottom:4}}>Reading time</span>{story.reading}</div>
+          <div style={{display:'flex',gap:14,marginTop:8,paddingTop:14,borderTop:'1px dotted var(--rule-2)'}}>
+            <button className="ulh" style={{fontSize:12.5,color:'var(--accent)'}}>Share ↗</button>
+            <button className="ulh" style={{fontSize:12.5,color:'var(--accent)'}}>Download ↓</button>
+            <button className="ulh" onClick={onMethod} style={{fontSize:12.5,color:'var(--accent)'}}>Method</button>
+          </div>
+        </aside>
+      </header>
+
+      {/* body — grid: narrative left, chart right */}
+      <article style={{display:'grid',gridTemplateColumns:'360px 1fr',gap:72,alignItems:'start'}}>
+        {/* narrative column */}
+        <div style={{fontFamily:'var(--serif)',fontSize:16.5,lineHeight:1.65,color:'var(--ink-2)'}}>
+          <div style={{fontFamily:'var(--serif)',fontSize:52,lineHeight:0.9,float:'left',marginRight:10,marginTop:6,color:'var(--accent)',fontWeight:400}}>T</div>
+          <p style={{margin:'0 0 20px',textWrap:'pretty'}}>he British asylum system receives claims from people who have reached the UK and are asking to be recognised as refugees. For most of the past forty years the number of claims has moved in a narrow band — between 20,000 and 40,000 a year — with two striking departures.</p>
+          <p style={{margin:'0 0 20px',textWrap:'pretty'}}>The first came in the early 2000s, peaking above 84,000 in 2002 and triggering a decade of policy change. The second is the one we are in now. Between 2020 and 2023, annual applications nearly tripled, driven by a combination of the post-Covid rebound, the collapse of Afghanistan, and a sharp increase in arrivals by small boat across the Channel.</p>
+          <h3 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,letterSpacing:-0.1,margin:'36px 0 12px',color:'var(--ink)'}}>A tale of two spikes</h3>
+          <p style={{margin:'0 0 20px',textWrap:'pretty'}}>The chart on the right compares the two surges of the last twenty-five years. What's different this time isn't the height of the peak — it's the speed of the climb. In 2002 applications plateaued gently; in 2023 they tripled in three years.</p>
+          <h3 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,letterSpacing:-0.1,margin:'36px 0 12px',color:'var(--ink)'}}>The 2024 dip</h3>
+          <p style={{margin:'0 0 20px',textWrap:'pretty'}}>Provisional figures for 2024 show the first annual fall in five years — down 4.3% to 80,782. Officials attribute most of the decline to enhanced processing of <em>inadmissible</em> claims rather than a genuine fall in arrivals. Small-boat arrivals themselves rose 25% year-on-year.</p>
+          <blockquote style={{margin:'24px 0',padding:'0 0 0 22px',borderLeft:'2px solid var(--accent)',fontFamily:'var(--serif)',fontSize:18,lineHeight:1.45,fontStyle:'italic',color:'var(--ink)'}}>
+            "The 2024 figure looks less like a turning point and more like a pause." — Senior analyst, Migration Observatory
+          </blockquote>
+        </div>
+
+        {/* chart column — sticky on large screens */}
+        <div style={{position:'sticky',top:96}}>
+          {/* controls */}
+          <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:18,flexWrap:'wrap'}}>
+            <div className="seg">
+              <button className={mode==='line'?'on':''} onClick={()=>setMode('line')}>Line</button>
+              <button className={mode==='bar'?'on':''} onClick={()=>setMode('bar')}>Bar</button>
+            </div>
+            <div style={{flex:1,minWidth:180}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:11}} className="uc">
+                <span style={{color:'var(--muted)'}}>From {range[0]}</span>
+                <span style={{color:'var(--muted)'}}>to {range[1]}</span>
+              </div>
+              <div style={{display:'flex',gap:8,alignItems:'center',marginTop:6}}>
+                <input type="range" min={2014} max={2024} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
+                <input type="range" min={2014} max={2024} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
+              </div>
+            </div>
+            <label className="chk" style={{fontSize:12.5,color:'var(--muted)'}}>
+              <input type="checkbox" checked={compareOn} onChange={e=>setCompareOn(e.target.checked)}/>
+              Compare small-boat arrivals
+            </label>
+          </div>
+
+          <div style={{background:'var(--bg-2)',padding:'24px 28px',border:'1px solid var(--rule)'}}>
+            {mode === 'line' ? (
+              <LineChart
+                data={ASYLUM_ANNUAL}
+                yearRange={range}
+                title="Asylum applications, UK"
+                subtitle={`Figure 01 · ${range[0]}–${range[1]}`}
+                source="Home Office · ASY_D01"
+                annotations={[
+                  range[0] <= 2023 && range[1] >= 2023 && { y: 2023, label: '84,425', dx: -80, dy: -14 },
+                  range[0] <= 2020 && range[1] >= 2020 && { y: 2020, label: 'Covid', dx: -46, dy: 44 },
+                ].filter(Boolean)}
+                caption="Main applicants only. Provisional for 2024."
+                width={720} height={340}
+              />
+            ) : (
+              <BarChart
+                data={ASYLUM_ANNUAL.filter(d => d.y >= range[0] && d.y <= range[1]).map(d=>({name:String(d.y), v:d.v}))}
+                width={720} height={360}
+              />
+            )}
+          </div>
+
+          {compareOn && (
+            <div style={{background:'#fff',padding:'20px 28px',border:'1px solid var(--rule)',marginTop:16}}>
+              <LineChart
+                data={ASYLUM_ANNUAL.map(d=>({y:d.y,v:d.boats}))}
+                yearRange={range}
+                title="Small-boat arrivals, UK"
+                subtitle={`Figure 02 · ${range[0]}–${range[1]}`}
+                stroke="var(--accent-warn)"
+                source="Home Office · IRR_D01"
+                caption="Border Force-recorded arrivals by small boat across the Channel. Series begins 2018; figures for earlier years are zero by definition."
+                width={720} height={220}
+              />
+            </div>
+          )}
+
+          {/* related figure — nationalities */}
+          <div style={{background:'#fff',padding:'20px 28px',border:'1px solid var(--rule)',marginTop:16}}>
+            <div style={{marginBottom:12}}>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Figure 03 · 2020–2024</div>
+              <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top five nationalities</div>
+            </div>
+            <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={720} height={280}/>
+            <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · ASY_D01</div>
+          </div>
+        </div>
+      </article>
+
+      {/* more in this section */}
+      <section style={{marginTop:72,paddingTop:36,borderTop:'1px solid var(--rule)'}}>
+        <div className="uc" style={{color:'var(--muted)',marginBottom:18}}>More in this series</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:32}}>
+          {STORIES.filter(s => s.id !== story.id).slice(0,3).map(s=>(
+            <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})} style={{textAlign:'left',display:'flex',flexDirection:'column',gap:8}}>
+              <div className="uc" style={{color:'var(--accent-warn)'}}>{s.kicker}</div>
+              <div style={{fontFamily:'var(--serif)',fontSize:20,lineHeight:1.2,letterSpacing:-0.2,color:'var(--ink)'}}>{s.title}</div>
+              <div style={{fontSize:13.5,color:'var(--ink-2)',lineHeight:1.5,textWrap:'pretty'}}>{s.dek}</div>
+            </button>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Datasets browse view
+// ─────────────────────────────────────────────────────────────
+function DatasetsView({ setRoute }) {
+  const [q, setQ] = uS2('');
+  const [freq, setFreq] = uS2('All');
+  const filtered = DATASETS.filter(d => {
+    if (freq !== 'All' && d.freq !== freq) return false;
+    if (q && !d.name.toLowerCase().includes(q.toLowerCase()) && !d.code.toLowerCase().includes(q.toLowerCase())) return false;
+    return true;
+  });
+  return (
+    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
+      <div style={{marginBottom:28}}>
+        <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-gold)'}}>Datasets</div>
+        <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 14px'}}>Raw data, curated.</h1>
+        <p style={{fontSize:17,color:'var(--ink-2)',maxWidth:640,margin:0,lineHeight:1.5}}>Eight quarterly and monthly datasets covering asylum, irregular migration, and resettlement. Every table is available as CSV, JSON, and Parquet.</p>
+      </div>
+      <div style={{display:'flex',gap:16,alignItems:'center',padding:'14px 0',borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',marginBottom:24}}>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filter datasets…"
+          style={{flex:1,border:'none',outline:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:15,padding:'6px 0'}}/>
+        <div className="seg">
+          {['All','Quarterly','Monthly'].map(f=>(
+            <button key={f} className={freq===f?'on':''} onClick={()=>setFreq(f)}>{f}</button>
+          ))}
         </div>
       </div>
-      {sparkData && <Spark data={sparkData} color={sparkColor} />}
-    </div>
-  );
-}
-
-function StoryView() {
-  const r = window.BOATS_RECORDS;
-  const annual = window.BOATS_ANNUAL || [];
-  const firstYearTotal = annual[0]?.m ?? null;
-  const latestYearTotal = annual[annual.length - 1]?.m ?? null;
-
-  const annualSpark = annual.map((a) => ({ x: a.y, y: a.m }));
-
-  return (
-    <div className="page-story">
-      <header style={{ marginBottom: 28 }}>
-        <div className="uc">Story</div>
-        <div className="rule-terra kicker-rule" />
-        <h1 className="t-hero">Eight years of a new series</h1>
-        <p className="t-body" style={{ color: "var(--ink-2)", marginTop: 14 }}>
-          The weekly small-boats series begins on 1 January 2018. The shape of it has
-          changed more in eight years than most government data series do in a generation.
-        </p>
-      </header>
-
-      <StoryKpiLine
-        label="2018 total"
-        value={fmtN(firstYearTotal)}
-        suffix="migrants"
-        sparkData={annualSpark}
-        sparkColor="var(--accent)"
-      />
-      <StoryKpiLine
-        label={`${annual[annual.length - 1]?.y ?? "Latest"} total`}
-        value={fmtN(latestYearTotal)}
-        suffix="migrants"
-      />
-      <StoryKpiLine
-        label="Busiest single day"
-        value={fmtN(r?.busiestDay?.migrants)}
-        suffix={r?.busiestDay?.date}
-      />
-
-      {window.STORIES?.map((s, i) => (
-        <article key={s.id} style={{ marginTop: 36 }}>
-          <div className="uc">{s.kicker}</div>
-          <div
-            className={
-              i === 0 ? "rule-terra kicker-rule"
-              : i === 1 ? "rule-olive kicker-rule"
-              : "rule-gold kicker-rule"
-            }
-          />
-          <h2 className="t-section" style={{ marginBottom: 10 }}>{s.title}</h2>
-          <p className="t-body">
-            {s.body}
-            <span
-              className={
-                i === 0 ? "end-dot"
-                : i === 1 ? "end-dot end-dot-olive"
-                : "end-dot end-dot-gold"
-              }
-            />
-          </p>
-        </article>
-      ))}
-
-      <div className="callout" style={{ marginTop: 44 }}>
-        <div className="uc">A note on framing</div>
-        <div className="rule-terra kicker-rule" />
-        <p className="t-body" style={{ marginTop: 6 }}>
-          This page presents figures. It does not argue about them. Source fields and
-          methodology are in <span className="mono">/build</span>; the raw series is in{" "}
-          <span className="mono">/datasets</span>.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- /datasets ---------- */
-
-function DatasetsView() {
-  const catalogue = window.DATASET_CATALOGUE || [];
-  const meta = window.BOATS_META || {};
-  return (
-    <div className="page">
-      <header style={{ marginBottom: 36 }}>
-        <div className="uc">Datasets</div>
-        <div className="rule-olive kicker-rule" />
-        <h1 className="t-hero">What's loaded and where it lives</h1>
-        <p className="t-body caption-col" style={{ marginTop: 14, color: "var(--ink-2)" }}>
-          Every chart in this app reads from one of these globals. The canonical
-          schema is the docstring of{" "}
-          <span className="mono">scripts/build_boats_data.py</span> — update it there
-          first if the shape changes.
-        </p>
-      </header>
-
-      <div style={{ overflowX: "auto", marginBottom: 36 }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Global</th>
-              <th>Shape</th>
-              <th>Size</th>
-              <th>Notes</th>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}>
+        <thead>
+          <tr style={{textAlign:'left'}}>
+            {['Code','Name','Rows','Updated','Frequency',''].map(h=>(
+              <th key={h} className="uc" style={{fontWeight:500,color:'var(--muted)',padding:'12px 14px',borderBottom:'1px solid var(--rule)',textAlign:h==='Rows'?'right':'left'}}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map(d=>(
+            <tr key={d.code} style={{borderBottom:'1px solid var(--rule)',cursor:'pointer'}}
+                onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-2)'}}
+                onMouseLeave={e=>{e.currentTarget.style.background='transparent'}}>
+              <td className="mono" style={{padding:'14px 14px',color:'var(--accent)',fontSize:12}}>{d.code}</td>
+              <td style={{padding:'14px 14px',color:'var(--ink)'}}>{d.name}</td>
+              <td className="tnum" style={{padding:'14px 14px',textAlign:'right',color:'var(--ink-2)'}}>{d.rows}</td>
+              <td style={{padding:'14px 14px',color:'var(--muted)'}}>{d.updated}</td>
+              <td style={{padding:'14px 14px',color:'var(--muted)',fontStyle:'italic'}}>{d.freq}</td>
+              <td style={{padding:'14px 14px',textAlign:'right'}}>
+                <span className="ulh" style={{color:'var(--accent)',fontSize:12.5}}>Explore →</span>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {catalogue.map((row) => (
-              <tr key={row.global}>
-                <td className="mono">{row.global}</td>
-                <td className="mono" style={{ fontSize: 13 }}>{row.shape}</td>
-                <td className="tnum">{row.size}</td>
-                <td>{row.notes}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <section>
-        <div className="uc">Provenance</div>
-        <div className="rule-gold kicker-rule" />
-        <h2 className="t-section" style={{ marginBottom: 10 }}>Where it came from</h2>
-        <dl
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(160px, 220px) 1fr",
-            rowGap: 10,
-            columnGap: 22,
-            margin: 0,
-          }}
-        >
-          <dt className="uc">Source file</dt>
-          <dd className="mono" style={{ margin: 0 }}>{meta.sourceFile || "—"}</dd>
-          <dt className="uc">Source dated</dt>
-          <dd className="tnum" style={{ margin: 0 }}>{meta.sourceDated || "—"}</dd>
-          <dt className="uc">Latest data point</dt>
-          <dd className="tnum" style={{ margin: 0 }}>{meta.latestDataPoint || "—"}</dd>
-          <dt className="uc">Regenerated</dt>
-          <dd className="tnum" style={{ margin: 0 }}>{meta.generatedAt || "—"}</dd>
-          <dt className="uc">Licence</dt>
-          <dd style={{ margin: 0 }}>{meta.licence || "—"}</dd>
-          <dt className="uc">Provider</dt>
-          <dd style={{ margin: 0 }}>{meta.provider || "—"}</dd>
-        </dl>
-      </section>
-    </div>
+          ))}
+        </tbody>
+      </table>
+      {filtered.length === 0 && <div style={{padding:'48px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No datasets match your filter.</div>}
+    </main>
   );
 }
 
-/* ---------- /build ---------- */
+// ─────────────────────────────────────────────────────────────
+// Build-your-own chart view
+// ─────────────────────────────────────────────────────────────
+const _boatsW = () => (typeof BOATS_WEEKLY !== 'undefined' ? BOATS_WEEKLY : []);
+const _boatsM = () => (typeof BOATS_MONTHLY !== 'undefined' ? BOATS_MONTHLY : []);
+const _boatsD = () => (typeof BOATS_DAILY !== 'undefined' ? BOATS_DAILY : []);
+const _annualFromWeekly = (key) => {
+  const by = {};
+  for (const row of _boatsW()) {
+    if (row[key] == null) continue;
+    const y = +row.we.slice(0,4);
+    by[y] = (by[y] || 0) + row[key];
+  }
+  return Object.entries(by).map(([y,v])=>({y:+y, v})).sort((a,b)=>a.y-b.y);
+};
 
-function BuildView() {
-  const meta = window.BOATS_META || {};
-  const notes = meta.notes || [];
+const DATASET_OPTIONS = [
+  { id: 'applications', label: 'Applications',         series: ASYLUM_ANNUAL.map(d=>({y:d.y, v:d.v})),     color: 'var(--accent)' },
+  { id: 'boats',        label: 'Small-boat arrivals',  series: ASYLUM_ANNUAL.map(d=>({y:d.y, v:d.boats})), color: 'var(--accent-warn)', supportsGranularity: true },
+  { id: 'backlog',      label: 'Backlog (pending)',    series: BACKLOG.map(d=>({y:d.y, v:d.v})),           color: 'var(--accent-2)' },
+  { id: 'preventions',  label: 'Preventions',          series: _annualFromWeekly('p'),                      color: 'var(--accent-gold)' },
+  { id: 'interceptions',label: 'Interceptions',        series: _annualFromWeekly('e'),                      color: 'var(--muted-2)' },
+  {
+    id: 'nationalities',
+    label: 'Top 5 nationalities',
+    render: 'multi',
+    multi: { years: NAT_SERIES.years, series: NAT_SERIES.series },
+    // flat series — sum across the 5 nationalities per year — used when this option is a compare
+    series: NAT_SERIES.years.map((y, idx) => ({
+      y,
+      v: NAT_SERIES.series.reduce((s, row) => s + row.data[idx], 0),
+    })),
+    color: 'var(--accent-2)',
+  },
+];
+
+const GRANULARITIES = ['daily','weekly','monthly','quarterly','annual'];
+
+function getGranularSeries(opt, gran) {
+  if (gran === 'annual' || !opt.supportsGranularity) return opt.series;
+  if (opt.id !== 'boats') return opt.series;
+  if (gran === 'monthly') return _boatsM().map((d,i)=>({y:i, v:d.m, label:d.month}));
+  if (gran === 'weekly')  return _boatsW().map((d,i)=>({y:i, v:d.m, label:d.we}));
+  if (gran === 'daily')   return _boatsD().map((d,i)=>({y:i, v:d.m, label:d.d}));
+  if (gran === 'quarterly') {
+    const by = {};
+    for (const r of _boatsM()) {
+      const [yr, mon] = r.month.split('-').map(Number);
+      const q = `${yr}Q${Math.ceil(mon/3)}`;
+      by[q] = (by[q] || 0) + r.m;
+    }
+    return Object.entries(by).map(([q,v],i)=>({y:i, v, label:q}));
+  }
+  return opt.series;
+}
+
+function BuildView({ setRoute }) {
+  const [ds, setDs] = uS2('applications');
+  const [compare, setCompare] = uS2('boats');
+  const [chartType, setChartType] = uS2('line');
+  const [range, setRange] = uS2([2018, 2024]);
+  const [overlay, setOverlay] = uS2(false);
+  const [showLabels, setShowLabels] = uS2(false);
+  const [granularity, setGranularity] = uS2('annual');
+
+  uE2(() => { if (compare === ds) setCompare('none'); }, [ds]);
+
+  const prim = DATASET_OPTIONS.find(o => o.id === ds);
+  const isMultiPrim = prim.render === 'multi';
+  const sec = (!isMultiPrim && compare !== 'none' && compare !== ds) ? DATASET_OPTIONS.find(o => o.id === compare) : null;
+  const supportsGran = !isMultiPrim && !!prim.supportsGranularity;
+  const effGran = supportsGran ? granularity : 'annual';
+  const isAnnual = effGran === 'annual';
+
+  const primData = getGranularSeries(prim, effGran);
+  const secData  = sec ? sec.series : null;
+
+  // Only apply yearRange filter in annual mode; other grains have index x-values.
+  const primView = isAnnual ? primData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : primData;
+  const secView  = isAnnual && secData ? secData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : secData;
+
+  // For overlay (MultiLineChart) we need common x-axis — only supported when annual.
+  const canOverlay = isAnnual && !!sec && chartType === 'line';
+  const overlayOn = overlay && canOverlay;
+
+  const dailyWarn = effGran === 'daily' && primData.length > 1000;
+
   return (
-    <div className="page-story">
-      <header style={{ marginBottom: 28 }}>
-        <div className="uc">Build</div>
-        <div className="rule-gold kicker-rule" />
-        <h1 className="t-hero">How the pipeline works</h1>
-      </header>
-
-      <section style={{ marginBottom: 36 }}>
-        <h2 className="t-section">Daily flow</h2>
-        <ol className="t-body" style={{ paddingLeft: 20 }}>
-          <li style={{ margin: "8px 0" }}>
-            <span className="mono">scripts/fetch_latest.py</span> scrapes the gov.uk
-            publication page, resolves the current ODS URL (the filename changes each
-            release), and downloads into <span className="mono">cache/</span> if it
-            hasn't already.
-          </li>
-          <li style={{ margin: "8px 0" }}>
-            <span className="mono">scripts/build_boats_data.py</span> reads the ODS and
-            writes <span className="mono">data/boats-data.js</span> — seven{" "}
-            <span className="mono">window.BOATS_*</span> globals.
-          </li>
-          <li style={{ margin: "8px 0" }}>
-            <span className="mono">scripts/bundle.py</span> concatenates{" "}
-            <span className="mono">src/*.jsx</span> + the data module into the{" "}
-            <span className="mono">&lt;script type="text/babel"&gt;</span> block in{" "}
-            <span className="mono">index.html</span>.
-          </li>
-          <li style={{ margin: "8px 0" }}>
-            <span className="mono">pytest</span> gates the commit — annual totals,
-            record sums, Saturday week-endings, no date gaps.
-          </li>
-          <li style={{ margin: "8px 0" }}>
-            GitHub Actions commits{" "}
-            <span className="mono">chore: data update &lt;YYYY-MM-DD&gt;</span> if
-            anything changed.
-          </li>
-        </ol>
-      </section>
-
-      <section>
-        <div className="uc">Notes from source</div>
-        <div className="rule-terra kicker-rule" />
-        <h2 className="t-section" style={{ marginBottom: 10 }}>Verbatim from the ODS</h2>
-        {notes.length === 0 ? (
-          <p className="t-caption">
-            No notes extracted yet. (Run the pipeline once to populate.)
-          </p>
-        ) : (
-          <ol className="t-body" style={{ paddingLeft: 20 }}>
-            {notes.map((n, i) => (
-              <li key={i} style={{ margin: "10px 0" }}>{n}</li>
-            ))}
-          </ol>
-        )}
-      </section>
-
-      <div className="callout" style={{ marginTop: 36 }}>
-        <div className="uc">Source</div>
-        <p className="t-body" style={{ marginTop: 6 }}>
-          <a href={meta.sourceUrl || "#"} target="_blank" rel="noopener noreferrer">
-            {meta.sourceUrl || "gov.uk publication page"}
-          </a>
-        </p>
+    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
+      <div style={{marginBottom:28}}>
+        <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-2)'}}>Build a chart</div>
+        <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 14px'}}>Make your own.</h1>
+        <p style={{fontSize:17,color:'var(--ink-2)',maxWidth:640,margin:0,lineHeight:1.5}}>Pick a dataset, a time range, and a chart type. Export as an image or embed it in your own article.</p>
       </div>
-    </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'300px 1fr',gap:40,alignItems:'start'}}>
+        {/* controls */}
+        <aside style={{position:'sticky',top:96,border:'1px solid var(--rule)',padding:'24px 26px',background:'#fff',maxHeight:'calc(100vh - 120px)',overflowY:'auto'}}>
+          <div style={{marginBottom:22}}>
+            <div className="uc" style={{color:'var(--muted)',marginBottom:8}}>1 · Primary dataset</div>
+            <div style={{maxHeight:220,overflowY:'auto',marginRight:-6,paddingRight:6}}>
+              {DATASET_OPTIONS.map(o=>(
+                <label key={o.id} className="chk" style={{display:'flex',padding:'6px 0',fontSize:14}}>
+                  <input type="radio" name="ds" checked={ds===o.id} onChange={()=>setDs(o.id)} style={{appearance:'auto',width:14,height:14}}/>
+                  {o.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {!isMultiPrim && (
+            <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:8}}>2 · Compare with</div>
+              <div style={{maxHeight:200,overflowY:'auto',marginRight:-6,paddingRight:6}}>
+                <label className="chk" style={{display:'flex',padding:'6px 0',fontSize:14}}>
+                  <input type="radio" name="cmp" checked={compare==='none'} onChange={()=>setCompare('none')} style={{appearance:'auto',width:14,height:14}}/>None
+                </label>
+                {DATASET_OPTIONS.filter(o=>o.id!==ds && o.render!=='multi').map(o=>(
+                  <label key={o.id} className="chk" style={{display:'flex',padding:'6px 0',fontSize:14}}>
+                    <input type="radio" name="cmp" checked={compare===o.id} onChange={()=>setCompare(o.id)} style={{appearance:'auto',width:14,height:14}}/>{o.label}
+                  </label>
+                ))}
+              </div>
+              {sec && (
+                <label className="chk" style={{fontSize:12.5,padding:'8px 0 2px',color: canOverlay ? 'var(--ink-2)' : 'var(--muted-2)'}}>
+                  <input type="checkbox" checked={overlayOn} disabled={!canOverlay} onChange={e=>setOverlay(e.target.checked)}/>
+                  Overlay on one chart
+                </label>
+              )}
+            </div>
+          )}
+
+          <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
+            <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>3 · Chart type</div>
+            <div className="seg" style={{display:'flex',flexWrap:'wrap'}}>
+              {['line','bar','area','scatter','stacked'].map(t=>(
+                <button key={t} className={chartType===t?'on':''} onClick={()=>setChartType(t)} style={{flex:'1 0 30%',textTransform:'capitalize'}}>{t}</button>
+              ))}
+            </div>
+            <label className="chk" style={{fontSize:13,padding:'10px 0 2px'}}>
+              <input type="checkbox" checked={showLabels} onChange={e=>setShowLabels(e.target.checked)}/>
+              Show data labels
+            </label>
+          </div>
+
+          {supportsGran && (
+            <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>4 · Granularity</div>
+              <div className="seg" style={{display:'flex',flexWrap:'wrap'}}>
+                {GRANULARITIES.map(g=>(
+                  <button key={g} className={granularity===g?'on':''} onClick={()=>setGranularity(g)} style={{flex:'1 0 30%',textTransform:'capitalize',fontSize:11}}>{g}</button>
+                ))}
+              </div>
+              {dailyWarn && <div style={{fontSize:11.5,color:'var(--accent-warn)',marginTop:8,fontStyle:'italic'}}>Daily view renders {primData.length.toLocaleString()} points.</div>}
+            </div>
+          )}
+
+          {isAnnual && (
+            <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>{supportsGran ? '5' : '4'} · Time range</div>
+              <div style={{fontSize:12,color:'var(--muted)',display:'flex',justifyContent:'space-between'}} className="tnum">
+                <span>{range[0]}</span><span>{range[1]}</span>
+              </div>
+              <input type="range" min={2014} max={2024} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
+              <input type="range" min={2014} max={2024} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
+            </div>
+          )}
+
+          <div style={{paddingTop:18,borderTop:'1px solid var(--rule)',display:'flex',flexDirection:'column',gap:8}}>
+            <button style={{background:'var(--accent)',color:'var(--bg)',padding:'10px 14px',fontSize:13,fontFamily:'var(--serif)'}}>↓ Download PNG</button>
+            <button style={{background:'#fff',color:'var(--accent)',padding:'10px 14px',fontSize:13,fontFamily:'var(--serif)',border:'1px solid var(--accent)'}}>↓ Download CSV</button>
+            <button style={{color:'var(--muted)',padding:'8px 14px',fontSize:13,fontFamily:'var(--serif)'}}>⎘ Copy embed code</button>
+          </div>
+        </aside>
+
+        {/* preview */}
+        <section>
+          <div style={{background:'var(--bg-2)',padding:'32px 36px',border:'1px solid var(--rule)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:18,paddingBottom:14,borderBottom:'1px solid var(--rule-2)'}}>
+              <div>
+                <div className="uc" style={{color:'var(--muted)'}}>Preview · Figure A</div>
+                <div style={{fontSize:22,fontFamily:'var(--serif)',fontWeight:500,letterSpacing:-0.2,color:'var(--ink)',marginTop:4}}>
+                  {prim.label}
+                  {sec && <span style={{color:'var(--muted)',fontWeight:400}}> {overlayOn?'+':'&'} {sec.label}</span>}
+                  <span style={{color:'var(--muted)',fontWeight:400,fontSize:16}} className="tnum"> · {isAnnual ? `${range[0]}–${range[1]}` : `${effGran}`}</span>
+                </div>
+              </div>
+              <div className="uc" style={{color:'var(--muted)'}}>UK · {effGran.charAt(0).toUpperCase()+effGran.slice(1)}</div>
+            </div>
+
+            {/* Multi-series primary (e.g. nationalities bundle) */}
+            {isMultiPrim ? (
+              <MultiLineChart
+                years={prim.multi.years}
+                series={prim.multi.series}
+                width={800} height={360}
+                showLabels={showLabels}
+              />
+            ) : overlayOn ? (
+              <MultiLineChart
+                years={primView.map(d=>d.y)}
+                series={[
+                  { name: prim.label, data: primView.map(d=>d.v) },
+                  { name: sec.label,  data: (secView||[]).map(d=>d.v) },
+                ]}
+                width={800} height={340}
+                showLabels={showLabels}
+              />
+            ) : (chartType === 'line' || chartType === 'area' || chartType === 'scatter') ? (
+              <>
+                <LineChart
+                  data={primView}
+                  stroke={prim.color}
+                  area={chartType==='area'}
+                  showLine={chartType !== 'scatter'}
+                  showLabels={showLabels}
+                  width={800} height={340}
+                  source="Home Office Immigration Statistics"
+                />
+                {sec && (
+                  <div style={{marginTop:24,paddingTop:20,borderTop:'1px dotted var(--rule-2)'}}>
+                    <LineChart
+                      data={secView}
+                      stroke={sec.color}
+                      area={chartType==='area'}
+                      showLine={chartType !== 'scatter'}
+                      showLabels={showLabels}
+                      width={800} height={220}
+                      title={sec.label} subtitle="Comparison series"
+                    />
+                  </div>
+                )}
+              </>
+            ) : chartType === 'bar' ? (
+              <BarChart
+                data={primView.map(d=>({name: String(d.label ?? d.y), v: d.v}))}
+                width={800} height={Math.max(220, primView.length*30+16)}
+                color={prim.color}
+              />
+            ) : chartType === 'stacked' ? (
+              <StackedColumns
+                data={primView.map((d,i)=>({
+                  y: d.y, label: d.label ?? d.y,
+                  a: d.v,
+                  b: (secView && secView[i]) ? secView[i].v : 0,
+                }))}
+                series={[prim.label, sec ? sec.label : '']}
+                colors={[prim.color, sec ? sec.color : 'var(--muted-2)']}
+                width={800} height={360}
+                showLabels={showLabels}
+              />
+            ) : null}
+          </div>
+          <div className="uc" style={{color:'var(--muted-2)',marginTop:12}}>Charts update live as you change controls. Annotations and custom titles coming in the next release.</div>
+        </section>
+      </div>
+    </main>
   );
 }
+
+Object.assign(window, { StoryView, DatasetsView, BuildView });
 
 
 /* --- src/root.jsx --- */
-/* =========================================================================
-   root.jsx — App shell, routing, persistent UI state.
-   This file is bundled LAST; it references every component defined earlier.
-   ========================================================================= */
+// root.jsx — root component + tweak panel + routing
 
-const { useState, useEffect, useMemo, useRef, useCallback } = React;
+const { useState: uSR, useEffect: uER } = React;
 
-const LS_KEY = "hode:v1";
-const DEFAULT_STATE = Object.freeze({
-  route: "dashboard",
-  accent: "forest",
-});
-
-function readPersisted() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return { ...DEFAULT_STATE };
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_STATE, ...parsed };
-  } catch {
-    return { ...DEFAULT_STATE };
-  }
-}
-
-function writePersisted(state) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
-  } catch {
-    /* storage disabled / quota exceeded — fail silently */
-  }
-}
-
-function DataMissingBanner() {
+function TweakPanel({ tweaks, setTweaks, open, onClose }) {
+  const accents = [
+    { key: '#1c3d2e', label: 'Forest' },
+    { key: '#0f2a4a', label: 'Navy' },
+    { key: '#2a4a3a', label: 'Sage' },
+    { key: '#6b3d2e', label: 'Umber' },
+    { key: '#5a3a6b', label: 'Plum' },
+    { key: '#1a1a17', label: 'Ink' },
+  ];
+  const setAccent = k => {
+    setTweaks({ ...tweaks, accent: k });
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { accent: k } }, '*');
+  };
+  uER(()=>{
+    document.documentElement.style.setProperty('--accent', tweaks.accent);
+  }, [tweaks.accent]);
+  if (!open) return null;
   return (
-    <div className="callout" style={{ marginTop: 22 }}>
-      <div className="uc">Data module not generated</div>
-      <div className="rule-terra kicker-rule" />
-      <p className="t-body" style={{ marginTop: 6 }}>
-        The <span className="mono">data/boats-data.js</span> file has not yet been
-        built. Run the pipeline once to populate the views:
-      </p>
-      <pre
-        className="mono"
-        style={{
-          background: "var(--bg-2)",
-          padding: "12px 14px",
-          margin: "14px 0 0",
-          fontSize: 13,
-          overflowX: "auto",
-        }}
-      >{`python -m venv .venv
-.venv\\Scripts\\activate    # or: source .venv/bin/activate
-pip install -r requirements.txt
-python scripts/fetch_latest.py
-python scripts/build_boats_data.py cache/latest.ods data/
-python scripts/bundle.py`}</pre>
+    <div className="tweak-panel open" style={{display:'block'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <div className="uc" style={{color:'var(--muted)'}}>Tweaks</div>
+        <button onClick={onClose} className="pressable" style={{fontSize:18,color:'var(--muted)'}}>×</button>
+      </div>
+      <div style={{fontSize:12,color:'var(--muted)',marginBottom:8}}>Accent colour</div>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {accents.map(a=>(
+          <button key={a.key} title={a.label} onClick={()=>setAccent(a.key)}
+            className={`swatch ${tweaks.accent===a.key?'active':''}`}
+            style={{background:a.key}}/>
+        ))}
+      </div>
+      <div style={{fontSize:11,color:'var(--muted-2)',marginTop:12,fontStyle:'italic',lineHeight:1.45}}>
+        Changes apply live across every chart and piece of UI.
+      </div>
     </div>
   );
 }
 
 function App() {
-  const [state, setState] = useState(readPersisted);
+  const [route, setRoute] = uSR({ name: 'index' });
+  const [search, setSearch] = uSR(false);
+  const [method, setMethod] = uSR(false);
+  const [tweaks, setTweaks] = uSR(TWEAK_DEFAULTS);
+  const [tweakOpen, setTweakOpen] = uSR(false);
 
-  useEffect(() => {
-    writePersisted(state);
-    document.documentElement.dataset.accent = state.accent;
-  }, [state]);
+  // persist route in localStorage
+  uER(()=>{
+    const r = localStorage.getItem('hoe_route');
+    if (r) try { setRoute(JSON.parse(r)); } catch(e){}
+  }, []);
+  uER(()=>{ localStorage.setItem('hoe_route', JSON.stringify(route)); }, [route]);
 
-  const [methodologyOpen, setMethodologyOpen] = useState(false);
-  const [tweaksOpen, setTweaksOpen] = useState(false);
-
-  const navigate = useCallback((route) => {
-    setState((s) => ({ ...s, route }));
+  // tweak host protocol — register listener BEFORE announcing
+  uER(()=>{
+    const onMsg = (e) => {
+      if (!e.data || typeof e.data !== 'object') return;
+      if (e.data.type === '__activate_edit_mode') setTweakOpen(true);
+      else if (e.data.type === '__deactivate_edit_mode') setTweakOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
   }, []);
 
-  const setAccent = useCallback((accent) => {
-    setState((s) => ({ ...s, accent }));
+  // keyboard shortcut for search
+  uER(()=>{
+    const k = e => { if ((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearch(true); } };
+    window.addEventListener('keydown', k);
+    return ()=>window.removeEventListener('keydown', k);
   }, []);
-
-  const hasData = typeof window !== "undefined" && !!window.BOATS_DAILY;
 
   return (
     <>
-      <SiteHeader
-        route={state.route}
-        onNavigate={navigate}
-        onOpenMethodology={() => setMethodologyOpen(true)}
-        onOpenTweaks={() => setTweaksOpen(true)}
-      />
+      <Header route={route} setRoute={setRoute} onSearch={()=>setSearch(true)} onMethod={()=>setMethod(true)}/>
+      {route.name === 'index' && <IndexView setRoute={setRoute}/>}
+      {route.name === 'dashboard' && <DashboardView setRoute={setRoute}/>}
+      {route.name === 'story' && <StoryView id={route.id} setRoute={setRoute} onMethod={()=>setMethod(true)}/>}
+      {route.name === 'datasets' && <DatasetsView setRoute={setRoute}/>}
+      {route.name === 'build' && <BuildView setRoute={setRoute}/>}
 
-      <main className="fade-enter" key={state.route /* remount for fade on route change */}>
-        {!hasData && (
-          <div className="page">
-            <DataMissingBanner />
-          </div>
-        )}
+      <footer style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
+        <div>
+          <span style={{fontFamily:'var(--serif)',fontStyle:'italic',color:'var(--ink-2)'}}>Home Office data explorer</span>
+          <span style={{margin:'0 14px'}}>·</span>
+          <span>Open data · Published under OGL v3.0</span>
+        </div>
+        <div style={{display:'flex',gap:22}}>
+          <span className="ulh" style={{cursor:'pointer'}} onClick={()=>setMethod(true)}>Methodology</span>
+          <span className="ulh" style={{cursor:'pointer'}}>API</span>
+          <span className="ulh" style={{cursor:'pointer'}}>Contact</span>
+          <span className="ulh" style={{cursor:'pointer'}}>About</span>
+        </div>
+      </footer>
 
-        {hasData && state.route === "dashboard"  && <DashboardView />}
-        {hasData && state.route === "story"      && <StoryView />}
-        {hasData && state.route === "datasets"   && <DatasetsView />}
-        {hasData && state.route === "build"      && <BuildView />}
-      </main>
-
-      <SiteFooter />
-
-      <MethodologyDrawer
-        open={methodologyOpen}
-        onClose={() => setMethodologyOpen(false)}
-      />
-      <TweakPanel
-        open={tweaksOpen}
-        onClose={() => setTweaksOpen(false)}
-        accent={state.accent}
-        onAccentChange={setAccent}
-      />
+      <SearchModal open={search} onClose={()=>setSearch(false)} onPick={r=>setRoute(r)}/>
+      <MethodologyDrawer open={method} onClose={()=>setMethod(false)}/>
+      <TweakPanel tweaks={tweaks} setTweaks={setTweaks} open={tweakOpen} onClose={()=>setTweakOpen(false)}/>
     </>
   );
 }
 
-/* Mount */
-const rootEl = document.getElementById("root");
-if (rootEl) {
-  ReactDOM.createRoot(rootEl).render(<App />);
-}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 
 /* BUNDLE_END */
 </script>

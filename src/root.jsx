@@ -1,124 +1,106 @@
-/* =========================================================================
-   root.jsx — App shell, routing, persistent UI state.
-   This file is bundled LAST; it references every component defined earlier.
-   ========================================================================= */
+// root.jsx — root component + tweak panel + routing
 
-const { useState, useEffect, useMemo, useRef, useCallback } = React;
+const { useState: uSR, useEffect: uER } = React;
 
-const LS_KEY = "hode:v1";
-const DEFAULT_STATE = Object.freeze({
-  route: "dashboard",
-  accent: "forest",
-});
-
-function readPersisted() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return { ...DEFAULT_STATE };
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_STATE, ...parsed };
-  } catch {
-    return { ...DEFAULT_STATE };
-  }
-}
-
-function writePersisted(state) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
-  } catch {
-    /* storage disabled / quota exceeded — fail silently */
-  }
-}
-
-function DataMissingBanner() {
+function TweakPanel({ tweaks, setTweaks, open, onClose }) {
+  const accents = [
+    { key: '#1c3d2e', label: 'Forest' },
+    { key: '#0f2a4a', label: 'Navy' },
+    { key: '#2a4a3a', label: 'Sage' },
+    { key: '#6b3d2e', label: 'Umber' },
+    { key: '#5a3a6b', label: 'Plum' },
+    { key: '#1a1a17', label: 'Ink' },
+  ];
+  const setAccent = k => {
+    setTweaks({ ...tweaks, accent: k });
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { accent: k } }, '*');
+  };
+  uER(()=>{
+    document.documentElement.style.setProperty('--accent', tweaks.accent);
+  }, [tweaks.accent]);
+  if (!open) return null;
   return (
-    <div className="callout" style={{ marginTop: 22 }}>
-      <div className="uc">Data module not generated</div>
-      <div className="rule-terra kicker-rule" />
-      <p className="t-body" style={{ marginTop: 6 }}>
-        The <span className="mono">data/boats-data.js</span> file has not yet been
-        built. Run the pipeline once to populate the views:
-      </p>
-      <pre
-        className="mono"
-        style={{
-          background: "var(--bg-2)",
-          padding: "12px 14px",
-          margin: "14px 0 0",
-          fontSize: 13,
-          overflowX: "auto",
-        }}
-      >{`python -m venv .venv
-.venv\\Scripts\\activate    # or: source .venv/bin/activate
-pip install -r requirements.txt
-python scripts/fetch_latest.py
-python scripts/build_boats_data.py cache/latest.ods data/
-python scripts/bundle.py`}</pre>
+    <div className="tweak-panel open" style={{display:'block'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <div className="uc" style={{color:'var(--muted)'}}>Tweaks</div>
+        <button onClick={onClose} className="pressable" style={{fontSize:18,color:'var(--muted)'}}>×</button>
+      </div>
+      <div style={{fontSize:12,color:'var(--muted)',marginBottom:8}}>Accent colour</div>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {accents.map(a=>(
+          <button key={a.key} title={a.label} onClick={()=>setAccent(a.key)}
+            className={`swatch ${tweaks.accent===a.key?'active':''}`}
+            style={{background:a.key}}/>
+        ))}
+      </div>
+      <div style={{fontSize:11,color:'var(--muted-2)',marginTop:12,fontStyle:'italic',lineHeight:1.45}}>
+        Changes apply live across every chart and piece of UI.
+      </div>
     </div>
   );
 }
 
 function App() {
-  const [state, setState] = useState(readPersisted);
+  const [route, setRoute] = uSR({ name: 'index' });
+  const [search, setSearch] = uSR(false);
+  const [method, setMethod] = uSR(false);
+  const [tweaks, setTweaks] = uSR(TWEAK_DEFAULTS);
+  const [tweakOpen, setTweakOpen] = uSR(false);
 
-  useEffect(() => {
-    writePersisted(state);
-    document.documentElement.dataset.accent = state.accent;
-  }, [state]);
+  // persist route in localStorage
+  uER(()=>{
+    const r = localStorage.getItem('hoe_route');
+    if (r) try { setRoute(JSON.parse(r)); } catch(e){}
+  }, []);
+  uER(()=>{ localStorage.setItem('hoe_route', JSON.stringify(route)); }, [route]);
 
-  const [methodologyOpen, setMethodologyOpen] = useState(false);
-  const [tweaksOpen, setTweaksOpen] = useState(false);
-
-  const navigate = useCallback((route) => {
-    setState((s) => ({ ...s, route }));
+  // tweak host protocol — register listener BEFORE announcing
+  uER(()=>{
+    const onMsg = (e) => {
+      if (!e.data || typeof e.data !== 'object') return;
+      if (e.data.type === '__activate_edit_mode') setTweakOpen(true);
+      else if (e.data.type === '__deactivate_edit_mode') setTweakOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
   }, []);
 
-  const setAccent = useCallback((accent) => {
-    setState((s) => ({ ...s, accent }));
+  // keyboard shortcut for search
+  uER(()=>{
+    const k = e => { if ((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearch(true); } };
+    window.addEventListener('keydown', k);
+    return ()=>window.removeEventListener('keydown', k);
   }, []);
-
-  const hasData = typeof window !== "undefined" && !!window.BOATS_DAILY;
 
   return (
     <>
-      <SiteHeader
-        route={state.route}
-        onNavigate={navigate}
-        onOpenMethodology={() => setMethodologyOpen(true)}
-        onOpenTweaks={() => setTweaksOpen(true)}
-      />
+      <Header route={route} setRoute={setRoute} onSearch={()=>setSearch(true)} onMethod={()=>setMethod(true)}/>
+      {route.name === 'index' && <IndexView setRoute={setRoute}/>}
+      {route.name === 'dashboard' && <DashboardView setRoute={setRoute}/>}
+      {route.name === 'story' && <StoryView id={route.id} setRoute={setRoute} onMethod={()=>setMethod(true)}/>}
+      {route.name === 'datasets' && <DatasetsView setRoute={setRoute}/>}
+      {route.name === 'build' && <BuildView setRoute={setRoute}/>}
 
-      <main className="fade-enter" key={state.route /* remount for fade on route change */}>
-        {!hasData && (
-          <div className="page">
-            <DataMissingBanner />
-          </div>
-        )}
+      <footer style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
+        <div>
+          <span style={{fontFamily:'var(--serif)',fontStyle:'italic',color:'var(--ink-2)'}}>Home Office data explorer</span>
+          <span style={{margin:'0 14px'}}>·</span>
+          <span>Open data · Published under OGL v3.0</span>
+        </div>
+        <div style={{display:'flex',gap:22}}>
+          <span className="ulh" style={{cursor:'pointer'}} onClick={()=>setMethod(true)}>Methodology</span>
+          <span className="ulh" style={{cursor:'pointer'}}>API</span>
+          <span className="ulh" style={{cursor:'pointer'}}>Contact</span>
+          <span className="ulh" style={{cursor:'pointer'}}>About</span>
+        </div>
+      </footer>
 
-        {hasData && state.route === "dashboard"  && <DashboardView />}
-        {hasData && state.route === "story"      && <StoryView />}
-        {hasData && state.route === "datasets"   && <DatasetsView />}
-        {hasData && state.route === "build"      && <BuildView />}
-      </main>
-
-      <SiteFooter />
-
-      <MethodologyDrawer
-        open={methodologyOpen}
-        onClose={() => setMethodologyOpen(false)}
-      />
-      <TweakPanel
-        open={tweaksOpen}
-        onClose={() => setTweaksOpen(false)}
-        accent={state.accent}
-        onAccentChange={setAccent}
-      />
+      <SearchModal open={search} onClose={()=>setSearch(false)} onPick={r=>setRoute(r)}/>
+      <MethodologyDrawer open={method} onClose={()=>setMethod(false)}/>
+      <TweakPanel tweaks={tweaks} setTweaks={setTweaks} open={tweakOpen} onClose={()=>setTweakOpen(false)}/>
     </>
   );
 }
 
-/* Mount */
-const rootEl = document.getElementById("root");
-if (rootEl) {
-  ReactDOM.createRoot(rootEl).render(<App />);
-}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);

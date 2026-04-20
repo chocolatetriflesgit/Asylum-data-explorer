@@ -76,14 +76,24 @@ def ordered_src(src_dir: Path) -> list[Path]:
 def concat_bundle(root: Path) -> str:
     parts: list[str] = []
 
-    data_js = root / "data" / "boats-data.js"
-    if data_js.exists():
-        parts.append(f"/* --- data/boats-data.js --- */\n{data_js.read_text(encoding='utf-8')}")
+    data_dir = root / "data"
+    boats_js = data_dir / "boats-data.js"
+    if boats_js.exists():
+        parts.append(f"/* --- data/boats-data.js --- */\n{boats_js.read_text(encoding='utf-8')}")
     else:
         parts.append(
             "/* --- data/boats-data.js --- (not generated yet; run "
             "scripts/build_boats_data.py) */"
         )
+
+    # Any additional data/*-data.js files, sorted for stability.
+    # Ordering is not load-order-sensitive between data files (each emits its
+    # own window.* globals). They must, however, all come before any src/*.jsx.
+    if data_dir.exists():
+        for extra in sorted(data_dir.glob("*-data.js")):
+            if extra.name == "boats-data.js":
+                continue
+            parts.append(f"\n/* --- data/{extra.name} --- */\n{extra.read_text(encoding='utf-8')}")
 
     src_dir = root / "src"
     if not src_dir.exists():

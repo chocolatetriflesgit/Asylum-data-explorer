@@ -1,418 +1,370 @@
-/* =========================================================================
-   charts.jsx — SVG chart primitives + shared utilities.
-   Every visual rule comes from design/tokens.md. If this file and tokens.md
-   disagree, tokens.md wins — update the code to match.
+// charts.jsx — SVG charts with interactive tooltips
 
-   Exports (as top-level consts/functions in the bundled scope):
-     fmtK, fmtN                — number formatters
-     useTooltip                — tooltip hook
-     MULTI_COLORS              — series colour rotation
-     Tooltip, Figure           — shared presentation
-     LineChart                 — single- or multi-series line chart
-     Spark                     — tiny inline spark line
-     ChartGrid                 — horizontal grid + x/y axes helper
-   ========================================================================= */
-
-const MULTI_COLORS = [
-  "var(--accent)",
-  "var(--accent-warn)",
-  "var(--accent-2)",
-  "var(--accent-gold)",
-  "var(--muted)",
-];
-
-/* ---------- Number formatting ---------- */
-
-const fmtN = (v) => {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  return new Intl.NumberFormat("en-GB").format(Math.round(v));
-};
-
-const fmtK = (v) => {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  const n = Number(v);
-  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "m";
-  if (Math.abs(n) >= 1_000)     return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "k";
-  return String(Math.round(n));
-};
-
-/* ---------- Tooltip ---------- */
-
+// ─────────────────────────────────────────────────────────────
+// Tooltip helper hook
+// ─────────────────────────────────────────────────────────────
 function useTooltip() {
-  const [tip, setTip] = React.useState(null);
-  const show = React.useCallback((x, y, label) => {
-    setTip({ x, y, label });
-  }, []);
-  const hide = React.useCallback(() => setTip(null), []);
-  return { tip, show, hide };
-}
-
-function Tooltip({ tip }) {
-  if (!tip) return null;
-  return (
-    <div
-      className="tooltip"
-      style={{
-        left: tip.x,
-        top: tip.y - 12,
-        transform: "translate(-50%, -100%)",
-      }}
-    >
-      {tip.label}
-    </div>
+  const [tt, setTt] = React.useState(null);
+  const show = (e, content) => {
+    const r = e.currentTarget.closest('.chart-wrap')?.getBoundingClientRect?.();
+    if (!r) return;
+    setTt({ x: e.clientX - r.left, y: e.clientY - r.top, content });
+  };
+  const hide = () => setTt(null);
+  const node = tt && (
+    <div className="tt on" style={{ left: tt.x, top: tt.y }}>{tt.content}</div>
   );
+  return { show, hide, node };
 }
 
-/* ---------- Figure wrapper (title / caption / source) ---------- */
+const fmtK = v => {
+  if (v >= 1000) return (v/1000).toFixed(v >= 10000 ? 0 : 1) + 'k';
+  return String(v);
+};
+const fmtN = v => v.toLocaleString('en-GB');
 
-function Figure({ subtitle, title, caption, source, width, children }) {
+// ─────────────────────────────────────────────────────────────
+// Line chart — single series with optional annotations
+// ─────────────────────────────────────────────────────────────
+function LineChart({
+  data, width=720, height=320, annotations=[],
+  stroke='var(--accent)', area=true, title='', subtitle='', source='',
+  yearRange=null,
+  caption=null,
+  showLabels=false,
+  showLine=true,
+  xLabelFmt=null,
+}) {
+  const { show, hide, node } = useTooltip();
+  const pad = { t: 16, r: 24, b: 32, l: 48 };
+  const W = width, H = height;
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+
+  // filter by yearRange
+  const filtered = yearRange
+    ? data.filter(d => d.y >= yearRange[0] && d.y <= yearRange[1])
+    : data;
+  const d = filtered.length ? filtered : data;
+
+  const xs = d.map(p => p.y);
+  const ys = d.map(p => p.v);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMax = Math.max(...ys) * 1.1;
+  const x = v => pad.l + (xMax === xMin ? iw/2 : ((v - xMin) / (xMax - xMin)) * iw);
+  const y = v => pad.t + (1 - v/yMax) * ih;
+  const pts = d.map(p => `${x(p.y)},${y(p.v)}`).join(' ');
+  const areaPath = d.length
+    ? `M${x(d[0].y)},${y(0)} L${d.map(p=>`${x(p.y)},${y(p.v)}`).join(' L')} L${x(d[d.length-1].y)},${y(0)} Z`
+    : '';
+
+  const step = yMax / 4;
+  const yTicks = Array.from({length:5}, (_,i) => Math.round(i*step/5000)*5000).filter((v,i,a)=>a.indexOf(v)===i);
+
   return (
-    <figure className="chart-wrap" style={{ margin: 0, width }}>
-      {(subtitle || title) && (
-        <figcaption style={{ marginBottom: 14 }}>
-          {subtitle && <div className="uc">{subtitle}</div>}
-          {subtitle && <div className="rule-terra kicker-rule" />}
-          {title && <div className="t-sub">{title}</div>}
+    <figure className="chart-wrap" style={{ position:'relative', margin:0 }}>
+      {title && (
+        <figcaption style={{marginBottom:14}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>{subtitle}</div>
+          <div style={{fontSize:19,fontWeight:500,letterSpacing:-0.1,color:'var(--ink)'}}>{title}</div>
         </figcaption>
       )}
-      {children}
-      {caption && (
-        <div className="t-caption caption-col" style={{ marginTop: 10 }}>
-          {caption}
-        </div>
-      )}
-      {source && (
-        <div className="uc" style={{ marginTop: 12 }}>Source: {source}</div>
-      )}
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        <defs>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.18"/>
+            <stop offset="100%" stopColor={stroke} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        {yTicks.map(t=>(
+          <g key={t}>
+            <line x1={pad.l} x2={W-pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth="1"/>
+            <text x={pad.l-10} y={y(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
+          </g>
+        ))}
+        {d.map((p,i)=>({p,i}))
+           .filter(({i})=>i%Math.max(1,Math.ceil(d.length/8))===0 || i===d.length-1)
+           .map(({p,i})=>(
+          <text key={`xt-${i}`} x={x(p.y)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+            {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
+          </text>
+        ))}
+        <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
+        {area && <path d={areaPath} fill="url(#areaGrad)"/>}
+        {showLine && <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"/>}
+        {d.map((p,i)=>(
+          <g key={`pt-${i}`}>
+            <circle cx={x(p.y)} cy={y(p.v)} r={showLine ? 3 : 4} fill={stroke}/>
+            <circle cx={x(p.y)} cy={y(p.v)} r="14" fill="transparent"
+              onMouseMove={e=>show(e, <span><b>{p.label ?? p.y}</b> · <span className="tnum">{fmtN(p.v)}</span></span>)}
+              onMouseLeave={hide}
+              style={{cursor:'crosshair'}}
+            />
+            {showLabels && (
+              <text x={x(p.y)} y={y(p.v)-10} textAnchor="middle" fontSize="10.5" fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+                {fmtK(p.v)}
+              </text>
+            )}
+          </g>
+        ))}
+        {annotations.map((a,i)=>{
+          const pt = d.find(p=>p.y===a.y); if(!pt) return null;
+          const px = x(pt.y), py = y(pt.v);
+          const dx = a.dx||30, dy = a.dy||-26;
+          return (
+            <g key={i}>
+              <circle cx={px} cy={py} r="5" fill="none" stroke={stroke} strokeWidth="1"/>
+              <line x1={px} y1={py} x2={px+dx} y2={py+dy} stroke={stroke} strokeWidth="0.8"/>
+              <text x={px+dx+4} y={py+dy+4} fontSize="11.5" fill="var(--ink-2)" style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{a.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+      {caption && <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5,maxWidth:640}}>{caption}</div>}
+      {source && <div className="uc" style={{marginTop:12,color:'var(--muted-2)'}}>Source: {source}</div>}
+      {node}
     </figure>
   );
 }
 
-/* ---------- Scale helpers ---------- */
-
-function linearScale(domain, range) {
-  const [d0, d1] = domain;
-  const [r0, r1] = range;
-  const span = d1 - d0 || 1;
-  const fn = (v) => r0 + ((v - d0) / span) * (r1 - r0);
-  fn.invert = (px) => d0 + ((px - r0) / (r1 - r0)) * span;
-  fn.domain = domain;
-  fn.range = range;
-  return fn;
-}
-
-/* ---------- "Nice" tick generator ---------- */
-
-function niceTicks(min, max, target = 5) {
-  if (min === max) {
-    return [min];
-  }
-  const span = max - min;
-  const step0 = span / target;
-  const pow = Math.pow(10, Math.floor(Math.log10(step0)));
-  const rel = step0 / pow;
-  const step = (rel >= 5 ? 10 : rel >= 2 ? 5 : rel >= 1 ? 2 : 1) * pow;
-  const start = Math.ceil(min / step) * step;
-  const out = [];
-  for (let v = start; v <= max + 1e-9; v += step) {
-    out.push(Math.round(v / step) * step);
-  }
-  return out;
-}
-
-/* ---------- ChartGrid (axes + horizontal grid) ---------- */
-
-function ChartGrid({
-  xScale,
-  yScale,
-  plotTop,
-  plotBottom,
-  plotLeft,
-  plotRight,
-  xTicks,
-  yTicks,
-  formatX = String,
-  formatY = fmtK,
-}) {
-  const ySafe = yTicks || niceTicks(yScale.domain[0], yScale.domain[1], 5);
-  const xSafe = xTicks || [];
-  return (
-    <g aria-hidden="true">
-      {ySafe.map((v, i) => (
-        <g key={`y-${i}`}>
-          <line
-            x1={plotLeft}
-            x2={plotRight}
-            y1={yScale(v)}
-            y2={yScale(v)}
-            stroke="var(--rule)"
-            strokeWidth="1"
-          />
-          <text
-            x={plotLeft - 10}
-            y={yScale(v) + 4}
-            textAnchor="end"
-            className="t-axis"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            {formatY(v)}
-          </text>
-        </g>
-      ))}
-      <line
-        x1={plotLeft}
-        x2={plotRight}
-        y1={plotBottom}
-        y2={plotBottom}
-        stroke="var(--rule-2)"
-        strokeWidth="1"
-      />
-      {xSafe.map((t, i) => (
-        <text
-          key={`x-${i}`}
-          x={xScale(t.value)}
-          y={plotBottom + 18}
-          textAnchor="middle"
-          className="t-axis"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
-          {t.label ?? formatX(t.value)}
-        </text>
-      ))}
-    </g>
-  );
-}
-
-/* ---------- LineChart ---------- */
-
-/**
- * Render one or more line series.
- *
- * props:
- *   series:        [{ name, data: [{x, y}], color? }]   (null y values are skipped)
- *   xAccessor:     (x) => number   — default: identity
- *   yAccessor:     (y) => number   — default: identity
- *   xTickFormat:   (x) => string   — formats labels for x-axis + tooltip
- *   width/height:  SVG dims
- *   fill:          whether to render the 18%->0% area gradient (primary series only)
- *   annotations:   [{ seriesIndex, x, label }]
- *   xTicks:        [{ value, label? }] — explicit tick positions
- */
-function LineChart({
-  series,
-  width = 640,
-  height = 320,
-  fill = true,
-  annotations = [],
-  xTickFormat = String,
-  xTicks,
-  yTickFormat = fmtK,
-  tooltipLabel,
-}) {
-  const padding = { top: 22, right: 24, bottom: 36, left: 48 };
-  const plotLeft = padding.left;
-  const plotRight = width - padding.right;
-  const plotTop = padding.top;
-  const plotBottom = height - padding.bottom;
-
-  const { tip, show, hide } = useTooltip();
-  const isMulti = series.length > 1;
-
-  const allX = series.flatMap((s) => s.data.map((d) => d.x));
-  const allY = series.flatMap((s) =>
-    s.data.map((d) => d.y).filter((v) => v !== null && v !== undefined)
-  );
-  const xMin = Math.min(...allX);
-  const xMax = Math.max(...allX);
-  const yMaxRaw = Math.max(0, ...allY);
-  const yMax = yMaxRaw === 0 ? 1 : yMaxRaw * 1.08;
-
-  const x = linearScale([xMin, xMax], [plotLeft, plotRight]);
-  const y = linearScale([0, yMax], [plotBottom, plotTop]);
-
-  const wrapRef = React.useRef(null);
-  const svgRef = React.useRef(null);
-
-  const handleHover = (event, seriesName, xVal, yVal) => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const rect = wrap.getBoundingClientRect();
-    const px = event.clientX - rect.left;
-    const py = event.clientY - rect.top;
-    const label =
-      tooltipLabel?.({ seriesName, x: xVal, y: yVal }) ??
-      `${xTickFormat(xVal)} · ${isMulti ? `${seriesName}: ` : ""}${fmtN(yVal)}`;
-    show(px, py, label);
-  };
-
-  const toPath = (data) => {
-    let d = "";
-    let pen = false;
-    for (const pt of data) {
-      if (pt.y === null || pt.y === undefined) {
-        pen = false;
-        continue;
-      }
-      const cmd = pen ? "L" : "M";
-      d += `${cmd}${x(pt.x).toFixed(2)} ${y(pt.y).toFixed(2)} `;
-      pen = true;
-    }
-    return d.trim();
-  };
-
-  const gradId = `grad-${React.useId().replace(/:/g, "")}`;
+// ─────────────────────────────────────────────────────────────
+// Multi-line chart
+// ─────────────────────────────────────────────────────────────
+const MULTI_COLORS = ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)', 'var(--accent-gold)', 'var(--muted)'];
+function MultiLineChart({ years, series, width=720, height=300, showLabels=false }) {
+  const { show, hide, node } = useTooltip();
+  const pad = { t: 16, r: 120, b: 32, l: 48 };
+  const W = width, H = height;
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const allV = series.flatMap(s=>s.data);
+  const yMax = Math.max(...allV) * 1.12;
+  const x = i => pad.l + (i/(years.length-1))*iw;
+  const y = v => pad.t + (1 - v/yMax)*ih;
+  const yTicks = [0, yMax*0.25, yMax*0.5, yMax*0.75, yMax].map(v=>Math.round(v/1000)*1000).filter((v,i,a)=>a.indexOf(v)===i);
 
   return (
-    <div ref={wrapRef} style={{ position: "relative" }}>
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="xMidYMid meet"
-        width="100%"
-        height={height}
-        role="img"
-      >
-        <defs>
-          {fill && series[0] && (
-            <linearGradient
-              id={gradId}
-              x1="0"
-              x2="0"
-              y1={plotTop}
-              y2={plotBottom}
-              gradientUnits="userSpaceOnUse"
-            >
-              <stop offset="0%" stopColor={series[0].color || MULTI_COLORS[0]} stopOpacity="0.18" />
-              <stop offset="100%" stopColor={series[0].color || MULTI_COLORS[0]} stopOpacity="0" />
-            </linearGradient>
-          )}
-        </defs>
-
-        <ChartGrid
-          xScale={x}
-          yScale={y}
-          plotTop={plotTop}
-          plotBottom={plotBottom}
-          plotLeft={plotLeft}
-          plotRight={plotRight}
-          xTicks={xTicks}
-          formatY={yTickFormat}
-        />
-
-        {fill && series[0] && (() => {
-          const primary = series[0];
-          const pts = primary.data.filter((d) => d.y !== null && d.y !== undefined);
-          if (pts.length < 2) return null;
-          const path =
-            `M${x(pts[0].x).toFixed(2)} ${plotBottom} ` +
-            pts.map((p) => `L${x(p.x).toFixed(2)} ${y(p.y).toFixed(2)}`).join(" ") +
-            ` L${x(pts[pts.length - 1].x).toFixed(2)} ${plotBottom} Z`;
-          return <path d={path} fill={`url(#${gradId})`} />;
-        })()}
-
-        {series.map((s, i) => {
-          const color = s.color || (isMulti ? MULTI_COLORS[i % MULTI_COLORS.length] : MULTI_COLORS[0]);
-          const strokeWidth = isMulti ? 1.4 : 1.8;
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        {yTicks.map(t=>(
+          <g key={t}>
+            <line x1={pad.l} x2={W-pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)"/>
+            <text x={pad.l-10} y={y(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
+          </g>
+        ))}
+        {years.map((yr,i)=>(
+          <text key={yr} x={x(i)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+        ))}
+        <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
+        {series.map((s,si)=>{
+          const color = MULTI_COLORS[si % MULTI_COLORS.length];
+          const pts = s.data.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+          const last = s.data.length-1;
           return (
-            <g key={s.name || i}>
-              <path
-                d={toPath(s.data)}
-                fill="none"
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              {s.data.map((pt, j) => {
-                if (pt.y === null || pt.y === undefined) return null;
-                return (
-                  <g key={j}>
-                    <circle
-                      cx={x(pt.x)}
-                      cy={y(pt.y)}
-                      r={3}
-                      fill={color}
-                    />
-                    <circle
-                      cx={x(pt.x)}
-                      cy={y(pt.y)}
-                      r={14}
-                      fill="transparent"
-                      style={{ cursor: "crosshair" }}
-                      onMouseEnter={(e) => handleHover(e, s.name, pt.x, pt.y)}
-                      onMouseMove={(e) => handleHover(e, s.name, pt.x, pt.y)}
-                      onMouseLeave={hide}
-                    />
-                  </g>
-                );
-              })}
+            <g key={`${si}-${s.name}`}>
+              <polyline points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>
+              {s.data.map((v,i)=>(
+                <g key={i}>
+                  <circle cx={x(i)} cy={y(v)} r="2.6" fill={color}/>
+                  <circle cx={x(i)} cy={y(v)} r="12" fill="transparent"
+                    onMouseMove={e=>show(e, <span><b>{s.name}</b> · {years[i]} · <span className="tnum">{fmtN(v)}</span></span>)}
+                    onMouseLeave={hide}
+                  />
+                </g>
+              ))}
+              <text x={x(last)+10} y={y(s.data[last])+4} fontSize="12" fill={color} style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{s.name}</text>
+              {showLabels && s.data.map((v,i)=>(
+                <text key={`lbl-${i}`} x={x(i)} y={y(v)-8} textAnchor="middle" fontSize="10" fill={color} style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
+              ))}
             </g>
           );
         })}
+      </svg>
+      {node}
+    </figure>
+  );
+}
 
-        {annotations.map((a, i) => {
-          const s = series[a.seriesIndex ?? 0];
-          if (!s) return null;
-          const pt = s.data.find((d) => d.x === a.x);
-          if (!pt || pt.y === null) return null;
+// ─────────────────────────────────────────────────────────────
+// Stacked columns — two series stacked at each x
+// ─────────────────────────────────────────────────────────────
+function StackedColumns({ data, series=['A','B'], colors=['var(--accent)','var(--accent-warn)'], width=720, height=340, showLabels=false }) {
+  const { show, hide, node } = useTooltip();
+  const pad = { t: 16, r: 24, b: 32, l: 48 };
+  const W=width, H=height, iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
+  const totals = data.map(d => (d.a||0) + (d.b||0));
+  const yMax = (Math.max(...totals, 1)) * 1.1;
+  const bw = Math.max(8, (iw/data.length) * 0.55);
+  const xCenter = i => pad.l + ((i+0.5)/data.length)*iw;
+  const yPx = v => pad.t + (1 - v/yMax)*ih;
+  const step = yMax/4;
+  const yTicks = [0,1,2,3,4].map(i=>Math.round(i*step/1000)*1000).filter((v,i,a)=>a.indexOf(v)===i);
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        {yTicks.map(t=>(
+          <g key={t}>
+            <line x1={pad.l} x2={W-pad.r} y1={yPx(t)} y2={yPx(t)} stroke="var(--rule)"/>
+            <text x={pad.l-10} y={yPx(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
+          </g>
+        ))}
+        {data.map((d,i)=>{
+          const aH = (d.a||0)/yMax*ih;
+          const bH = (d.b||0)/yMax*ih;
+          const aY = H-pad.b - aH;
+          const bY = aY - bH;
+          const cx = xCenter(i);
           return (
-            <g key={`ann-${i}`}>
-              <circle
-                cx={x(pt.x)}
-                cy={y(pt.y)}
-                r={5}
-                fill="none"
-                stroke="var(--ink)"
-                strokeWidth="1"
-              />
-              <line
-                x1={x(pt.x)}
-                y1={y(pt.y) - 6}
-                x2={x(pt.x) + 18}
-                y2={y(pt.y) - 28}
-                stroke="var(--ink-2)"
-                strokeWidth="0.8"
-              />
-              <text
-                x={x(pt.x) + 22}
-                y={y(pt.y) - 28}
-                className="t-caption"
-                style={{ fontFamily: "var(--font-serif)" }}
-                fill="var(--ink-2)"
-              >
-                {a.label}
+            <g key={i} onMouseMove={e=>show(e, <span><b>{d.label ?? d.y}</b> · {series[0]} <span className="tnum">{fmtN(d.a||0)}</span> · {series[1]} <span className="tnum">{fmtN(d.b||0)}</span></span>)} onMouseLeave={hide} style={{cursor:'crosshair'}}>
+              <rect x={cx-bw/2} y={aY} width={bw} height={aH} fill={colors[0]}/>
+              {(d.b||0) > 0 && <rect x={cx-bw/2} y={bY} width={bw} height={bH} fill={colors[1]}/>}
+              <text x={cx} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{d.label ?? d.y}</text>
+              {showLabels && (
+                <text x={cx} y={bY-4} textAnchor="middle" fontSize="10.5" fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK((d.a||0)+(d.b||0))}</text>
+              )}
+            </g>
+          );
+        })}
+        <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
+      </svg>
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Horizontal bar chart
+// ─────────────────────────────────────────────────────────────
+function BarChart({ data, width=720, height=null, valueFmt=fmtN, color='var(--accent)', showGrant=false }) {
+  const { show, hide, node } = useTooltip();
+  const rowH = 30;
+  const H = height || data.length * rowH + 16;
+  const pad = { t: 8, r: 90, b: 8, l: 130 };
+  const iw = width - pad.l - pad.r;
+  const vMax = Math.max(...data.map(d=>d.v));
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={H} viewBox={`0 0 ${width} ${H}`} style={{display:'block'}}>
+        {data.map((d,i)=>{
+          const y = pad.t + i*rowH;
+          const w = (d.v/vMax)*iw;
+          return (
+            <g key={d.name}
+              onMouseMove={e=>show(e, <span><b>{d.name}</b> · <span className="tnum">{valueFmt(d.v)}</span>{showGrant && d.grant !== undefined ? <> · grant rate <span className="tnum">{Math.round(d.grant*100)}%</span></> : null}</span>)}
+              onMouseLeave={hide}
+              style={{cursor:'crosshair'}}>
+              <text x={pad.l-10} y={y+rowH/2+4} textAnchor="end" fontSize="13" fill="var(--ink-2)" style={{fontFamily:'var(--serif)'}}>{d.name}</text>
+              <rect x={pad.l} y={y+6} width={iw} height={rowH-12} fill="var(--bg-2)"/>
+              <rect x={pad.l} y={y+6} width={w} height={rowH-12} fill={color}/>
+              <text x={pad.l+w+8} y={y+rowH/2+4} fontSize="12" fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{valueFmt(d.v)}</text>
+              {showGrant && d.grant !== undefined && (
+                <text x={width-8} y={y+rowH/2+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)',fontStyle:'italic'}}>{Math.round(d.grant*100)}% grant</text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Stacked bar / decisions breakdown
+// ─────────────────────────────────────────────────────────────
+function StackedBar({ data, width=720, height=80 }) {
+  const { show, hide, node } = useTooltip();
+  const total = data.reduce((s,d)=>s+d.v,0);
+  let cum = 0;
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block'}}>
+        {data.map((d,i)=>{
+          const w = (d.v/total)*width;
+          const x = cum;
+          cum += w;
+          return (
+            <g key={d.label}
+              onMouseMove={e=>show(e, <span><b>{d.label}</b> · <span className="tnum">{fmtN(d.v)}</span> · {Math.round(d.v/total*100)}%</span>)}
+              onMouseLeave={hide}
+              style={{cursor:'crosshair'}}>
+              <rect x={x} y={20} width={w-1} height={36} fill={d.color}/>
+              <text x={x} y={15} fontSize="11" fill="var(--muted)" className="uc" style={{fontFamily:'var(--serif)'}}>
+                {d.label}
+              </text>
+              <text x={x} y={72} fontSize="12" fill="var(--ink)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+                {fmtN(d.v)} <tspan fill="var(--muted)">· {Math.round(d.v/total*100)}%</tspan>
               </text>
             </g>
           );
         })}
       </svg>
-      <Tooltip tip={tip} />
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tiny sparkline (for index cards)
+// ─────────────────────────────────────────────────────────────
+function Spark({ data, width=180, height=48, stroke='var(--accent)', area=true }) {
+  const pad = 4;
+  const xs = data.map(p=>p.y), ys = data.map(p=>p.v);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMax = Math.max(...ys) * 1.1;
+  const x = v => pad + ((v-xMin)/(xMax-xMin))*(width-2*pad);
+  const y = v => pad + (1 - v/yMax)*(height-2*pad);
+  const pts = data.map(p=>`${x(p.y)},${y(p.v)}`).join(' ');
+  const areaPath = `M${x(data[0].y)},${y(0)} L${pts.split(' ').join(' L')} L${x(data[data.length-1].y)},${y(0)} Z`;
+  return (
+    <svg width={width} height={height} style={{display:'block'}}>
+      {area && <path d={areaPath} fill={stroke} fillOpacity="0.12"/>}
+      <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.3"/>
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Donut / ring for grant rate
+// ─────────────────────────────────────────────────────────────
+function Ring({ value, size=140, stroke=14, label='', sub='' }) {
+  const r = size/2 - stroke/2;
+  const c = 2*Math.PI*r;
+  const off = c * (1 - value);
+  return (
+    <div style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:4}}>
+      <svg width={size} height={size}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--bg-2)" strokeWidth={stroke}/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--accent)" strokeWidth={stroke}
+          strokeDasharray={c} strokeDashoffset={off}
+          transform={`rotate(-90 ${size/2} ${size/2})`}
+          style={{transition:'stroke-dashoffset .5s ease'}}/>
+        <text x={size/2} y={size/2+2} textAnchor="middle" fontSize="26" fill="var(--ink)" style={{fontFamily:'var(--serif)',fontVariantNumeric:'tabular-nums'}}>
+          {Math.round(value*100)}%
+        </text>
+      </svg>
+      {label && <div className="uc" style={{color:'var(--muted)'}}>{label}</div>}
+      {sub && <div style={{fontSize:12,color:'var(--muted)',fontStyle:'italic'}}>{sub}</div>}
     </div>
   );
 }
 
-/* ---------- Spark (inline micro chart) ---------- */
-
-function Spark({ data, width = 140, height = 36, color = "var(--accent)" }) {
-  const pts = data.filter((d) => d.y !== null && d.y !== undefined);
-  if (pts.length < 2) return <svg width={width} height={height} />;
-  const xMin = Math.min(...pts.map((d) => d.x));
-  const xMax = Math.max(...pts.map((d) => d.x));
-  const yMax = Math.max(...pts.map((d) => d.y));
-  const x = linearScale([xMin, xMax], [1, width - 1]);
-  const y = linearScale([0, yMax === 0 ? 1 : yMax], [height - 2, 2]);
-  const d =
-    pts.map((p, i) => `${i ? "L" : "M"}${x(p.x).toFixed(1)} ${y(p.y).toFixed(1)}`).join(" ");
+// ─────────────────────────────────────────────────────────────
+// Choropleth-ish region list (ranked bars)
+// ─────────────────────────────────────────────────────────────
+function RegionList({ data }) {
+  const vMax = Math.max(...data.map(d=>d.v));
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      width={width}
-      height={height}
-      role="img"
-      aria-hidden="true"
-    >
-      <path d={d} fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+      {data.map(d=>(
+        <div key={d.name} style={{display:'grid',gridTemplateColumns:'170px 1fr 60px',alignItems:'center',gap:16,fontSize:13,padding:'6px 0',borderBottom:'1px dotted var(--rule)'}}>
+          <span>{d.name}</span>
+          <div style={{position:'relative',height:14,background:'var(--bg-2)'}}>
+            <div style={{position:'absolute',inset:0,width:`${(d.v/vMax)*100}%`,background:'var(--accent)'}}/>
+          </div>
+          <span className="tnum" style={{textAlign:'right',color:'var(--ink-2)'}}>{fmtN(d.v)}</span>
+        </div>
+      ))}
+    </div>
   );
 }
+
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, Spark, Ring, RegionList, fmtK, fmtN });
