@@ -9,12 +9,47 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
+import warnings
 from pathlib import Path
 
 import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Gov.uk xlsx filenames carry a release-month suffix, e.g.
+# `asylum-claims-datasets-dec-2025.xlsx`. Soft-warning threshold for
+# quarterly publications is 60 days (vs 14 for the weekly boats ODS).
+_SOURCE_MONTH_RE = re.compile(r"(?i)-([a-z]+)-(\d{4})(?=\.xlsx$)")
+_MONTHS = ["jan", "feb", "mar", "apr", "may", "jun",
+           "jul", "aug", "sep", "oct", "nov", "dec"]
+_SOURCE_STALE_DAYS = 60
+
+
+def _warn_if_source_stale(source_filename: str, label: str) -> None:
+    """Soft-warn (never fail) if the source xlsx is more than 60 days behind.
+
+    Matches the pattern used in test_data_integrity.py for the weekly boats
+    ODS — quarterly publications shouldn't drift more than one release late.
+    """
+    m = _SOURCE_MONTH_RE.search(source_filename)
+    if not m:
+        warnings.warn(
+            f"{label}: could not parse release month from {source_filename!r}",
+            stacklevel=2,
+        )
+        return
+    month_name = m.group(1).lower()[:3]
+    if month_name not in _MONTHS:
+        return
+    release = dt.date(int(m.group(2)), _MONTHS.index(month_name) + 1, 1)
+    age = (dt.date.today() - release).days
+    if age > _SOURCE_STALE_DAYS:
+        warnings.warn(
+            f"{label}: source {source_filename} is {age} days old — "
+            "has the fetcher stalled or the publication slipped?",
+            stacklevel=2,
+        )
 
 
 def _load_globals(path: Path) -> dict:
@@ -55,6 +90,12 @@ def test_nat_full_meta_year_is_plausible():
     g = _load_globals(NAT_FULL_JS)
     year = g["NAT_FULL_META"]["year"]
     assert 2010 <= year <= dt.date.today().year
+
+
+def test_nat_full_source_is_fresh():
+    """Soft warning, not failure."""
+    g = _load_globals(NAT_FULL_JS)
+    _warn_if_source_stale(g["NAT_FULL_META"]["source"], "NAT_FULL")
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +140,12 @@ def test_nat_quarterly_series_ranked_by_total():
     assert totals == sorted(totals, reverse=True), "series not ranked by total desc"
 
 
+def test_nat_quarterly_source_is_fresh():
+    """Soft warning, not failure."""
+    g = _load_globals(NAT_QUARTERLY_JS)
+    _warn_if_source_stale(g["NAT_QUARTERLY_META"]["source"], "NAT_QUARTERLY")
+
+
 # ---------------------------------------------------------------------------
 # HOTELS
 # ---------------------------------------------------------------------------
@@ -125,6 +172,12 @@ def test_hotels_shape_and_positive_counts():
 def test_hotels_meta_accommodation_type():
     g = _load_globals(HOTELS_JS)
     assert g["HOTELS_META"]["accommodationType"] == "Contingency Accommodation - Hotel"
+
+
+def test_hotels_source_is_fresh():
+    """Soft warning, not failure."""
+    g = _load_globals(HOTELS_JS)
+    _warn_if_source_stale(g["HOTELS_META"]["source"], "HOTELS")
 
 
 # ---------------------------------------------------------------------------
@@ -155,3 +208,9 @@ def test_resettlement_nonzero_totals():
     for r in g["RESETTLEMENT_SERIES"]:
         total = sum(r[str(y)] for y in years)
         assert total > 0, f"scheme {r['name']} has all-zero totals"
+
+
+def test_resettlement_source_is_fresh():
+    """Soft warning, not failure."""
+    g = _load_globals(RESETTLEMENT_JS)
+    _warn_if_source_stale(g["RESETTLEMENT_META"]["source"], "RESETTLEMENT")

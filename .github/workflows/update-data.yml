@@ -1,8 +1,12 @@
 name: Update data
 
-# Daily pull of the gov.uk Small Boats ODS. Regenerates data/boats-data.js,
-# re-bundles index.html, runs data-integrity tests, and commits if anything
-# changed. Failure is loud — the fetcher exits non-zero if the gov.uk page
+# Daily pull of gov.uk publications. Refreshes:
+#   - small-boats ODS     -> data/boats-data.js
+#   - asylum-claims xlsx  -> data/nat-full-data.js, data/nat-quarterly-data.js
+#   - asylum-support xlsx -> data/hotels-data.js
+#   - resettlement xlsx   -> data/resettlement-data.js
+# Then re-bundles index.html, runs integrity tests, and commits if anything
+# changed. Failure is loud — each fetcher exits non-zero if the gov.uk page
 # layout shifts, which is exactly what we want.
 
 on:
@@ -40,11 +44,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
-      - name: Fetch latest ODS
+      - name: Fetch latest small-boats ODS
         run: python scripts/fetch_latest.py
 
-      - name: Regenerate data module
+      - name: Build boats data module
         run: python scripts/build_boats_data.py cache/latest.ods data/
+
+      - name: Fetch latest asylum-claims xlsx
+        run: python scripts/fetch_asylum_claims.py
+
+      - name: Build NAT_FULL data module
+        run: python scripts/build_nat_full.py cache/asylum-claims-datasets-*.xlsx data/
+
+      - name: Build NAT_QUARTERLY data module
+        run: python scripts/build_nat_quarterly.py cache/asylum-claims-datasets-*.xlsx data/
+
+      - name: Fetch latest asylum-support xlsx
+        run: python scripts/fetch_asylum_support.py
+
+      - name: Build hotels data module
+        run: python scripts/build_hotels.py cache/asylum-seekers-receipt-support-datasets-*.xlsx data/
+
+      - name: Fetch latest resettlement xlsx
+        run: python scripts/fetch_resettlement.py
+
+      - name: Build resettlement data module
+        run: python scripts/build_resettlement.py cache/resettlement-scheme-datasets-*.xlsx data/
 
       - name: Re-bundle index.html
         run: python scripts/bundle.py
@@ -59,12 +84,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet -- data/boats-data.js index.html; then
+          if git diff --quiet -- data/ index.html; then
             echo "no changes"
             exit 0
           fi
 
           TODAY=$(date -u +%Y-%m-%d)
-          git add data/boats-data.js index.html
+          git add data/ index.html
           git commit -m "chore: data update ${TODAY}"
           git push
