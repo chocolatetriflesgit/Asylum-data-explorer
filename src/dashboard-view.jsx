@@ -200,7 +200,7 @@ function DashboardView({ setRoute }) {
       {/* Main chart grid — 2 columns */}
       {(focus === 'all' || focus === 'applications') && (
         <section style={{marginBottom:44}}>
-          <DashSectionHeader kicker="Applications and journeys" title="Volume and composition" accent="var(--accent-warn)"/>
+          <DashSectionHeader kicker="Applications and journeys" title="Volume and composition" accent="var(--accent-warn)" cadence="Annual · boats weekly"/>
           <div style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:20}}>
             <DashFrame number="01" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}>
               <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={720} height={280}
@@ -237,7 +237,7 @@ function DashboardView({ setRoute }) {
 
       {(focus === 'all' || focus === 'decisions') && (
         <section style={{marginBottom:44}}>
-          <DashSectionHeader kicker="Decisions" title="Outcomes and the backlog" accent="var(--accent-2)"/>
+          <DashSectionHeader kicker="Decisions" title="Outcomes and the backlog" accent="var(--accent-2)" cadence="Quarterly"/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
             <DashFrame number="04" kickerColor="var(--accent-warn)" title="Initial decisions, 2024" sub="Share of substantive outcomes">
               <StackedBar data={DECISIONS_2024} width={600} height={110}/>
@@ -262,7 +262,7 @@ function DashboardView({ setRoute }) {
 
       {(focus === 'all' || focus === 'geography') && (
         <section style={{marginBottom:44}}>
-          <DashSectionHeader kicker="Geography" title="Where people apply, and where they're housed" accent="var(--accent-gold)"/>
+          <DashSectionHeader kicker="Geography" title="Where people apply, and where they're housed" accent="var(--accent-gold)" cadence="Quarterly snapshot · hotels"/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
             <DashFrame number="06" kickerColor="var(--accent-warn)" title="Applications by region" sub="UK · 2024">
               <BarChart data={REGIONS} width={560} color="var(--accent)"/>
@@ -287,7 +287,7 @@ function DashboardView({ setRoute }) {
       {/* Resettlement table */}
       {(focus === 'all' || focus === 'decisions') && (
         <section style={{marginTop:44,paddingTop:30,borderTop:'1px solid var(--rule)'}}>
-          <DashSectionHeader kicker="Resettlement" title="Arrivals by scheme" accent="var(--accent)"/>
+          <DashSectionHeader kicker="Resettlement" title="Arrivals by scheme" accent="var(--accent)" cadence="Annual"/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
             <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'22px 26px'}}>
               {resettlementSeries ? (
@@ -367,14 +367,17 @@ function DashboardView({ setRoute }) {
 }
 
 // Section header with coloured rule
-function DashSectionHeader({ kicker, title, accent }) {
+function DashSectionHeader({ kicker, title, accent, cadence }) {
   return (
     <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:18,paddingBottom:12,borderBottom:`1px solid var(--rule)`}}>
       <div>
         <div className="uc" style={{color:accent,display:'inline-block',paddingBottom:6,borderBottom:`2px solid ${accent}`,marginBottom:10}}>{kicker}</div>
         <h2 style={{fontFamily:'var(--serif)',fontSize:26,fontWeight:500,letterSpacing:-0.2,margin:0,color:'var(--ink)'}}>{title}</h2>
       </div>
-      <div className="uc" style={{color:'var(--muted)'}}>↓ Export section</div>
+      <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+        {cadence && <div className="uc" style={{color:'var(--muted-2)',fontSize:10.5,border:'1px solid var(--rule-2)',padding:'2px 7px',background:'var(--bg-2)'}}>{cadence}</div>}
+        <div className="uc" style={{color:'var(--muted)'}}>↓ Export section</div>
+      </div>
     </div>
   );
 }

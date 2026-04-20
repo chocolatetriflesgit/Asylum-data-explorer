@@ -267,6 +267,7 @@ const DATASET_OPTIONS = [
     label: 'Nationalities (pick any)',
     render: 'custom-multi',
     color: 'var(--accent)',
+    supportsGranularity: ['annual', 'quarterly'],
     // Dummy series so the "Compare with" picker has something safe if this
     // option is picked there too (unlikely — it's filtered out below).
     series: [],
@@ -315,8 +316,9 @@ function BuildView({ setRoute }) {
     : [];
   // sec kept for bar/stacked chart-type code paths that still render a single secondary.
   const sec = overlayOpts[0] ?? null;
-  const supportsGran = !isMultiPrim && !isCustomNat && !!prim.supportsGranularity;
-  const effGran = supportsGran ? granularity : 'annual';
+  const granList = Array.isArray(prim.supportsGranularity) ? prim.supportsGranularity : (prim.supportsGranularity ? GRANULARITIES : null);
+  const supportsGran = !isMultiPrim && !!granList;
+  const effGran = supportsGran ? (granList.includes(granularity) ? granularity : granList[0]) : 'annual';
   const isAnnual = effGran === 'annual';
 
   const primData = isCustomNat ? [] : getGranularSeries(prim, effGran);
@@ -485,11 +487,16 @@ function BuildView({ setRoute }) {
             <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
               <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>4 · Granularity</div>
               <div className="seg" style={{display:'flex',flexWrap:'wrap'}}>
-                {GRANULARITIES.map(g=>(
-                  <button key={g} className={granularity===g?'on':''} onClick={()=>setGranularity(g)} style={{flex:'1 0 30%',textTransform:'capitalize',fontSize:11}}>{g}</button>
+                {granList.map(g=>(
+                  <button key={g} className={effGran===g?'on':''} onClick={()=>setGranularity(g)} style={{flex:'1 0 30%',textTransform:'capitalize',fontSize:11}}>{g}</button>
                 ))}
               </div>
               {dailyWarn && <div style={{fontSize:11.5,color:'var(--accent-warn)',marginTop:8,fontStyle:'italic'}}>Daily view renders {primData.length.toLocaleString()} points.</div>}
+              {isCustomNat && effGran === 'quarterly' && (
+                <div style={{fontSize:11,color:'var(--muted-2)',marginTop:8,fontStyle:'italic',lineHeight:1.45}}>
+                  Quarterly series is limited to the top-20 nationalities (NAT_QUARTERLY).
+                </div>
+              )}
             </div>
           )}
 
@@ -536,7 +543,7 @@ function BuildView({ setRoute }) {
                 <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
                   Pick one or more nationalities from the list to render a chart.
                 </div>
-              ) : (chartType === 'bar' || !natQ) ? (
+              ) : (effGran === 'annual' || !natQ) ? (
                 (() => {
                   const rows = selectedNats
                     .map(n => ({ name: n, v: natFullRows.find(r => r.name === n)?.v ?? 0 }))
@@ -560,12 +567,12 @@ function BuildView({ setRoute }) {
                     <>
                       {missing.length > 0 && (
                         <div style={{fontSize:12,color:'var(--muted-2)',marginBottom:10,fontStyle:'italic'}}>
-                          Not in quarterly series: {missing.join(', ')}. Switch to <em>bar</em> chart for annual snapshot of all selections.
+                          Not in quarterly series: {missing.join(', ')}. Switch to <em>annual</em> granularity for a snapshot of all selections.
                         </div>
                       )}
                       {usable.length === 0 ? (
                         <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
-                          None of the selected nationalities have quarterly data. Switch to a <em>bar</em> chart.
+                          None of the selected nationalities have quarterly data. Switch to <em>annual</em> granularity.
                         </div>
                       ) : (
                         <MultiLineChart
