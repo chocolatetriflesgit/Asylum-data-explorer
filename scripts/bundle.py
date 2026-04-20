@@ -21,7 +21,8 @@ The files must be concatenated in dependency order:
   4. src/app.jsx                   — header, footer, drawers
   5. src/dashboard-view.jsx        — /dashboard view
   6. src/views-story-build.jsx     — /story, /datasets, /build views
-  7. src/root.jsx                  — mounts <App />, must be LAST
+  7. src/atlas-view.jsx            — /atlas world choropleth view
+  8. src/root.jsx                  — mounts <App />, must be LAST
 
 Unknown additional files in `src/` are appended after the known ones but
 before root.jsx.
@@ -44,6 +45,7 @@ SRC_ORDER = [
     "app.jsx",
     "dashboard-view.jsx",
     "views-story-build.jsx",
+    "atlas-view.jsx",
     "root.jsx",
 ]
 
