@@ -1,6 +1,6 @@
 // dashboard-view.jsx — synchronised dashboard with pride-of-place KPIs + charts + tables
 
-const { useState: uSD, useMemo: uMD } = React;
+const { useState: uSD, useMemo: uMD, useRef: uRD, useEffect: uED } = React;
 
 function DashboardView({ setRoute }) {
   const [range, setRange] = uSD([2018, DATA_MAX_YEAR]);
@@ -11,9 +11,17 @@ function DashboardView({ setRoute }) {
   const prev = ASYLUM_ANNUAL[ASYLUM_ANNUAL.length - 2];
   const pctChange = ((latest.v - prev.v) / prev.v * 100).toFixed(1);
   const boatsPct = ((latest.boats - prev.boats) / prev.boats * 100).toFixed(1);
-  const filteredBacklog = uMD(()=>BACKLOG.filter(d => d.y >= range[0] && d.y <= range[1]), [range]);
-  const decisionsTotal = DECISIONS_2024.reduce((s,d)=>s+d.v,0);
-  const grantRate = (DECISIONS_2024[0].v + DECISIONS_2024[1].v) / decisionsTotal;
+  // Use pipeline-generated BACKLOG_LATEST when available; fall back to legacy BACKLOG.
+  const backlogData = (typeof BACKLOG_LATEST !== 'undefined' && BACKLOG_LATEST.length)
+    ? BACKLOG_LATEST : BACKLOG;
+  const backlogMeta = typeof BACKLOG_META !== 'undefined' ? BACKLOG_META : null;
+  const filteredBacklog = uMD(()=>backlogData.filter(d => d.y >= range[0] && d.y <= range[1]), [range, backlogData]);
+  // Use pipeline-generated DECISIONS_LATEST when available; fall back to legacy DECISIONS_2024.
+  const decisionsData = (typeof DECISIONS_LATEST !== 'undefined' && DECISIONS_LATEST.length)
+    ? DECISIONS_LATEST : DECISIONS_2024;
+  const decisionsYear = (typeof DECISIONS_META !== 'undefined') ? DECISIONS_META.year : 2024;
+  const decisionsTotal = decisionsData.reduce((s,d)=>s+d.v,0);
+  const grantRate = (decisionsData[0].v + decisionsData[1].v) / decisionsTotal;
 
   // Preventions + interceptions (BOATS_WEEKLY.p / .e) — null before first reported week.
   const boatsWeekly = typeof BOATS_WEEKLY !== 'undefined' ? BOATS_WEEKLY : [];
@@ -91,32 +99,11 @@ function DashboardView({ setRoute }) {
             Eight key figures, six charts, and the regional table — all driven by a single time-range filter. Updated when the Home Office releases its quarterly figures.
           </p>
         </div>
-        <div style={{minWidth:320}}>
-          <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
-            <span className="uc" style={{color:'var(--muted)'}}><span className="tick tick-accent"/>Filter range</span>
-            <span className="uc tnum" style={{color:'var(--accent)'}}>{range[0]}–{range[1]}</span>
+        <div style={{minWidth:480,flex:'0 1 520px'}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:6}}>
+            <span className="tick tick-accent"/>Time range
           </div>
-          <div style={{display:'flex',gap:10,alignItems:'center'}}>
-            <input type="range" min={2014} max={DATA_MAX_YEAR} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
-            <input type="range" min={2014} max={DATA_MAX_YEAR} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
-          </div>
-          <div style={{marginTop:14,display:'flex',gap:6,flexWrap:'wrap'}}>
-            {[
-              { id:'all', label:'All' },
-              { id:'applications', label:'Applications and journeys' },
-              { id:'decisions', label:'Decisions' },
-              { id:'geography', label:'Geography' },
-            ].map(f => (
-              <button key={f.id} onClick={()=>setFocus(f.id)}
-                style={{
-                  fontSize:11.5,letterSpacing:0.04,padding:'5px 11px',
-                  fontFamily:'var(--serif)',
-                  background: focus===f.id ? 'var(--accent)' : '#fff',
-                  color: focus===f.id ? 'var(--bg)' : 'var(--ink-2)',
-                  border:'1px solid var(--rule-2)',
-                }}>{f.label}</button>
-            ))}
-          </div>
+          <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
         </div>
       </div>
 
@@ -126,8 +113,10 @@ function DashboardView({ setRoute }) {
           { cls:'accent', label:`Applications · ${latest.y}`, v:fmtN(latest.v),    d:`${pctChange}% vs ${prev.y}`, dPos:+pctChange<0 },
           { cls:'',       label:'Small-boat arrivals',     v:fmtN(latest.boats), d:`${boatsPct}% vs ${prev.y}`, dPos:+boatsPct<0 },
           { cls:'ink',    label:`Preventions · ${latest.y}`, v:fmtN(preventionsYearTotal), d:preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true },
-          { cls:'olive',  label:'Grant rate',               v:`${Math.round(grantRate*100)}%`,  d:'from 24% in 2019',   dPos:true },
-          { cls:'gold',   label:'Backlog',                  v:fmtN(91200),        d:'↓ from 132k peak',    dPos:true },
+          { cls:'olive',  label:`Grant rate · ${decisionsYear}`, v:`${Math.round(grantRate*100)}%`, d:'from 24% in 2019', dPos:true },
+          { cls:'gold',   label:`Backlog${backlogMeta ? ` · ${backlogMeta.latest_year}` : ''}`,
+            v: fmtN(backlogData[backlogData.length-1]?.v ?? 91200),
+            d: '↓ from 132k peak', dPos:true },
         ].map((k,i)=>(
           <div key={i} className={`kpi-card ${k.cls}`}>
             <div className="uc" style={{color:'var(--muted)',marginBottom:12}}>{k.label}</div>
@@ -138,9 +127,9 @@ function DashboardView({ setRoute }) {
       </section>
 
       {/* second row — secondary KPIs */}
-      <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:44,paddingBottom:36,borderBottom:'1px solid var(--rule)'}}>
+      <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:0,paddingBottom:36,borderBottom:'none'}}>
         {[
-          { cls:'ink',    label:'Initial decisions',        v:fmtN(decisionsTotal),  d:`${Math.round(DECISIONS_2024[0].v/decisionsTotal*100)}% granted asylum`, pending:false},
+          { cls:'ink',    label:`Initial decisions · ${decisionsYear}`, v:fmtN(decisionsTotal), d:`${Math.round(decisionsData[0].v/decisionsTotal*100)}% granted asylum`, pending:false},
           { cls:'accent', label:'Resettled under schemes',  v:fmtN(12410),           d:'Across 5 programmes', pending:false},
           { cls:'olive',  label:'Appeals allowed',          v:'36%',                 d:'of 41k heard in 2024', pending:false},
           topNatCard
@@ -157,6 +146,27 @@ function DashboardView({ setRoute }) {
           </div>
         ))}
       </section>
+
+      {/* Section focus — placed after KPIs so the numbers are visible before the user filters */}
+      <div style={{display:'flex',alignItems:'center',gap:10,margin:'28px 0',paddingTop:24,paddingBottom:24,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
+        <span className="uc" style={{color:'var(--muted)',marginRight:4}}>Jump to</span>
+        {[
+          { id:'all', label:'All sections' },
+          { id:'applications', label:'Applications & journeys' },
+          { id:'decisions', label:'Decisions' },
+          { id:'geography', label:'Geography' },
+        ].map(f => (
+          <button key={f.id} onClick={()=>setFocus(f.id)}
+            style={{
+              fontSize:12,letterSpacing:0.04,padding:'6px 14px',
+              fontFamily:'var(--serif)',
+              background: focus===f.id ? 'var(--accent)' : '#fff',
+              color: focus===f.id ? 'var(--bg)' : 'var(--ink-2)',
+              border:'1px solid ' + (focus===f.id ? 'var(--accent)' : 'var(--rule-2)'),
+              cursor:'pointer',
+            }}>{f.label}</button>
+        ))}
+      </div>
 
       {/* Provisional last-7-days strip — daily gov.uk update between weekly ODS releases. */}
       {provisional && provisionalDays.length > 0 && (focus === 'all' || focus === 'applications') && (
@@ -216,8 +226,10 @@ function DashboardView({ setRoute }) {
             </DashFrame>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
-            <DashFrame number="03" kickerColor="var(--accent-gold)" title="Top five nationalities" sub="2020–2024">
-              <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={760} height={260}/>
+            <DashFrame number="03" kickerColor="var(--accent-gold)" title="Top five nationalities"
+              sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}>
+              {(() => { const ns = (typeof NAT_SERIES_LATEST !== 'undefined') ? NAT_SERIES_LATEST : NAT_SERIES;
+                return <MultiLineChart years={ns.years} series={ns.series} width={760} height={260}/>; })()}
             </DashFrame>
             <DashFrame number="03a" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}>
               <NationalitiesTable data={natFull}/>
@@ -239,22 +251,23 @@ function DashboardView({ setRoute }) {
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Decisions" title="Outcomes and the backlog" accent="var(--accent-2)" cadence="Quarterly"/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-            <DashFrame number="04" kickerColor="var(--accent-warn)" title="Initial decisions, 2024" sub="Share of substantive outcomes">
-              <StackedBar data={DECISIONS_2024} width={600} height={110}/>
+            <DashFrame number="04" kickerColor="var(--accent-warn)" title={`Initial decisions, ${decisionsYear}`} sub="Share of substantive outcomes">
+              <StackedBar data={decisionsData} width={600} height={110}/>
               <div style={{marginTop:18,display:'grid',gridTemplateColumns:'auto 1fr',gap:12,alignItems:'center'}}>
-                <Ring value={grantRate} size={110} stroke={12} label="Grant rate" sub="2024"/>
+                <Ring value={grantRate} size={110} stroke={12} label="Grant rate" sub={`${decisionsYear}`}/>
                 <div style={{fontSize:14,lineHeight:1.5,color:'var(--ink-2)',textWrap:'pretty'}}>
-                  Nearly half of all decided cases in 2024 resulted in a grant of protection — <em>double</em> the rate five years earlier. Most of the shift reflects changes in nationality composition (Afghan and Sudanese claims have very high grant rates).
+                  {Math.round(grantRate*100)}% of all decided cases in {decisionsYear} resulted in a grant of protection — up from 24% in 2019. The shift reflects changes in nationality composition (Afghan and Sudanese claims have very high grant rates).
                 </div>
               </div>
             </DashFrame>
-            <DashFrame number="05" kickerColor="var(--accent-gold)" title="Pending cases (backlog)" sub={`${range[0]}–${range[1]}`}>
-              <LineChart data={BACKLOG} yearRange={range} width={560} height={260}
+            <DashFrame number="05" kickerColor="var(--accent-gold)" title="Pending cases (backlog)"
+              sub={`${range[0]}–${range[1]}${backlogMeta ? ` · 31 Dec snapshots · Asy_D03` : ''}`}>
+              <LineChart data={filteredBacklog} yearRange={range} width={560} height={260}
                 stroke="var(--accent-gold)"
                 annotations={[
-                  range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'Peak 132k', dx:-80, dy:-10 },
+                  range[0] <= 2022 && range[1] >= 2022 && { y:2022, label:'Peak 132k', dx:-80, dy:-10 },
                 ].filter(Boolean)}
-                source="Home Office · ASY_D02"/>
+                source="Home Office · Asy_D03"/>
             </DashFrame>
           </div>
         </section>
@@ -264,9 +277,18 @@ function DashboardView({ setRoute }) {
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Geography" title="Where people apply, and where they're housed" accent="var(--accent-gold)" cadence="Quarterly snapshot · hotels"/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
-            <DashFrame number="06" kickerColor="var(--accent-warn)" title="Applications by region" sub="UK · 2024">
-              <BarChart data={REGIONS} width={560} color="var(--accent)"/>
-            </DashFrame>
+            {(() => {
+              const regData = (typeof SUPPORT_REGIONS !== 'undefined' && SUPPORT_REGIONS.length)
+                ? SUPPORT_REGIONS : REGIONS;
+              const regMeta = typeof SUPPORT_REGIONS_META !== 'undefined' ? SUPPORT_REGIONS_META : null;
+              return (
+                <DashFrame number="06" kickerColor="var(--accent-warn)"
+                  title="Asylum seekers in receipt of support"
+                  sub={regMeta ? `UK regions · as at ${regMeta.date} · Asy_D11` : 'UK · 2024'}>
+                  <BarChart data={regData} width={560} color="var(--accent)"/>
+                </DashFrame>
+              );
+            })()}
             <DashFrame number="07" kickerColor="var(--accent-2)" title="Top nationalities" sub={`UK · ${natFullYear ?? 2024}`} tableSub="Grant rate from ASY_D02">
               <BarChart data={(natFull ?? TOP_NATIONALITIES).slice(0,8)} width={560} color="var(--accent-warn)" showGrant={true}/>
             </DashFrame>
@@ -364,6 +386,113 @@ function DashboardView({ setRoute }) {
         </section>
       )}
     </main>
+  );
+}
+
+// Dual-handle year-range slider with ticks, preset chips, and a promoted selection label.
+// Replaces the pair of overlapping native <input type="range"> sliders — those had no
+// visible selected segment, no ticks, and the active years were easy to misread.
+function FilterRange({ range, setRange, min, max }) {
+  const svgRef = uRD(null);
+  const dragRef = uRD(null);
+  const width = 460;
+  const pad = 14;
+  const trackY = 18;
+  const trackW = width - pad * 2;
+  const yToX = y => pad + ((y - min) / (max - min)) * trackW;
+  const xToY = x => Math.round(min + ((x - pad) / trackW) * (max - min));
+
+  const setFromPointer = (e) => {
+    if (!dragRef.current || !svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * width;
+    const y = Math.max(min, Math.min(max, xToY(x)));
+    if (dragRef.current === 'start') setRange([Math.min(y, range[1] - 1), range[1]]);
+    else setRange([range[0], Math.max(y, range[0] + 1)]);
+  };
+  const endDrag = () => { dragRef.current = null; };
+
+  uED(() => {
+    window.addEventListener('pointermove', setFromPointer);
+    window.addEventListener('pointerup', endDrag);
+    return () => {
+      window.removeEventListener('pointermove', setFromPointer);
+      window.removeEventListener('pointerup', endDrag);
+    };
+  }, [range]);
+
+  const onTickClick = (y) => () => {
+    // Click a tick to move the nearer handle there.
+    const dStart = Math.abs(y - range[0]);
+    const dEnd = Math.abs(y - range[1]);
+    if (dStart <= dEnd) setRange([Math.min(y, range[1] - 1), range[1]]);
+    else setRange([range[0], Math.max(y, range[0] + 1)]);
+  };
+
+  const presets = [
+    { label: 'Last 3y',    r: [max - 2, max] },
+    { label: 'Since 2018', r: [2018, max] },
+    { label: 'Since 2020', r: [2020, max] },
+    { label: 'All time',   r: [min, max] },
+  ];
+  const isActive = (p) => p.r[0] === range[0] && p.r[1] === range[1];
+
+  const years = [];
+  for (let y = min; y <= max; y++) years.push(y);
+
+  return (
+    <div>
+      <div style={{fontFamily:'var(--serif)',fontSize:17,color:'var(--ink)',marginBottom:10,letterSpacing:-0.1}}>
+        Showing <span className="tnum" style={{fontWeight:500}}>{range[0]}–{range[1]}</span>
+        <span style={{color:'var(--muted-2)',fontSize:13,marginLeft:8,fontStyle:'italic'}}>
+          {range[1] - range[0] + 1} year{range[1]-range[0]===0?'':'s'}
+        </span>
+      </div>
+      <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
+        {presets.map(p => (
+          <button key={p.label} onClick={()=>setRange(p.r)} style={{
+            fontSize:11.5,padding:'4px 10px',fontFamily:'var(--serif)',
+            background: isActive(p) ? 'var(--accent)' : 'transparent',
+            color: isActive(p) ? 'var(--bg)' : 'var(--ink-2)',
+            border: '1px solid ' + (isActive(p) ? 'var(--accent)' : 'var(--rule-2)'),
+            cursor: 'pointer',
+          }}>{p.label}</button>
+        ))}
+      </div>
+      <svg ref={svgRef} width="100%" viewBox={`0 0 ${width} 52`} height={52}
+           style={{display:'block',touchAction:'none',userSelect:'none'}}>
+        <line x1={pad} x2={width-pad} y1={trackY} y2={trackY} stroke="var(--rule-2)" strokeWidth={3}/>
+        <line x1={yToX(range[0])} x2={yToX(range[1])} y1={trackY} y2={trackY} stroke="var(--accent)" strokeWidth={3}/>
+        {years.map(y => {
+          const x = yToX(y);
+          const inRange = y >= range[0] && y <= range[1];
+          const showLabel = y === min || y === max || y % 2 === 0;
+          return (
+            <g key={y} onClick={onTickClick(y)} style={{cursor:'pointer'}}>
+              <rect x={x-4} y={trackY-8} width={8} height={16} fill="transparent"/>
+              <line x1={x} x2={x} y1={trackY-5} y2={trackY+5}
+                    stroke={inRange ? 'var(--accent)' : 'var(--muted-2)'} strokeWidth={1}/>
+              {showLabel && (
+                <text x={x} y={trackY+22} fontSize={10} textAnchor="middle"
+                      fill={inRange ? 'var(--ink-2)' : 'var(--muted-2)'}
+                      style={{letterSpacing:0.04}}>{y}</text>
+              )}
+            </g>
+          );
+        })}
+        {['start','end'].map(which => {
+          const y = range[which==='start'?0:1];
+          return (
+            <circle key={which} cx={yToX(y)} cy={trackY} r={8}
+                    fill="#fff" stroke="var(--accent)" strokeWidth={2}
+                    style={{cursor:'grab'}}
+                    onPointerDown={(e)=>{e.preventDefault(); dragRef.current = which;}}>
+              <title>{which==='start'?'Start year':'End year'}: {y}</title>
+            </circle>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 

@@ -36,13 +36,40 @@ function resolveNat(mapCountryName) {
   return mapCountryName;
 }
 
+// Six-stop palette, lightest → darkest. Chosen to spread readable steps
+// across the whole distribution rather than relying on opacity of one hue.
+const ATLAS_PALETTE = ['#f5ecd8','#d4b86a','#b85c38','#6b4a2a','#2d4532','#1c3d2e'];
+
+function atlasLerpHex(a, b, t) {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const ar = (pa >> 16) & 255, ag = (pa >> 8) & 255, ab = pa & 255;
+  const br = (pb >> 16) & 255, bg = (pb >> 8) & 255, bb = pb & 255;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0')}`;
+}
+
+function atlasPaletteColor(t) {
+  const n = ATLAS_PALETTE.length - 1;
+  const x = Math.max(0, Math.min(1, t)) * n;
+  const i = Math.floor(x);
+  if (i >= n) return ATLAS_PALETTE[n];
+  return atlasLerpHex(ATLAS_PALETTE[i], ATLAS_PALETTE[i + 1], x - i);
+}
+
 function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, height=440 }) {
   const worldMap = (typeof WORLD_MAP !== 'undefined') ? WORLD_MAP : null;
   if (!worldMap) {
     return <div style={{padding:40,color:'var(--muted)',fontStyle:'italic'}}>World map not loaded.</div>;
   }
   const vMax = Math.max(...Object.values(countryValues), 1);
-  const shade = v => v > 0 ? 0.2 + Math.sqrt(v / vMax) * 0.78 : 0.06;
+  // sqrt compresses the long tail so mid-range countries reach the middle
+  // stops of the palette instead of all collapsing into the lightest band.
+  const fillFor = v => {
+    if (!(v > 0)) return ATLAS_PALETTE[0];
+    return atlasPaletteColor(Math.sqrt(v / vMax));
+  };
   return (
     <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block',background:'var(--map-bg, var(--bg-2))'}}>
       <g>
@@ -52,8 +79,7 @@ function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, hei
           const isSel = nat && nat === selectedName;
           return (
             <path key={`${c.iso || ''}-${c.name}-${i}`} d={c.d}
-              fill={isSel ? 'var(--accent-warn)' : 'var(--map-dark, var(--accent-gold))'}
-              fillOpacity={isSel ? 0.95 : shade(v)}
+              fill={isSel ? 'var(--accent-warn)' : fillFor(v)}
               stroke={isSel ? 'var(--accent)' : 'var(--rule-2)'} strokeWidth={isSel ? 1.4 : 0.4}
               onClick={() => nat && onSelect(nat)}
               style={{cursor: nat ? 'pointer' : 'default'}}>
@@ -63,6 +89,25 @@ function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, hei
         })}
       </g>
     </svg>
+  );
+}
+
+function AtlasLegend({ countryValues }) {
+  const vMax = Math.max(...Object.values(countryValues), 1);
+  const stops = ATLAS_PALETTE.length;
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:8,marginTop:10,fontSize:11}}>
+      <span className="uc" style={{fontSize:10.5,color:'var(--muted)'}}>Applicants</span>
+      <div style={{display:'flex',flex:'0 1 320px',border:'1px solid var(--rule-2)'}}>
+        {ATLAS_PALETTE.map((hex, i) => (
+          <div key={hex} style={{flex:1,height:10,background:hex}} title={
+            i === 0 ? '0' : `≈${Math.round(vMax * Math.pow(i / (stops - 1), 2)).toLocaleString()}`
+          }/>
+        ))}
+      </div>
+      <span style={{color:'var(--muted-2)'}}>0</span>
+      <span style={{color:'var(--muted-2)',marginLeft:'auto'}}>{vMax.toLocaleString()}</span>
+    </div>
   );
 }
 
@@ -166,6 +211,7 @@ function AtlasView({ setRoute }) {
       <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.4fr) minmax(360px,1fr)',gap:28,alignItems:'start'}}>
         <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'12px'}}>
           <AtlasChoropleth countryValues={countryValues} selectedName={selected} onSelect={setSelected}/>
+          <AtlasLegend countryValues={countryValues}/>
           <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:12,paddingTop:10,borderTop:'1px dotted var(--rule-2)'}}>
             <span className="uc" style={{fontSize:10.5,color:'var(--muted)',marginRight:8}}>Jump to:</span>
             {topCountries.map(c => (
