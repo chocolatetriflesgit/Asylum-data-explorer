@@ -205,7 +205,7 @@ function DashboardView({ setRoute }) {
       {(focus === 'all' || focus === 'geography') && (
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Geography" title="Where people apply, and where they're housed" accent="var(--accent-gold)"/>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
             <DashFrame number="06" kickerColor="var(--accent-warn)" title="Applications by region" sub="UK · 2024">
               <BarChart data={REGIONS} width={560} color="var(--accent)"/>
             </DashFrame>
@@ -213,6 +213,16 @@ function DashboardView({ setRoute }) {
               <BarChart data={(natFull ?? TOP_NATIONALITIES).slice(0,8)} width={560} color="var(--accent-warn)" showGrant={true}/>
             </DashFrame>
           </div>
+          {natFull && (
+            <div style={{display:'grid',gridTemplateColumns:'1fr',gap:20}}>
+              <DashFrame number="08" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from ASY_D01`}>
+                <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.3fr) minmax(260px,1fr)',gap:28,alignItems:'start'}}>
+                  <RegionWorldMap data={groupNatByRegion(natFull)} width={720} height={380}/>
+                  <RegionTable data={groupNatByRegion(natFull)}/>
+                </div>
+              </DashFrame>
+            </div>
+          )}
         </section>
       )}
 

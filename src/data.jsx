@@ -157,7 +157,89 @@ const DATASETS = [
   { code: 'ASY_D05', name: 'Support provided to asylum seekers',       rows: '412,200',   updated: '12 Apr 2026', freq: 'Quarterly' },
 ];
 
+// Region-of-origin lookup for NAT_FULL. Egypt counted as Middle East per editorial call;
+// Afghanistan counted as South Asia. Unlisted names fall through to "Other / Unclassified".
+const REGION_MAP = {
+  // Middle East
+  'Iran':'Middle East','Iraq':'Middle East','Syria':'Middle East','Yemen':'Middle East',
+  'Turkey':'Middle East','Egypt':'Middle East','Saudi Arabia':'Middle East','Kuwait':'Middle East',
+  'Palestine':'Middle East','Lebanon':'Middle East','Jordan':'Middle East','Israel':'Middle East',
+  'Bahrain':'Middle East','Oman':'Middle East','Qatar':'Middle East','United Arab Emirates':'Middle East',
+  // North Africa
+  'Libya':'North Africa','Morocco':'North Africa','Algeria':'North Africa','Tunisia':'North Africa',
+  'Western Sahara':'North Africa','Mauritania':'North Africa',
+  // East Africa / Horn of Africa
+  'Eritrea':'East Africa','Somalia':'East Africa','Ethiopia':'East Africa','Sudan':'East Africa',
+  'South Sudan':'East Africa','Djibouti':'East Africa','Kenya':'East Africa','Uganda':'East Africa',
+  'Tanzania':'East Africa','Rwanda':'East Africa','Burundi':'East Africa','Comoros':'East Africa',
+  // West Africa
+  'Nigeria':'West Africa','Ghana':'West Africa','Senegal':'West Africa','Mali':'West Africa',
+  'Ivory Coast':'West Africa','Cameroon':'West Africa','Sierra Leone':'West Africa',
+  'Gambia, The':'West Africa','Guinea':'West Africa','Guinea-Bissau':'West Africa',
+  'Niger':'West Africa','Burkina Faso':'West Africa','Togo':'West Africa','Benin':'West Africa',
+  'Liberia':'West Africa','Cape Verde':'West Africa',
+  // Central / Southern Africa
+  'Congo (Democratic Republic)':'Central & Southern Africa','Congo':'Central & Southern Africa',
+  'Chad':'Central & Southern Africa','Zimbabwe':'Central & Southern Africa',
+  'Mozambique':'Central & Southern Africa','Malawi':'Central & Southern Africa',
+  'Zambia':'Central & Southern Africa','Angola':'Central & Southern Africa',
+  'Botswana':'Central & Southern Africa','Namibia':'Central & Southern Africa',
+  'Mauritius':'Central & Southern Africa','Eswatini':'Central & Southern Africa',
+  'Gabon':'Central & Southern Africa','Central African Republic':'Central & Southern Africa',
+  'Lesotho':'Central & Southern Africa','Equatorial Guinea':'Central & Southern Africa',
+  'South Africa':'Central & Southern Africa','Seychelles':'Central & Southern Africa',
+  'Madagascar':'Central & Southern Africa',
+  // South Asia
+  'Afghanistan':'South Asia','Pakistan':'South Asia','India':'South Asia','Bangladesh':'South Asia',
+  'Sri Lanka':'South Asia','Nepal':'South Asia','Bhutan':'South Asia','Maldives':'South Asia',
+  // South East Asia
+  'Vietnam':'South East Asia','Myanmar (Burma)':'South East Asia','Indonesia':'South East Asia',
+  'Philippines':'South East Asia','Thailand':'South East Asia','Malaysia':'South East Asia',
+  'East Timor':'South East Asia','Cambodia':'South East Asia','Laos':'South East Asia',
+  'Singapore':'South East Asia','Brunei':'South East Asia','Papua New Guinea':'South East Asia',
+  // East Asia & Pacific
+  'China':'East Asia & Pacific','Hong Kong':'East Asia & Pacific','Taiwan':'East Asia & Pacific',
+  'Japan':'East Asia & Pacific','South Korea':'East Asia & Pacific','North Korea':'East Asia & Pacific',
+  'Mongolia':'East Asia & Pacific','Fiji':'East Asia & Pacific','Australia':'East Asia & Pacific',
+  'New Zealand':'East Asia & Pacific','Tonga':'East Asia & Pacific','Vanuatu':'East Asia & Pacific',
+  // Central Asia & Caucasus
+  'Kazakhstan':'Central Asia & Caucasus','Uzbekistan':'Central Asia & Caucasus',
+  'Tajikistan':'Central Asia & Caucasus','Kyrgyzstan':'Central Asia & Caucasus',
+  'Turkmenistan':'Central Asia & Caucasus','Azerbaijan':'Central Asia & Caucasus',
+  'Armenia':'Central Asia & Caucasus','Georgia':'Central Asia & Caucasus',
+  // Europe
+  'Albania':'Europe','Ukraine':'Europe','Russia':'Europe','Kosovo':'Europe','Moldova':'Europe',
+  'Belarus':'Europe','Romania':'Europe','Poland':'Europe','Bulgaria':'Europe','Hungary':'Europe',
+  'Czechia':'Europe','Slovakia':'Europe','Lithuania':'Europe','Latvia':'Europe','Portugal':'Europe',
+  'Spain':'Europe','Italy':'Europe','France':'Europe','Greece':'Europe','Cyprus':'Europe',
+  'Germany':'Europe','Netherlands':'Europe','Sweden':'Europe','Norway':'Europe','Finland':'Europe',
+  'Denmark':'Europe','Ireland':'Europe','Austria':'Europe','Belgium':'Europe','Croatia':'Europe',
+  'North Macedonia':'Europe','Former Yugoslavia':'Europe','Cyprus (Northern part of)':'Europe',
+  // Americas
+  'Colombia':'Americas','Brazil':'Americas','Honduras':'Americas','Venezuela':'Americas',
+  'Peru':'Americas','Bolivia':'Americas','Ecuador':'Americas','Mexico':'Americas',
+  'Nicaragua':'Americas','El Salvador':'Americas','Guatemala':'Americas','Cuba':'Americas',
+  'Panama':'Americas','Argentina':'Americas','Chile':'Americas','Paraguay':'Americas',
+  'Costa Rica':'Americas','Belize':'Americas','Dominican Republic':'Americas','Haiti':'Americas',
+  'Jamaica':'Americas','Trinidad and Tobago':'Americas','Barbados':'Americas','Dominica':'Americas',
+  'St Lucia':'Americas','St Kitts and Nevis':'Americas','St Vincent and the Grenadines':'Americas',
+  'Grenada':'Americas','Antigua and Barbuda':'Americas','Bahamas, The':'Americas','Guyana':'Americas',
+  'United States':'Americas','Canada':'Americas',
+};
+
+function groupNatByRegion(rows) {
+  const totals = {};
+  for (const r of rows) {
+    const region = REGION_MAP[r.name] ?? 'Other / Unclassified';
+    totals[region] = (totals[region] || 0) + r.v;
+  }
+  return Object.entries(totals)
+    .map(([name, v]) => ({ name, v }))
+    .sort((a, b) => b.v - a.v);
+}
+
 Object.assign(window, {
   ASYLUM_ANNUAL, TOP_NATIONALITIES, NAT_SERIES, DECISIONS_2024,
   BACKLOG, RESETTLEMENT, REGIONS, STORIES, DATASETS,
+  REGION_MAP, groupNatByRegion,
 });

@@ -448,4 +448,101 @@ function RegionList({ data }) {
   );
 }
 
-Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, Spark, Ring, RegionList, fmtK, fmtN });
+// ─────────────────────────────────────────────────────────────
+// Schematic world map — choropleth by region, rounded-rect blobs
+// ─────────────────────────────────────────────────────────────
+const REGION_LAYOUT = [
+  { name: 'North America',             x: 30,  y: 40,  w: 150, h: 95 },
+  { name: 'Americas',                  x: 120, y: 145, w: 120, h: 180 },
+  { name: 'Europe',                    x: 320, y: 55,  w: 90,  h: 70 },
+  { name: 'Central Asia & Caucasus',   x: 415, y: 70,  w: 110, h: 60 },
+  { name: 'East Asia & Pacific',       x: 545, y: 50,  w: 150, h: 110 },
+  { name: 'North Africa',              x: 310, y: 155, w: 105, h: 60 },
+  { name: 'Middle East',               x: 420, y: 140, w: 95,  h: 70 },
+  { name: 'South Asia',                x: 520, y: 165, w: 85,  h: 85 },
+  { name: 'South East Asia',           x: 610, y: 215, w: 85,  h: 85 },
+  { name: 'West Africa',               x: 310, y: 225, w: 90,  h: 65 },
+  { name: 'East Africa',               x: 405, y: 220, w: 85,  h: 85 },
+  { name: 'Central & Southern Africa', x: 330, y: 310, w: 170, h: 50 },
+];
+
+function RegionWorldMap({ data, width=720, height=380 }) {
+  const { show, hide, node } = useTooltip();
+  const byName = Object.fromEntries(data.map(d => [d.name, d.v]));
+  const total = data.reduce((s, d) => s + d.v, 0);
+  const vMax = Math.max(...data.map(d => d.v), 1);
+  // Perceptual sqrt curve so small regions are still visible.
+  const shade = v => 0.18 + Math.sqrt(v / vMax) * 0.78;
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block'}}>
+        <rect width={width} height={height} fill="var(--bg-2)"/>
+        {REGION_LAYOUT.map(r => {
+          const v = byName[r.name] ?? 0;
+          const pct = total ? (v/total*100) : 0;
+          return (
+            <g key={r.name}
+              onMouseMove={e => show(e, <span><b>{r.name}</b> · <span className="tnum">{fmtN(v)}</span> · {pct.toFixed(1)}%</span>)}
+              onMouseLeave={hide}
+              style={{cursor:'crosshair'}}>
+              <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={10}
+                fill="var(--accent-gold)" fillOpacity={shade(v)}
+                stroke="var(--rule-2)" strokeWidth={0.75}/>
+              <text x={r.x + r.w/2} y={r.y + r.h/2 + 4} textAnchor="middle"
+                fontSize={11} fontFamily="var(--serif)" fill="var(--ink)"
+                style={{pointerEvents:'none'}}>
+                {r.name.length > 22 ? r.name.replace(' & ', ' &\n') : r.name}
+              </text>
+            </g>
+          );
+        })}
+        {/* "Other / Unclassified" sits as a small legend-style badge in the corner */}
+        {byName['Other / Unclassified'] !== undefined && (
+          <g onMouseMove={e => show(e, <span><b>Other / Unclassified</b> · <span className="tnum">{fmtN(byName['Other / Unclassified'])}</span> · Stateless, refugee, unknown</span>)} onMouseLeave={hide} style={{cursor:'crosshair'}}>
+            <rect x={width-130} y={height-46} width={120} height={34} rx={6}
+              fill="var(--accent-gold)" fillOpacity={shade(byName['Other / Unclassified'])}
+              stroke="var(--rule-2)" strokeWidth={0.75}/>
+            <text x={width-70} y={height-25} textAnchor="middle" fontSize="10.5" fontFamily="var(--serif)" fill="var(--ink)" style={{pointerEvents:'none'}}>Other / Unclassified</text>
+          </g>
+        )}
+      </svg>
+      {node}
+    </figure>
+  );
+}
+
+function RegionTable({ data }) {
+  const total = data.reduce((s, d) => s + d.v, 0);
+  const vMax = Math.max(...data.map(d => d.v), 1);
+  const shade = v => 0.18 + Math.sqrt(v / vMax) * 0.78;
+  return (
+    <table style={{width:'100%',borderCollapse:'collapse',fontSize:13.5}}>
+      <thead>
+        <tr>
+          <th className="uc" style={{padding:'0 0 10px',textAlign:'left',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent-gold)'}}>Region</th>
+          <th className="uc" style={{padding:'0 0 10px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent-gold)'}}>Applicants</th>
+          <th className="uc" style={{padding:'0 0 10px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent-gold)'}}>Share</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map(r => (
+          <tr key={r.name} style={{borderBottom:'1px solid var(--rule)'}}>
+            <td style={{padding:'10px 0',color:'var(--ink)'}}>
+              <span style={{display:'inline-block',width:12,height:12,marginRight:8,verticalAlign:'middle',background:'var(--accent-gold)',opacity:shade(r.v),borderRadius:2,border:'1px solid var(--rule-2)'}}/>
+              {r.name}
+            </td>
+            <td className="tnum" style={{padding:'10px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
+            <td className="tnum" style={{padding:'10px 0',textAlign:'right',color:'var(--muted)'}}>{(r.v/total*100).toFixed(1)}%</td>
+          </tr>
+        ))}
+        <tr>
+          <td className="uc" style={{padding:'12px 0 0',color:'var(--muted)'}}>Total</td>
+          <td className="tnum" style={{padding:'12px 0 0',textAlign:'right',color:'var(--ink)',fontWeight:500}}>{fmtN(total)}</td>
+          <td className="tnum" style={{padding:'12px 0 0',textAlign:'right',color:'var(--muted)'}}>100.0%</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, Spark, Ring, RegionList, fmtK, fmtN });
