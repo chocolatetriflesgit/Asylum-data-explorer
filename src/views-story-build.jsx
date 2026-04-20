@@ -7,7 +7,7 @@ const { useState: uS2, useMemo: uM2, useEffect: uE2 } = React;
 // ─────────────────────────────────────────────────────────────
 function StoryView({ id, setRoute, onMethod }) {
   const story = STORIES.find(s => s.id === id) || STORIES[0];
-  const [range, setRange] = uS2([2014, 2024]);
+  const [range, setRange] = uS2([2014, DATA_MAX_YEAR]);
   const [mode, setMode] = uS2('line'); // line | bar
   const [compareOn, setCompareOn] = uS2(true);
 
@@ -73,8 +73,8 @@ function StoryView({ id, setRoute, onMethod }) {
                 <span style={{color:'var(--muted)'}}>to {range[1]}</span>
               </div>
               <div style={{display:'flex',gap:8,alignItems:'center',marginTop:6}}>
-                <input type="range" min={2014} max={2024} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
-                <input type="range" min={2014} max={2024} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
+                <input type="range" min={2014} max={DATA_MAX_YEAR} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
+                <input type="range" min={2014} max={DATA_MAX_YEAR} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
               </div>
             </div>
             <label className="chk" style={{fontSize:12.5,color:'var(--muted)'}}>
@@ -259,6 +259,18 @@ const DATASET_OPTIONS = [
       color: 'var(--accent-2)',
     };
   })(),
+  {
+    // Render-time series: the user picks any subset of the 187 nationalities
+    // in NAT_FULL, and the chart pulls its data from there (annual snapshot)
+    // or NAT_QUARTERLY (last 8 quarters, top-20 only) when available.
+    id: 'nationalities_custom',
+    label: 'Nationalities (pick any)',
+    render: 'custom-multi',
+    color: 'var(--accent)',
+    // Dummy series so the "Compare with" picker has something safe if this
+    // option is picked there too (unlikely — it's filtered out below).
+    series: [],
+  },
 ];
 
 const GRANULARITIES = ['daily','weekly','monthly','quarterly','annual'];
@@ -283,34 +295,67 @@ function getGranularSeries(opt, gran) {
 
 function BuildView({ setRoute }) {
   const [ds, setDs] = uS2('applications');
-  const [compare, setCompare] = uS2('boats');
+  const [overlays, setOverlays] = uS2(['boats']);
   const [chartType, setChartType] = uS2('line');
-  const [range, setRange] = uS2([2018, 2024]);
-  const [overlay, setOverlay] = uS2(false);
+  const [range, setRange] = uS2([2018, DATA_MAX_YEAR]);
+  const [overlaySingleChart, setOverlaySingleChart] = uS2(true);
   const [showLabels, setShowLabels] = uS2(false);
   const [granularity, setGranularity] = uS2('annual');
+  const [selectedNats, setSelectedNats] = uS2(['Pakistan','Afghanistan','Iran','Eritrea','Syria']);
+  const [natQuery, setNatQuery] = uS2('');
 
-  uE2(() => { if (compare === ds) setCompare('none'); }, [ds]);
+  // Prune the primary dataset from the overlay list if the user switches to it.
+  uE2(() => { setOverlays(os => os.filter(id => id !== ds)); }, [ds]);
 
   const prim = DATASET_OPTIONS.find(o => o.id === ds);
   const isMultiPrim = prim.render === 'multi';
-  const sec = (!isMultiPrim && compare !== 'none' && compare !== ds) ? DATASET_OPTIONS.find(o => o.id === compare) : null;
-  const supportsGran = !isMultiPrim && !!prim.supportsGranularity;
+  const isCustomNat = prim.render === 'custom-multi';
+  const overlayOpts = (!isMultiPrim && !isCustomNat)
+    ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && o.render !== 'multi' && o.render !== 'custom-multi' && o.id !== ds)
+    : [];
+  // sec kept for bar/stacked chart-type code paths that still render a single secondary.
+  const sec = overlayOpts[0] ?? null;
+  const supportsGran = !isMultiPrim && !isCustomNat && !!prim.supportsGranularity;
   const effGran = supportsGran ? granularity : 'annual';
   const isAnnual = effGran === 'annual';
 
-  const primData = getGranularSeries(prim, effGran);
+  const primData = isCustomNat ? [] : getGranularSeries(prim, effGran);
   const secData  = sec ? sec.series : null;
+
+  // Custom-nationalities picker data derived from NAT_FULL (any of 187) +
+  // NAT_QUARTERLY (the subset that has multi-quarter data).
+  const natFullRows = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
+  const natFullYear = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META.year : null;
+  const natQ = typeof NAT_QUARTERLY !== 'undefined' ? NAT_QUARTERLY : null;
+  const natQNames = uM2(() => new Set((natQ?.series || []).map(s => s.name)), [natQ]);
+  const filteredNatNames = uM2(() => {
+    const q = natQuery.trim().toLowerCase();
+    const names = natFullRows.map(r => r.name);
+    if (!q) return names;
+    return names.filter(n => n.toLowerCase().includes(q));
+  }, [natFullRows, natQuery]);
+  const toggleNat = (name) => setSelectedNats(sel =>
+    sel.includes(name) ? sel.filter(n => n !== name) : [...sel, name]
+  );
 
   // Only apply yearRange filter in annual mode; other grains have index x-values.
   const primView = isAnnual ? primData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : primData;
   const secView  = isAnnual && secData ? secData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : secData;
 
-  // For overlay (MultiLineChart) we need common x-axis — only supported when annual.
-  const canOverlay = isAnnual && !!sec && chartType === 'line';
-  const overlayOn = overlay && canOverlay;
+  // Year axis + per-overlay series for MultiLineChart — only supported annual + line.
+  const canOverlay = isAnnual && overlayOpts.length > 0 && chartType === 'line';
+  const overlayOn = overlaySingleChart && canOverlay;
+  const overlayViews = overlayOpts.map(o => ({
+    opt: o,
+    data: isAnnual ? o.series.filter(d=>d.y>=range[0]&&d.y<=range[1]) : o.series,
+  }));
+  const overlayYears = overlayOn ? primView.map(d=>d.y) : [];
 
   const dailyWarn = effGran === 'daily' && primData.length > 1000;
+
+  const OVERLAY_CAP = 6;
+  const overlayCandidates = DATASET_OPTIONS
+    .filter(o => o.id !== ds && o.render !== 'multi' && o.render !== 'custom-multi' && !overlays.includes(o.id));
 
   return (
     <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
@@ -335,24 +380,90 @@ function BuildView({ setRoute }) {
             </div>
           </div>
 
-          {!isMultiPrim && (
+          {isCustomNat && (
             <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
-              <div className="uc" style={{color:'var(--muted)',marginBottom:8}}>2 · Compare with</div>
-              <div style={{maxHeight:200,overflowY:'auto',marginRight:-6,paddingRight:6}}>
-                <label className="chk" style={{display:'flex',padding:'6px 0',fontSize:14}}>
-                  <input type="radio" name="cmp" checked={compare==='none'} onChange={()=>setCompare('none')} style={{appearance:'auto',width:14,height:14}}/>None
-                </label>
-                {DATASET_OPTIONS.filter(o=>o.id!==ds && o.render!=='multi').map(o=>(
-                  <label key={o.id} className="chk" style={{display:'flex',padding:'6px 0',fontSize:14}}>
-                    <input type="radio" name="cmp" checked={compare===o.id} onChange={()=>setCompare(o.id)} style={{appearance:'auto',width:14,height:14}}/>{o.label}
+              <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'flex',justifyContent:'space-between'}}>
+                <span>2 · Nationalities</span>
+                <span style={{color:'var(--muted-2)'}} className="tnum">{selectedNats.length} picked</span>
+              </div>
+              {selectedNats.length > 0 && (
+                <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:10}}>
+                  {selectedNats.map(n => (
+                    <button key={n} onClick={()=>toggleNat(n)}
+                      style={{fontSize:11,padding:'3px 8px 3px 10px',background:'var(--bg-2)',border:'1px solid var(--rule-2)',color:'var(--ink-2)',fontFamily:'var(--serif)'}}>
+                      {n} <span style={{color:'var(--muted)',marginLeft:4}}>×</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input type="search" placeholder="Search 187 nationalities…" value={natQuery}
+                onChange={e=>setNatQuery(e.target.value)}
+                style={{width:'100%',fontSize:12.5,padding:'6px 8px',fontFamily:'var(--serif)',border:'1px solid var(--rule-2)',background:'#fff',marginBottom:8}}/>
+              <div style={{maxHeight:180,overflowY:'auto',marginRight:-6,paddingRight:6,borderTop:'1px dotted var(--rule-2)'}}>
+                {filteredNatNames.length === 0 ? (
+                  <div style={{fontSize:12,color:'var(--muted-2)',padding:'8px 0',fontStyle:'italic'}}>No matches.</div>
+                ) : filteredNatNames.map(n => (
+                  <label key={n} className="chk" style={{display:'flex',alignItems:'center',padding:'4px 0',fontSize:12.5,gap:6}}>
+                    <input type="checkbox" checked={selectedNats.includes(n)} onChange={()=>toggleNat(n)} style={{appearance:'auto',width:13,height:13}}/>
+                    <span style={{flex:1}}>{n}</span>
+                    {natQNames.has(n) && <span title="Quarterly trend available" style={{fontSize:10,color:'var(--accent-2)',fontFamily:'var(--mono)'}}>Q</span>}
                   </label>
                 ))}
               </div>
-              {sec && (
-                <label className="chk" style={{fontSize:12.5,padding:'8px 0 2px',color: canOverlay ? 'var(--ink-2)' : 'var(--muted-2)'}}>
-                  <input type="checkbox" checked={overlayOn} disabled={!canOverlay} onChange={e=>setOverlay(e.target.checked)}/>
+              <div style={{fontSize:11,color:'var(--muted-2)',marginTop:8,fontStyle:'italic',lineHeight:1.45}}>
+                Rows marked <span className="mono" style={{color:'var(--accent-2)'}}>Q</span> have 8-quarter trend data (NAT_QUARTERLY, top-20). Others show a single annual point from {natFullYear ?? 'latest'}.
+              </div>
+            </div>
+          )}
+
+          {!isMultiPrim && !isCustomNat && (
+            <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'flex',justifyContent:'space-between'}}>
+                <span>2 · Overlays</span>
+                <span style={{color:'var(--muted-2)'}} className="tnum">{overlays.length}/{OVERLAY_CAP}</span>
+              </div>
+              {overlays.length === 0 ? (
+                <div style={{fontSize:12.5,color:'var(--muted-2)',fontStyle:'italic',padding:'4px 0 10px'}}>No overlays. Add one below to compare series.</div>
+              ) : (
+                <div style={{display:'flex',flexDirection:'column',gap:4,marginBottom:10}}>
+                  {overlays.map(id => {
+                    const o = DATASET_OPTIONS.find(x => x.id === id);
+                    if (!o) return null;
+                    return (
+                      <div key={id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:13,padding:'5px 8px',background:'var(--bg-2)',border:'1px solid var(--rule-2)'}}>
+                        <span style={{display:'flex',alignItems:'center',gap:8}}>
+                          <span style={{width:8,height:8,background:o.color,display:'inline-block'}}/>
+                          {o.label}
+                        </span>
+                        <button onClick={()=>setOverlays(os=>os.filter(x=>x!==id))}
+                          title="Remove overlay"
+                          style={{color:'var(--muted)',fontSize:14,padding:'0 2px',background:'transparent'}}>×</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {overlays.length < OVERLAY_CAP && overlayCandidates.length > 0 && (
+                <select value=""
+                  onChange={e=>{ if (e.target.value) setOverlays(os=>[...os, e.target.value]); }}
+                  style={{width:'100%',fontSize:12.5,padding:'6px 8px',fontFamily:'var(--serif)',border:'1px solid var(--rule-2)',background:'#fff'}}>
+                  <option value="">+ Add overlay…</option>
+                  {overlayCandidates.map(o => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              )}
+              {overlays.length > 0 && (
+                <label className="chk" style={{fontSize:12.5,padding:'10px 0 2px',color: canOverlay ? 'var(--ink-2)' : 'var(--muted-2)'}}>
+                  <input type="checkbox" checked={overlaySingleChart} disabled={!canOverlay} onChange={e=>setOverlaySingleChart(e.target.checked)}/>
                   Overlay on one chart
                 </label>
+              )}
+              {overlays.length > 0 && !canOverlay && chartType !== 'line' && (
+                <div style={{fontSize:11,color:'var(--muted-2)',marginTop:6,fontStyle:'italic'}}>Single-chart overlay needs line chart type.</div>
+              )}
+              {overlays.length > 0 && !isAnnual && (
+                <div style={{fontSize:11,color:'var(--muted-2)',marginTop:6,fontStyle:'italic'}}>Overlays render only in annual granularity.</div>
               )}
             </div>
           )}
@@ -388,8 +499,8 @@ function BuildView({ setRoute }) {
               <div style={{fontSize:12,color:'var(--muted)',display:'flex',justifyContent:'space-between'}} className="tnum">
                 <span>{range[0]}</span><span>{range[1]}</span>
               </div>
-              <input type="range" min={2014} max={2024} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
-              <input type="range" min={2014} max={2024} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
+              <input type="range" min={2014} max={DATA_MAX_YEAR} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
+              <input type="range" min={2014} max={DATA_MAX_YEAR} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
             </div>
           )}
 
@@ -408,15 +519,67 @@ function BuildView({ setRoute }) {
                 <div className="uc" style={{color:'var(--muted)'}}>Preview · Figure A</div>
                 <div style={{fontSize:22,fontFamily:'var(--serif)',fontWeight:500,letterSpacing:-0.2,color:'var(--ink)',marginTop:4}}>
                   {prim.label}
-                  {sec && <span style={{color:'var(--muted)',fontWeight:400}}> {overlayOn?'+':'&'} {sec.label}</span>}
+                  {overlayOpts.length > 0 && (
+                    <span style={{color:'var(--muted)',fontWeight:400}}> {overlayOn?'+':'&'} {overlayOpts.map(o=>o.label).join(', ')}</span>
+                  )}
                   <span style={{color:'var(--muted)',fontWeight:400,fontSize:16}} className="tnum"> · {isAnnual ? `${range[0]}–${range[1]}` : `${effGran}`}</span>
                 </div>
               </div>
               <div className="uc" style={{color:'var(--muted)'}}>UK · {effGran.charAt(0).toUpperCase()+effGran.slice(1)}</div>
             </div>
 
-            {/* Multi-series primary (e.g. nationalities bundle) */}
-            {isMultiPrim ? (
+            {/* Custom-nationalities picker: bar chart of latest-year applicants
+                from NAT_FULL when chartType is bar; otherwise multi-line of
+                last 8 quarters for selected countries that exist in NAT_QUARTERLY. */}
+            {isCustomNat ? (
+              selectedNats.length === 0 ? (
+                <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
+                  Pick one or more nationalities from the list to render a chart.
+                </div>
+              ) : (chartType === 'bar' || !natQ) ? (
+                (() => {
+                  const rows = selectedNats
+                    .map(n => ({ name: n, v: natFullRows.find(r => r.name === n)?.v ?? 0 }))
+                    .sort((a,b) => b.v - a.v);
+                  return (
+                    <>
+                      <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Applicants · {natFullYear ?? 'latest year'}</div>
+                      <BarChart data={rows} width={800} height={Math.max(220, rows.length*30+16)} color="var(--accent)"/>
+                    </>
+                  );
+                })()
+              ) : (
+                (() => {
+                  const usable = selectedNats.filter(n => natQNames.has(n));
+                  const missing = selectedNats.filter(n => !natQNames.has(n));
+                  const series = usable.map(n => {
+                    const src = natQ.series.find(s => s.name === n);
+                    return { name: n, data: src?.data ?? [] };
+                  });
+                  return (
+                    <>
+                      {missing.length > 0 && (
+                        <div style={{fontSize:12,color:'var(--muted-2)',marginBottom:10,fontStyle:'italic'}}>
+                          Not in quarterly series: {missing.join(', ')}. Switch to <em>bar</em> chart for annual snapshot of all selections.
+                        </div>
+                      )}
+                      {usable.length === 0 ? (
+                        <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
+                          None of the selected nationalities have quarterly data. Switch to a <em>bar</em> chart.
+                        </div>
+                      ) : (
+                        <MultiLineChart
+                          years={natQ.quarters}
+                          series={series}
+                          width={800} height={360}
+                          showLabels={showLabels}
+                        />
+                      )}
+                    </>
+                  );
+                })()
+              )
+            ) : isMultiPrim ? (
               chartType === 'stacked' ? (
                 <StackedColumnsMulti
                   years={prim.multi.years}
@@ -449,10 +612,13 @@ function BuildView({ setRoute }) {
               )
             ) : overlayOn ? (
               <MultiLineChart
-                years={primView.map(d=>d.y)}
+                years={overlayYears}
                 series={[
                   { name: prim.label, data: primView.map(d=>d.v) },
-                  { name: sec.label,  data: (secView||[]).map(d=>d.v) },
+                  ...overlayViews.map(({opt, data}) => {
+                    const byYear = new Map(data.map(d=>[d.y, d.v]));
+                    return { name: opt.label, data: overlayYears.map(y => byYear.has(y) ? byYear.get(y) : null) };
+                  }),
                 ]}
                 width={800} height={340}
                 showLabels={showLabels}
@@ -468,19 +634,19 @@ function BuildView({ setRoute }) {
                   width={800} height={340}
                   source="Home Office Immigration Statistics"
                 />
-                {sec && (
-                  <div style={{marginTop:24,paddingTop:20,borderTop:'1px dotted var(--rule-2)'}}>
+                {overlayViews.map(({opt, data}) => (
+                  <div key={opt.id} style={{marginTop:24,paddingTop:20,borderTop:'1px dotted var(--rule-2)'}}>
                     <LineChart
-                      data={secView}
-                      stroke={sec.color}
+                      data={data}
+                      stroke={opt.color}
                       area={chartType==='area'}
                       showLine={chartType !== 'scatter'}
                       showLabels={showLabels}
                       width={800} height={220}
-                      title={sec.label} subtitle="Comparison series"
+                      title={opt.label} subtitle="Comparison series"
                     />
                   </div>
-                )}
+                ))}
               </>
             ) : chartType === 'bar' ? (
               <BarChart

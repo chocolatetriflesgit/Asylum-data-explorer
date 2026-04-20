@@ -3,7 +3,7 @@
 const { useState: uSD, useMemo: uMD } = React;
 
 function DashboardView({ setRoute }) {
-  const [range, setRange] = uSD([2018, 2024]);
+  const [range, setRange] = uSD([2018, DATA_MAX_YEAR]);
   const [focus, setFocus] = uSD('all'); // all | applications | decisions | geography
 
   const filteredAnnual = uMD(()=>ASYLUM_ANNUAL.filter(d => d.y >= range[0] && d.y <= range[1]), [range]);
@@ -17,8 +17,9 @@ function DashboardView({ setRoute }) {
 
   // Preventions + interceptions (BOATS_WEEKLY.p / .e) — null before first reported week.
   const boatsWeekly = typeof BOATS_WEEKLY !== 'undefined' ? BOATS_WEEKLY : [];
-  const preventions2024 = boatsWeekly
-    .filter(w => w.we?.startsWith('2024') && w.p != null)
+  const preventionsYear = String(latest.y);
+  const preventionsYearTotal = boatsWeekly
+    .filter(w => w.we?.startsWith(preventionsYear) && w.p != null)
     .reduce((s,w) => s + w.p, 0);
   const preventionsFirstWeek = boatsWeekly.find(w => w.p != null)?.we ?? null;
   const interceptionsWeekly = boatsWeekly
@@ -96,8 +97,8 @@ function DashboardView({ setRoute }) {
             <span className="uc tnum" style={{color:'var(--accent)'}}>{range[0]}–{range[1]}</span>
           </div>
           <div style={{display:'flex',gap:10,alignItems:'center'}}>
-            <input type="range" min={2014} max={2024} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
-            <input type="range" min={2014} max={2024} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
+            <input type="range" min={2014} max={DATA_MAX_YEAR} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
+            <input type="range" min={2014} max={DATA_MAX_YEAR} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
           </div>
           <div style={{marginTop:14,display:'flex',gap:6,flexWrap:'wrap'}}>
             {[
@@ -122,9 +123,9 @@ function DashboardView({ setRoute }) {
       {/* KPI strip — pride of place */}
       <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:36}}>
         {[
-          { cls:'accent', label:'Applications · 2024',     v:fmtN(latest.v),    d:`${pctChange}% vs 2023`, dPos:+pctChange<0 },
-          { cls:'',       label:'Small-boat arrivals',     v:fmtN(latest.boats), d:`${boatsPct}% vs 2023`, dPos:+boatsPct<0 },
-          { cls:'ink',    label:'Preventions · 2024',      v:fmtN(preventions2024), d:preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true },
+          { cls:'accent', label:`Applications · ${latest.y}`, v:fmtN(latest.v),    d:`${pctChange}% vs ${prev.y}`, dPos:+pctChange<0 },
+          { cls:'',       label:'Small-boat arrivals',     v:fmtN(latest.boats), d:`${boatsPct}% vs ${prev.y}`, dPos:+boatsPct<0 },
+          { cls:'ink',    label:`Preventions · ${latest.y}`, v:fmtN(preventionsYearTotal), d:preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true },
           { cls:'olive',  label:'Grant rate',               v:`${Math.round(grantRate*100)}%`,  d:'from 24% in 2019',   dPos:true },
           { cls:'gold',   label:'Backlog',                  v:fmtN(91200),        d:'↓ from 132k peak',    dPos:true },
         ].map((k,i)=>(

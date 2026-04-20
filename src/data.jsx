@@ -1,6 +1,9 @@
 // data.jsx — shared data for the Home Office Data Explorer
 
-// UK asylum applications 2014–2024 (main applicants, annual)
+// UK asylum applications 2014–latest (main applicants, annual).
+// 2025 total is sum(NAT_FULL.v) for NAT_FULL_META.year=2025; 2025 boats
+// is BOATS_ANNUAL where y=2025. Extend by hand when the next complete
+// year lands in both globals.
 const ASYLUM_ANNUAL = [
   { y: 2014, v: 24914, boats: 0 },
   { y: 2015, v: 32414, boats: 0 },
@@ -13,7 +16,17 @@ const ASYLUM_ANNUAL = [
   { y: 2022, v: 74751, boats: 45755 },
   { y: 2023, v: 84425, boats: 29437 },
   { y: 2024, v: 80782, boats: 36816 },
+  { y: 2025, v: 82140, boats: 41472 },
 ];
+
+// Max year reachable from the data globals: max of ASYLUM_ANNUAL and
+// BOATS_ANNUAL. Drives the slider upper bound and default range end so
+// views don't have to hardcode the latest complete year.
+const DATA_MAX_YEAR = (() => {
+  const boats = (typeof window !== 'undefined' && Array.isArray(window.BOATS_ANNUAL))
+    ? window.BOATS_ANNUAL.map(r => r.y) : [];
+  return Math.max(...ASYLUM_ANNUAL.map(r => r.y), ...boats);
+})();
 
 // Top nationalities 2024 (applications, main applicants)
 const TOP_NATIONALITIES = [
@@ -239,7 +252,7 @@ function groupNatByRegion(rows) {
 }
 
 Object.assign(window, {
-  ASYLUM_ANNUAL, TOP_NATIONALITIES, NAT_SERIES, DECISIONS_2024,
+  ASYLUM_ANNUAL, DATA_MAX_YEAR, TOP_NATIONALITIES, NAT_SERIES, DECISIONS_2024,
   BACKLOG, RESETTLEMENT, REGIONS, STORIES, DATASETS,
   REGION_MAP, groupNatByRegion,
 });
