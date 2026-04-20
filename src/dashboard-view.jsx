@@ -61,6 +61,24 @@ function DashboardView({ setRoute }) {
     return { ...last, delta };
   })();
 
+  // Provisional last-7-days small-boats data (from the gov.uk HTML page).
+  // Canonical BOATS_DAILY from the weekly ODS wins for any overlapping date;
+  // the provisional values fill the visible gap between releases.
+  const provisional = typeof BOATS_PROVISIONAL !== 'undefined' ? BOATS_PROVISIONAL : null;
+  const provisionalMeta = typeof BOATS_PROVISIONAL_META !== 'undefined' ? BOATS_PROVISIONAL_META : null;
+  const canonicalLatest = (typeof BOATS_META !== 'undefined' && BOATS_META.latestDataPoint) || null;
+  const provisionalDays = uMD(() => {
+    if (!provisional) return [];
+    return provisional.map(row => {
+      const superseded = canonicalLatest ? row.d <= canonicalLatest : false;
+      const date = new Date(row.d + 'T00:00:00Z');
+      const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][date.getUTCDay()];
+      const day = date.getUTCDate();
+      const month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getUTCMonth()];
+      return { ...row, superseded, label: `${dayName} ${day} ${month}` };
+    });
+  }, [provisional, canonicalLatest]);
+
   return (
     <main className="fade-enter" style={{maxWidth:1300,margin:'0 auto',padding:'36px 48px 80px'}}>
       {/* title strip */}
@@ -138,6 +156,45 @@ function DashboardView({ setRoute }) {
           </div>
         ))}
       </section>
+
+      {/* Provisional last-7-days strip — daily gov.uk update between weekly ODS releases. */}
+      {provisional && provisionalDays.length > 0 && (focus === 'all' || focus === 'applications') && (
+        <section style={{
+          marginBottom:36,padding:'18px 22px',border:'1px dashed var(--rule-2)',
+          background:'var(--bg-2)',borderRadius:4,
+        }}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:12,gap:16,flexWrap:'wrap'}}>
+            <div>
+              <div className="uc" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,fontWeight:500}}>Last 7 days · provisional</div>
+              <div style={{fontSize:13,color:'var(--muted)',marginTop:4}}>
+                Daily gov.uk figures. Overlapping dates are superseded by the weekly ODS when it publishes; provisional-only days are still to be confirmed.
+              </div>
+            </div>
+            <div style={{fontSize:12,color:'var(--muted)',fontStyle:'italic',textAlign:'right'}}>
+              {provisionalMeta?.updatedAt ? `Updated ${new Date(provisionalMeta.updatedAt+'T00:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}` : ''}
+              {canonicalLatest && <div>Canonical ODS through {canonicalLatest}</div>}
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:8}}>
+            {provisionalDays.map((d,i) => (
+              <div key={d.d} style={{
+                padding:'10px 10px 12px',
+                background:'#fff',
+                border: d.superseded ? '1px solid var(--rule)' : '1px dashed var(--accent-warn)',
+                opacity: d.superseded ? 0.55 : 1,
+              }}>
+                <div className="uc" style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0.1}}>{d.label}</div>
+                <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,lineHeight:1.1,marginTop:6,color:'var(--ink)'}}>
+                  {d.m.toLocaleString()}
+                </div>
+                <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:4}}>
+                  {d.b} boat{d.b===1?'':'s'}{d.superseded ? ' · superseded' : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Main chart grid — 2 columns */}
       {(focus === 'all' || focus === 'applications') && (
