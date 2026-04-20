@@ -101,7 +101,7 @@ SOURCES = {
             "https://www.gov.uk/government/statistical-data-sets/"
             "immigration-system-statistics-data-tables"
         ),
-        "filename_stem": "asylum-and-resettlement-age-disputes-datasets-",
+        "filename_stem": "age-disputes-datasets-",
         "fetcher": "scripts/fetch_age_disputes.py",
         "builder": "scripts/build_age_disputes.py",
         "data_file": "data/age-disputes-data.js",

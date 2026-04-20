@@ -252,3 +252,41 @@ def test_returns_source_is_fresh():
     """Soft warning, not failure."""
     g = _load_globals(RETURNS_JS)
     _warn_if_source_stale(g["RETURNS_META"]["source"], "RETURNS")
+
+
+# ---------------------------------------------------------------------------
+# AGE_DISPUTES_BY_NATIONALITY
+# ---------------------------------------------------------------------------
+
+AGE_DISPUTES_JS = ROOT / "data" / "age-disputes-data.js"
+
+
+def test_age_disputes_non_empty_and_sorted_by_raised():
+    g = _load_globals(AGE_DISPUTES_JS)
+    rows = g["AGE_DISPUTES_BY_NATIONALITY"]
+    assert len(rows) > 0
+    raised = [r["raised"] for r in rows]
+    assert raised == sorted(raised, reverse=True), "AGE_DISPUTES not sorted by raised desc"
+
+
+def test_age_disputes_shape_and_nonneg():
+    g = _load_globals(AGE_DISPUTES_JS)
+    for r in g["AGE_DISPUTES_BY_NATIONALITY"]:
+        assert set(r.keys()) == {"name", "region", "raised", "resolved_over_18", "resolved_under_18"}, r
+        assert isinstance(r["name"], str) and r["name"]
+        assert isinstance(r["region"], str) and r["region"]
+        for k in ("raised", "resolved_over_18", "resolved_under_18"):
+            assert isinstance(r[k], int) and r[k] >= 0
+        assert r["raised"] + r["resolved_over_18"] + r["resolved_under_18"] > 0
+
+
+def test_age_disputes_meta_year_is_plausible():
+    g = _load_globals(AGE_DISPUTES_JS)
+    year = g["AGE_DISPUTES_META"]["year"]
+    assert 2015 <= year <= dt.date.today().year
+
+
+def test_age_disputes_source_is_fresh():
+    """Soft warning, not failure."""
+    g = _load_globals(AGE_DISPUTES_JS)
+    _warn_if_source_stale(g["AGE_DISPUTES_META"]["source"], "AGE_DISPUTES")
