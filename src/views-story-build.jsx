@@ -229,18 +229,36 @@ const DATASET_OPTIONS = [
   { id: 'backlog',      label: 'Backlog (pending)',    series: BACKLOG.map(d=>({y:d.y, v:d.v})),           color: 'var(--accent-2)' },
   { id: 'preventions',  label: 'Preventions',          series: _annualFromWeekly('p'),                      color: 'var(--accent-gold)' },
   { id: 'interceptions',label: 'Interceptions',        series: _annualFromWeekly('e'),                      color: 'var(--muted-2)' },
-  {
-    id: 'nationalities',
-    label: 'Top 5 nationalities',
-    render: 'multi',
-    multi: { years: NAT_SERIES.years, series: NAT_SERIES.series },
-    // flat series — sum across the 5 nationalities per year — used when this option is a compare
-    series: NAT_SERIES.years.map((y, idx) => ({
-      y,
-      v: NAT_SERIES.series.reduce((s, row) => s + row.data[idx], 0),
-    })),
-    color: 'var(--accent-2)',
-  },
+  (() => {
+    // Derive an "Other nationalities" series: total applications per year − sum of named top-5.
+    const top5 = NAT_SERIES.series;
+    const other = {
+      name: 'Other nationalities',
+      data: NAT_SERIES.years.map((y, idx) => {
+        const total = ASYLUM_ANNUAL.find(d => d.y === y)?.v ?? 0;
+        const named = top5.reduce((s, row) => s + row.data[idx], 0);
+        return Math.max(0, total - named);
+      }),
+    };
+    const seriesWithOther = [...top5, other];
+    // Palette: five named nationalities use distinct accents; "Other" is muted so the named rows lead.
+    const colors = [
+      'var(--accent)', 'var(--accent-warn)', 'var(--accent-2)',
+      'var(--accent-gold)', 'var(--ink-2)', 'var(--muted-2)',
+    ];
+    return {
+      id: 'nationalities',
+      label: 'Top 5 nationalities + other',
+      render: 'multi',
+      multi: { years: NAT_SERIES.years, series: seriesWithOther, colors },
+      // flat series — year totals (all nationalities) — used when this option is a compare
+      series: NAT_SERIES.years.map((y, idx) => ({
+        y,
+        v: seriesWithOther.reduce((s, row) => s + row.data[idx], 0),
+      })),
+      color: 'var(--accent-2)',
+    };
+  })(),
 ];
 
 const GRANULARITIES = ['daily','weekly','monthly','quarterly','annual'];
@@ -399,12 +417,36 @@ function BuildView({ setRoute }) {
 
             {/* Multi-series primary (e.g. nationalities bundle) */}
             {isMultiPrim ? (
-              <MultiLineChart
-                years={prim.multi.years}
-                series={prim.multi.series}
-                width={800} height={360}
-                showLabels={showLabels}
-              />
+              chartType === 'stacked' ? (
+                <StackedColumnsMulti
+                  years={prim.multi.years}
+                  series={prim.multi.series}
+                  colors={prim.multi.colors}
+                  width={800} height={380}
+                  showLabels={showLabels}
+                />
+              ) : chartType === 'bar' ? (
+                (() => {
+                  const latestIdx = prim.multi.years.length - 1;
+                  const latestYear = prim.multi.years[latestIdx];
+                  const rows = prim.multi.series
+                    .map(s => ({ name: s.name, v: s.data[latestIdx] || 0 }))
+                    .sort((a,b) => b.v - a.v);
+                  return (
+                    <>
+                      <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Latest year · {latestYear}</div>
+                      <BarChart data={rows} width={800} height={Math.max(220, rows.length*30+16)} color="var(--accent-2)"/>
+                    </>
+                  );
+                })()
+              ) : (
+                <MultiLineChart
+                  years={prim.multi.years}
+                  series={prim.multi.series}
+                  width={800} height={360}
+                  showLabels={showLabels}
+                />
+              )
             ) : overlayOn ? (
               <MultiLineChart
                 years={primView.map(d=>d.y)}

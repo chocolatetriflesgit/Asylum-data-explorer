@@ -231,6 +231,78 @@ function StackedColumns({ data, series=['A','B'], colors=['var(--accent)','var(-
 }
 
 // ─────────────────────────────────────────────────────────────
+// Stacked columns, N series (one column per year/period, stacked segments)
+// ─────────────────────────────────────────────────────────────
+function StackedColumnsMulti({ years, series, colors, width=800, height=360, showLabels=false }) {
+  const { show, hide, node } = useTooltip();
+  const pad = { t: 16, r: 160, b: 36, l: 56 };
+  const W=width, H=height, iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
+  const palette = colors || [
+    'var(--accent)', 'var(--accent-warn)', 'var(--accent-2)',
+    'var(--accent-gold)', 'var(--muted-2)', 'var(--ink-2)',
+  ];
+  const totals = years.map((_, i) => series.reduce((s, r) => s + (r.data[i] || 0), 0));
+  const yMax = Math.max(...totals, 1) * 1.1;
+  const bw = Math.max(10, (iw/years.length) * 0.6);
+  const xCenter = i => pad.l + ((i+0.5)/years.length)*iw;
+  const yPx = v => pad.t + (1 - v/yMax)*ih;
+  const step = yMax/4;
+  const yTicks = [0,1,2,3,4].map(i=>Math.round(i*step/1000)*1000).filter((v,i,a)=>a.indexOf(v)===i);
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        {yTicks.map(t=>(
+          <g key={t}>
+            <line x1={pad.l} x2={W-pad.r} y1={yPx(t)} y2={yPx(t)} stroke="var(--rule)"/>
+            <text x={pad.l-10} y={yPx(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
+          </g>
+        ))}
+        {years.map((yr, i) => {
+          const cx = xCenter(i);
+          let yCursor = H - pad.b;
+          const segs = series.map((s, si) => {
+            const v = s.data[i] || 0;
+            const segH = (v/yMax) * ih;
+            const segY = yCursor - segH;
+            yCursor = segY;
+            return { name: s.name, v, segY, segH, color: palette[si % palette.length] };
+          });
+          const total = totals[i];
+          return (
+            <g key={yr} onMouseMove={e=>show(e, (
+              <span>
+                <b>{yr}</b>
+                {segs.map((s, si) => (
+                  <span key={si}> · {s.name} <span className="tnum">{fmtN(s.v)}</span></span>
+                ))}
+                {' '}· total <span className="tnum">{fmtN(total)}</span>
+              </span>
+            ))} onMouseLeave={hide} style={{cursor:'crosshair'}}>
+              {segs.map((s, si) => (
+                s.segH > 0 ? <rect key={si} x={cx-bw/2} y={s.segY} width={bw} height={s.segH} fill={s.color}/> : null
+              ))}
+              <text x={cx} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+              {showLabels && total > 0 && (
+                <text x={cx} y={yPx(total)-6} textAnchor="middle" fontSize="10.5" fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(total)}</text>
+              )}
+            </g>
+          );
+        })}
+        <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
+        {/* Legend */}
+        {series.map((s, si) => (
+          <g key={s.name} transform={`translate(${W-pad.r+14}, ${pad.t+si*18})`}>
+            <rect width={10} height={10} fill={palette[si % palette.length]}/>
+            <text x={16} y={9} fontSize="11.5" fill="var(--ink-2)" style={{fontFamily:'var(--serif)'}}>{s.name}</text>
+          </g>
+        ))}
+      </svg>
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Horizontal bar chart
 // ─────────────────────────────────────────────────────────────
 function BarChart({ data, width=720, height=null, valueFmt=fmtN, color='var(--accent)', showGrant=false }) {
@@ -367,4 +439,4 @@ function RegionList({ data }) {
   );
 }
 
-Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, Spark, Ring, RegionList, fmtK, fmtN });
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, Spark, Ring, RegionList, fmtK, fmtN });
