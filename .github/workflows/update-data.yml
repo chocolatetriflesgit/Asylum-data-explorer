@@ -5,6 +5,7 @@ name: Update data
 #   - asylum-claims xlsx  -> data/nat-full-data.js, data/nat-quarterly-data.js
 #   - asylum-support xlsx -> data/hotels-data.js
 #   - resettlement xlsx   -> data/resettlement-data.js
+#   - returns xlsx        -> data/returns-data.js
 #   - last-7-days HTML    -> data/provisional-data.js
 # Then re-bundles index.html, runs integrity tests, and commits if anything
 # changed. Failure is loud — each fetcher exits non-zero if the gov.uk page
@@ -71,6 +72,12 @@ jobs:
 
       - name: Build resettlement data module
         run: python scripts/build_resettlement.py cache/resettlement-scheme-datasets-*.xlsx data/
+
+      - name: Fetch latest returns xlsx
+        run: python scripts/fetch_returns.py
+
+      - name: Build returns data module
+        run: python scripts/build_returns.py cache/returns-datasets-*.xlsx data/
 
       - name: Fetch gov.uk last-7-days provisional page
         run: python scripts/fetch_last_7_days.py

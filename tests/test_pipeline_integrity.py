@@ -214,3 +214,41 @@ def test_resettlement_source_is_fresh():
     """Soft warning, not failure."""
     g = _load_globals(RESETTLEMENT_JS)
     _warn_if_source_stale(g["RESETTLEMENT_META"]["source"], "RESETTLEMENT")
+
+
+# ---------------------------------------------------------------------------
+# RETURNS_BY_NATIONALITY
+# ---------------------------------------------------------------------------
+
+RETURNS_JS = ROOT / "data" / "returns-data.js"
+
+
+def test_returns_non_empty_and_sorted():
+    g = _load_globals(RETURNS_JS)
+    rows = g["RETURNS_BY_NATIONALITY"]
+    assert len(rows) > 0
+    totals = [r["total"] for r in rows]
+    assert totals == sorted(totals, reverse=True), "RETURNS not sorted by total desc"
+
+
+def test_returns_shape_and_nonneg():
+    g = _load_globals(RETURNS_JS)
+    for r in g["RETURNS_BY_NATIONALITY"]:
+        assert set(r.keys()) == {"name", "region", "enforced", "voluntary", "refused", "total"}, r
+        assert isinstance(r["name"], str) and r["name"]
+        assert isinstance(r["region"], str) and r["region"]
+        for k in ("enforced", "voluntary", "refused", "total"):
+            assert isinstance(r[k], int) and r[k] >= 0
+        assert r["total"] == r["enforced"] + r["voluntary"] + r["refused"], r
+
+
+def test_returns_meta_year_is_plausible():
+    g = _load_globals(RETURNS_JS)
+    year = g["RETURNS_META"]["year"]
+    assert 2015 <= year <= dt.date.today().year
+
+
+def test_returns_source_is_fresh():
+    """Soft warning, not failure."""
+    g = _load_globals(RETURNS_JS)
+    _warn_if_source_stale(g["RETURNS_META"]["source"], "RETURNS")
