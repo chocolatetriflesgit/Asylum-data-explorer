@@ -78,6 +78,7 @@ function App() {
       <Header route={route} setRoute={setRoute} onSearch={()=>setSearch(true)} onMethod={()=>setMethod(true)}/>
       {route.name === 'index' && <IndexView setRoute={setRoute}/>}
       {route.name === 'dashboard' && <DashboardView setRoute={setRoute}/>}
+      {route.name === 'atlas' && <AtlasView setRoute={setRoute}/>}
       {route.name === 'story' && <StoryView id={route.id} setRoute={setRoute} onMethod={()=>setMethod(true)}/>}
       {route.name === 'datasets' && <DatasetsView setRoute={setRoute}/>}
       {route.name === 'build' && <BuildView setRoute={setRoute}/>}

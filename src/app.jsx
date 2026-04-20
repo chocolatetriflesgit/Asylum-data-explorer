@@ -12,6 +12,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 function Header({ route, setRoute, onSearch, onMethod }) {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'atlas', label: 'Atlas' },
     { id: 'index', label: 'Stories' },
     { id: 'datasets', label: 'Datasets' },
     { id: 'build', label: 'Build a chart' },
