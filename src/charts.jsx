@@ -305,11 +305,12 @@ function StackedColumnsMulti({ years, series, colors, width=800, height=360, sho
 // ─────────────────────────────────────────────────────────────
 // Horizontal bar chart
 // ─────────────────────────────────────────────────────────────
-function BarChart({ data, width=720, height=null, valueFmt=fmtN, color='var(--accent)', showGrant=false }) {
+function BarChart({ data, width=720, height=null, valueFmt=fmtN, color='var(--accent)', showGrant=false, labelWidth=130 }) {
   const { show, hide, node } = useTooltip();
   const rowH = 30;
   const H = height || data.length * rowH + 16;
-  const pad = { t: 8, r: 90, b: 8, l: 130 };
+  // Reserve a wider right gutter when grant-rate labels are shown so value + grant don't collide.
+  const pad = { t: 8, r: showGrant ? 110 : 56, b: 8, l: labelWidth };
   const iw = width - pad.l - pad.r;
   const vMax = Math.max(...data.map(d=>d.v));
   return (
@@ -318,6 +319,8 @@ function BarChart({ data, width=720, height=null, valueFmt=fmtN, color='var(--ac
         {data.map((d,i)=>{
           const y = pad.t + i*rowH;
           const w = (d.v/vMax)*iw;
+          // Place the value label inside the bar end when there's room (≥ 50px), else outside.
+          const inside = w >= 50;
           return (
             <g key={d.name}
               onMouseMove={e=>show(e, <span><b>{d.name}</b> · <span className="tnum">{valueFmt(d.v)}</span>{showGrant && d.grant !== undefined ? <> · grant rate <span className="tnum">{Math.round(d.grant*100)}%</span></> : null}</span>)}
@@ -326,7 +329,13 @@ function BarChart({ data, width=720, height=null, valueFmt=fmtN, color='var(--ac
               <text x={pad.l-10} y={y+rowH/2+4} textAnchor="end" fontSize="13" fill="var(--ink-2)" style={{fontFamily:'var(--serif)'}}>{d.name}</text>
               <rect x={pad.l} y={y+6} width={iw} height={rowH-12} fill="var(--bg-2)"/>
               <rect x={pad.l} y={y+6} width={w} height={rowH-12} fill={color}/>
-              <text x={pad.l+w+8} y={y+rowH/2+4} fontSize="12" fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{valueFmt(d.v)}</text>
+              <text
+                x={inside ? pad.l + w - 6 : pad.l + w + 6}
+                y={y+rowH/2+4}
+                textAnchor={inside ? 'end' : 'start'}
+                fontSize="12"
+                fill={inside ? '#fff' : 'var(--ink-2)'}
+                style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{valueFmt(d.v)}</text>
               {showGrant && d.grant !== undefined && (
                 <text x={width-8} y={y+rowH/2+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)',fontStyle:'italic'}}>{Math.round(d.grant*100)}% grant</text>
               )}

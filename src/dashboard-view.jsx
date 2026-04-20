@@ -29,6 +29,7 @@ function DashboardView({ setRoute }) {
 
   // Phase 4 placeholders — hydrate from globals when data lands.
   const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : null;
+  const natFullYear = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META.year : null;
   const natQuarterly = typeof NAT_QUARTERLY !== 'undefined' ? NAT_QUARTERLY : null;
   const resettlementSeries = typeof RESETTLEMENT_SERIES !== 'undefined' ? RESETTLEMENT_SERIES : null;
   const resettlementYears = typeof RESETTLEMENT_META !== 'undefined' ? RESETTLEMENT_META.years : [2022,2023,2024];
@@ -208,8 +209,8 @@ function DashboardView({ setRoute }) {
             <DashFrame number="06" kickerColor="var(--accent-warn)" title="Applications by region" sub="UK · 2024">
               <BarChart data={REGIONS} width={560} color="var(--accent)"/>
             </DashFrame>
-            <DashFrame number="07" kickerColor="var(--accent-2)" title="Top nationalities" sub="UK · 2024" tableSub="Grant rate from ASY_D02">
-              <BarChart data={TOP_NATIONALITIES.slice(0,8)} width={560} color="var(--accent-warn)" showGrant={true}/>
+            <DashFrame number="07" kickerColor="var(--accent-2)" title="Top nationalities" sub={`UK · ${natFullYear ?? 2024}`} tableSub="Grant rate from ASY_D02">
+              <BarChart data={(natFull ?? TOP_NATIONALITIES).slice(0,8)} width={560} color="var(--accent-warn)" showGrant={true}/>
             </DashFrame>
           </div>
         </section>
