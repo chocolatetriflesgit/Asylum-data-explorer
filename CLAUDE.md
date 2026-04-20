@@ -158,6 +158,7 @@ Failure modes: if the fetcher can't find the ODS link, the Action fails loudly. 
 
 ## When stuck
 
+- Upstream data questions ("what does this app fetch from gov.uk?") → read `scripts/_sources.py`. That file is the canonical registry: every publication, its landing URL, filename stem, fetcher, builder, data file, and the `window.*` globals it produces.
 - Data shape questions → read `scripts/build_boats_data.py`.
 - Routing / layout questions → read `src/root.jsx` and `src/app.jsx`.
 - Chart API questions → read `src/charts.jsx`.
