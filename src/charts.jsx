@@ -545,4 +545,52 @@ function RegionTable({ data }) {
   );
 }
 
-Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, Spark, Ring, RegionList, fmtK, fmtN });
+// ─────────────────────────────────────────────────────────────
+// Country-level choropleth — each country filled by its region's shade.
+// Falls back to the schematic RegionWorldMap if WORLD_MAP hasn't been
+// generated (i.e. scripts/build_world_map.py hasn't been run).
+// ─────────────────────────────────────────────────────────────
+function WorldMapChoropleth({ data, width=720, height=380 }) {
+  const worldMap = (typeof window !== 'undefined' && window.WORLD_MAP) ? window.WORLD_MAP : null;
+  if (!worldMap) return <RegionWorldMap data={data} width={width} height={height}/>;
+  const { show, hide, node } = useTooltip();
+  const byRegion = Object.fromEntries(data.map(d => [d.name, d.v]));
+  const total = data.reduce((s, d) => s + d.v, 0);
+  const vMax = Math.max(...data.map(d => d.v), 1);
+  const shade = v => 0.18 + Math.sqrt(v / vMax) * 0.78;
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block'}}>
+        <rect width={width} height={height} fill="var(--bg-2)"/>
+        <g>
+          {worldMap.map((c, i) => {
+            const regionTotal = byRegion[c.region] ?? 0;
+            const pct = total ? (regionTotal/total*100) : 0;
+            // Natural Earth uses '-99' for disputed / unrecognised territories, so
+            // ISO alone isn't unique. Compose with name + index for a stable key.
+            return (
+              <path key={`${c.iso || ''}-${c.name}-${i}`} d={c.d}
+                fill="var(--accent-gold)" fillOpacity={shade(regionTotal)}
+                stroke="var(--rule-2)" strokeWidth={0.4}
+                onMouseMove={e => show(e, <span><b>{c.name}</b> · {c.region}{c.region !== 'Other / Unclassified' ? <> · region total <span className="tnum">{fmtN(regionTotal)}</span> · {pct.toFixed(1)}%</> : null}</span>)}
+                onMouseLeave={hide}
+                style={{cursor:'crosshair'}}/>
+            );
+          })}
+        </g>
+        {/* Corner badge for Other / Unclassified, kept from the schematic version */}
+        {byRegion['Other / Unclassified'] !== undefined && (
+          <g onMouseMove={e => show(e, <span><b>Other / Unclassified</b> · <span className="tnum">{fmtN(byRegion['Other / Unclassified'])}</span> · Stateless, refugee, unknown</span>)} onMouseLeave={hide} style={{cursor:'crosshair'}}>
+            <rect x={width-130} y={height-46} width={120} height={34} rx={6}
+              fill="var(--accent-gold)" fillOpacity={shade(byRegion['Other / Unclassified'])}
+              stroke="var(--rule-2)" strokeWidth={0.75}/>
+            <text x={width-70} y={height-25} textAnchor="middle" fontSize="10.5" fontFamily="var(--serif)" fill="var(--ink)" style={{pointerEvents:'none'}}>Other / Unclassified</text>
+          </g>
+        )}
+      </svg>
+      {node}
+    </figure>
+  );
+}
+
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN });

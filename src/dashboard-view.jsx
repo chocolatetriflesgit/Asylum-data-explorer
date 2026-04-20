@@ -217,7 +217,7 @@ function DashboardView({ setRoute }) {
             <div style={{display:'grid',gridTemplateColumns:'1fr',gap:20}}>
               <DashFrame number="08" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from ASY_D01`}>
                 <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.3fr) minmax(260px,1fr)',gap:28,alignItems:'start'}}>
-                  <RegionWorldMap data={groupNatByRegion(natFull)} width={720} height={380}/>
+                  <WorldMapChoropleth data={groupNatByRegion(natFull)} width={720} height={380}/>
                   <RegionTable data={groupNatByRegion(natFull)}/>
                 </div>
               </DashFrame>
