@@ -2,11 +2,14 @@ name: Update data
 
 # Daily pull of gov.uk publications. Refreshes:
 #   - small-boats ODS     -> data/boats-data.js
-#   - asylum-claims xlsx  -> data/nat-full-data.js, data/nat-quarterly-data.js
+#   - asylum-claims xlsx  -> data/nat-full-data.js, data/nat-quarterly-data.js,
+#                            data/decisions-data.js, data/nat-series-data.js
 #   - asylum-support xlsx -> data/hotels-data.js
 #   - resettlement xlsx   -> data/resettlement-data.js
 #   - returns xlsx        -> data/returns-data.js
 #   - age-disputes xlsx   -> data/age-disputes-data.js
+#   - backlog xlsx        -> data/backlog-data.js
+#   - support-by-LA xlsx  -> data/support-regions-data.js
 #   - last-7-days HTML    -> data/provisional-data.js
 # Then re-bundles index.html, runs integrity tests, and commits if anything
 # changed. Failure is loud — each fetcher exits non-zero if the gov.uk page
@@ -62,6 +65,12 @@ jobs:
       - name: Build NAT_QUARTERLY data module
         run: python scripts/build_nat_quarterly.py cache/asylum-claims-datasets-*.xlsx data/
 
+      - name: Build decisions data module
+        run: python scripts/build_decisions.py cache/asylum-claims-datasets-*.xlsx data/
+
+      - name: Build nationality series data module
+        run: python scripts/build_nat_series.py cache/asylum-claims-datasets-*.xlsx data/
+
       - name: Fetch latest asylum-support xlsx
         run: python scripts/fetch_asylum_support.py
 
@@ -85,6 +94,18 @@ jobs:
 
       - name: Build age-disputes data module
         run: python scripts/build_age_disputes.py cache/age-disputes-datasets-*.xlsx data/
+
+      - name: Fetch latest backlog xlsx
+        run: python scripts/fetch_backlog.py
+
+      - name: Build backlog data module
+        run: python scripts/build_backlog.py cache/asylum-claims-awaiting-decision-datasets-*.xlsx data/
+
+      - name: Fetch latest support-by-LA xlsx
+        run: python scripts/fetch_support_la.py
+
+      - name: Build support regions data module
+        run: python scripts/build_support_regions.py cache/support-local-authority-datasets-*.xlsx data/
 
       - name: Fetch gov.uk last-7-days provisional page
         run: python scripts/fetch_last_7_days.py

@@ -290,3 +290,150 @@ def test_age_disputes_source_is_fresh():
     """Soft warning, not failure."""
     g = _load_globals(AGE_DISPUTES_JS)
     _warn_if_source_stale(g["AGE_DISPUTES_META"]["source"], "AGE_DISPUTES")
+
+
+# ---------------------------------------------------------------------------
+# DECISIONS_LATEST
+# ---------------------------------------------------------------------------
+
+DECISIONS_JS = ROOT / "data" / "decisions-data.js"
+
+
+def test_decisions_exactly_four_rows():
+    rows = _load_globals(DECISIONS_JS)["DECISIONS_LATEST"]
+    assert len(rows) == 4
+
+
+def test_decisions_shape_and_nonneg():
+    for r in _load_globals(DECISIONS_JS)["DECISIONS_LATEST"]:
+        assert set(r.keys()) == {"label", "v", "color"}, r
+        assert isinstance(r["label"], str) and r["label"]
+        assert isinstance(r["v"], int) and r["v"] >= 0
+        assert r["color"].startswith("var(")
+
+
+def test_decisions_total_is_positive():
+    rows = _load_globals(DECISIONS_JS)["DECISIONS_LATEST"]
+    assert sum(r["v"] for r in rows) > 0
+
+
+def test_decisions_meta_year_is_plausible():
+    year = _load_globals(DECISIONS_JS)["DECISIONS_META"]["year"]
+    assert 2015 <= year <= dt.date.today().year
+
+
+def test_decisions_source_is_fresh():
+    """Soft warning, not failure."""
+    _warn_if_source_stale(_load_globals(DECISIONS_JS)["DECISIONS_META"]["source"], "DECISIONS")
+
+
+# ---------------------------------------------------------------------------
+# NAT_SERIES_LATEST
+# ---------------------------------------------------------------------------
+
+NAT_SERIES_JS = ROOT / "data" / "nat-series-data.js"
+_NAT_SERIES_TRACKED = ["Pakistan", "Afghanistan", "Iran", "Eritrea", "Syria"]
+
+
+def test_nat_series_shape():
+    g = _load_globals(NAT_SERIES_JS)
+    payload = g["NAT_SERIES_LATEST"]
+    assert set(payload.keys()) == {"years", "series"}
+    assert len(payload["series"]) == 5
+    assert [s["name"] for s in payload["series"]] == _NAT_SERIES_TRACKED
+    for s in payload["series"]:
+        assert len(s["data"]) == len(payload["years"])
+        assert all(isinstance(v, int) and v >= 0 for v in s["data"])
+
+
+def test_nat_series_years_start_at_2020():
+    years = _load_globals(NAT_SERIES_JS)["NAT_SERIES_LATEST"]["years"]
+    assert years[0] == 2020
+    assert years == sorted(years)
+
+
+def test_nat_series_meta_year_range():
+    meta = _load_globals(NAT_SERIES_JS)["NAT_SERIES_META"]
+    assert meta["year_start"] == 2020
+    assert 2020 <= meta["year_end"] <= dt.date.today().year
+
+
+def test_nat_series_source_is_fresh():
+    """Soft warning, not failure."""
+    _warn_if_source_stale(_load_globals(NAT_SERIES_JS)["NAT_SERIES_META"]["source"], "NAT_SERIES")
+
+
+# ---------------------------------------------------------------------------
+# BACKLOG_LATEST
+# ---------------------------------------------------------------------------
+
+BACKLOG_JS = ROOT / "data" / "backlog-data.js"
+
+
+def test_backlog_non_empty_and_sorted():
+    rows = _load_globals(BACKLOG_JS)["BACKLOG_LATEST"]
+    assert len(rows) > 0
+    years = [r["y"] for r in rows]
+    assert years == sorted(years)
+
+
+def test_backlog_shape_and_positive():
+    for r in _load_globals(BACKLOG_JS)["BACKLOG_LATEST"]:
+        assert set(r.keys()) == {"y", "v", "date"}, r
+        assert isinstance(r["y"], int) and 2018 <= r["y"] <= dt.date.today().year
+        assert isinstance(r["v"], int) and r["v"] > 0
+        assert isinstance(r["date"], str) and r["date"]
+
+
+def test_backlog_meta_matches_latest_row():
+    g = _load_globals(BACKLOG_JS)
+    rows = g["BACKLOG_LATEST"]
+    meta = g["BACKLOG_META"]
+    assert meta["latest_year"] == rows[-1]["y"]
+    assert meta["series_start"] == 2018
+
+
+def test_backlog_source_is_fresh():
+    """Soft warning, not failure."""
+    _warn_if_source_stale(_load_globals(BACKLOG_JS)["BACKLOG_META"]["source"], "BACKLOG")
+
+
+# ---------------------------------------------------------------------------
+# SUPPORT_REGIONS
+# ---------------------------------------------------------------------------
+
+SUPPORT_REGIONS_JS = ROOT / "data" / "support-regions-data.js"
+
+
+def test_support_regions_non_empty_and_sorted():
+    rows = _load_globals(SUPPORT_REGIONS_JS)["SUPPORT_REGIONS"]
+    assert len(rows) > 0
+    values = [r["v"] for r in rows]
+    assert values == sorted(values, reverse=True)
+
+
+def test_support_regions_shape_and_positive():
+    for r in _load_globals(SUPPORT_REGIONS_JS)["SUPPORT_REGIONS"]:
+        assert set(r.keys()) == {"name", "v"}, r
+        assert isinstance(r["name"], str) and r["name"]
+        assert isinstance(r["v"], int) and r["v"] > 0
+
+
+def test_support_regions_no_excluded_names():
+    rows = _load_globals(SUPPORT_REGIONS_JS)["SUPPORT_REGIONS"]
+    names = {r["name"] for r in rows}
+    assert "Unknown" not in names
+    assert not any(n.startswith("N/A") for n in names)
+
+
+def test_support_regions_meta_date_is_present():
+    meta = _load_globals(SUPPORT_REGIONS_JS)["SUPPORT_REGIONS_META"]
+    assert isinstance(meta["date"], str) and meta["date"]
+
+
+def test_support_regions_source_is_fresh():
+    """Soft warning, not failure."""
+    _warn_if_source_stale(
+        _load_globals(SUPPORT_REGIONS_JS)["SUPPORT_REGIONS_META"]["source"],
+        "SUPPORT_REGIONS",
+    )
