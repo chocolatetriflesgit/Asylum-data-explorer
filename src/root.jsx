@@ -85,7 +85,7 @@ function App() {
 
       <footer style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
         <div>
-          <span style={{fontFamily:'var(--serif)',fontStyle:'italic',color:'var(--ink-2)'}}>Home Office data explorer</span>
+          <span style={{fontFamily:'var(--serif)',fontStyle:'italic',color:'var(--ink-2)'}}>Migration data explorer</span>
           <span style={{margin:'0 14px'}}>·</span>
           <span>Open data · Published under OGL v3.0</span>
         </div>

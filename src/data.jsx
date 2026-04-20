@@ -171,7 +171,9 @@ const DATASETS = [
 ];
 
 // Region-of-origin lookup for NAT_FULL. Egypt counted as Middle East per editorial call;
-// Afghanistan counted as South Asia. Unlisted names fall through to "Other / Unclassified".
+// Afghanistan counted as Central Asia to match the Home Office's own regional
+// profiling (it groups Afghanistan with the post-Soviet 'stans, not with South
+// Asia). Unlisted names fall through to "Other / Unclassified".
 const REGION_MAP = {
   // Middle East
   'Iran':'Middle East','Iraq':'Middle East','Syria':'Middle East','Yemen':'Middle East',
@@ -203,7 +205,7 @@ const REGION_MAP = {
   'South Africa':'Central & Southern Africa','Seychelles':'Central & Southern Africa',
   'Madagascar':'Central & Southern Africa',
   // South Asia
-  'Afghanistan':'South Asia','Pakistan':'South Asia','India':'South Asia','Bangladesh':'South Asia',
+  'Pakistan':'South Asia','India':'South Asia','Bangladesh':'South Asia',
   'Sri Lanka':'South Asia','Nepal':'South Asia','Bhutan':'South Asia','Maldives':'South Asia',
   // South East Asia
   'Vietnam':'South East Asia','Myanmar (Burma)':'South East Asia','Indonesia':'South East Asia',
@@ -215,11 +217,11 @@ const REGION_MAP = {
   'Japan':'East Asia & Pacific','South Korea':'East Asia & Pacific','North Korea':'East Asia & Pacific',
   'Mongolia':'East Asia & Pacific','Fiji':'East Asia & Pacific','Australia':'East Asia & Pacific',
   'New Zealand':'East Asia & Pacific','Tonga':'East Asia & Pacific','Vanuatu':'East Asia & Pacific',
-  // Central Asia & Caucasus
-  'Kazakhstan':'Central Asia & Caucasus','Uzbekistan':'Central Asia & Caucasus',
-  'Tajikistan':'Central Asia & Caucasus','Kyrgyzstan':'Central Asia & Caucasus',
-  'Turkmenistan':'Central Asia & Caucasus','Azerbaijan':'Central Asia & Caucasus',
-  'Armenia':'Central Asia & Caucasus','Georgia':'Central Asia & Caucasus',
+  // Central Asia — matches Home Office grouping (includes Afghanistan).
+  'Afghanistan':'Central Asia','Kazakhstan':'Central Asia','Uzbekistan':'Central Asia',
+  'Tajikistan':'Central Asia','Kyrgyzstan':'Central Asia','Turkmenistan':'Central Asia',
+  // Caucasus — kept separate from Central Asia.
+  'Azerbaijan':'Caucasus','Armenia':'Caucasus','Georgia':'Caucasus',
   // Europe
   'Albania':'Europe','Ukraine':'Europe','Russia':'Europe','Kosovo':'Europe','Moldova':'Europe',
   'Belarus':'Europe','Romania':'Europe','Poland':'Europe','Bulgaria':'Europe','Hungary':'Europe',

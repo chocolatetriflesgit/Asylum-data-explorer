@@ -455,7 +455,9 @@ const REGION_LAYOUT = [
   { name: 'North America',             x: 30,  y: 40,  w: 150, h: 95 },
   { name: 'Americas',                  x: 120, y: 145, w: 120, h: 180 },
   { name: 'Europe',                    x: 320, y: 55,  w: 90,  h: 70 },
-  { name: 'Central Asia & Caucasus',   x: 415, y: 70,  w: 110, h: 60 },
+  // Caucasus sits between Europe and Central Asia, above the Middle East.
+  { name: 'Caucasus',                  x: 415, y: 75,  w: 45,  h: 28 },
+  { name: 'Central Asia',              x: 465, y: 65,  w: 75,  h: 68 },
   { name: 'East Asia & Pacific',       x: 545, y: 50,  w: 150, h: 110 },
   { name: 'North Africa',              x: 310, y: 155, w: 105, h: 60 },
   { name: 'Middle East',               x: 420, y: 140, w: 95,  h: 70 },
@@ -468,6 +470,7 @@ const REGION_LAYOUT = [
 
 function RegionWorldMap({ data, width=720, height=380 }) {
   const { show, hide, node } = useTooltip();
+  const zoom = useMapZoom(width, height);
   const byName = Object.fromEntries(data.map(d => [d.name, d.v]));
   const total = data.reduce((s, d) => s + d.v, 0);
   const vMax = Math.max(...data.map(d => d.v), 1);
@@ -478,8 +481,9 @@ function RegionWorldMap({ data, width=720, height=380 }) {
   };
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
-      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block'}}>
-        <rect width={width} height={height} fill="var(--bg-2)"/>
+      <svg width="100%" height={height} viewBox={zoom.viewBox} {...zoom.svgProps}
+        style={{display:'block', ...zoom.svgProps.style}}>
+        <rect x={0} y={0} width={width} height={height} fill="var(--bg-2)"/>
         {REGION_LAYOUT.map(r => {
           const v = byName[r.name] ?? 0;
           const pct = total ? (v/total*100) : 0;
@@ -509,6 +513,7 @@ function RegionWorldMap({ data, width=720, height=380 }) {
           </g>
         )}
       </svg>
+      <ZoomControls zoom={zoom}/>
       {node}
     </figure>
   );
@@ -580,12 +585,116 @@ function atlasPaletteColor(t) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Pan + zoom hook for SVG maps. Returns a live viewBox string, handlers
+// to spread on the <svg>, and imperative zoomIn/zoomOut/reset actions
+// (exposed via <ZoomControls/>). Dragging while zoomed pans the map;
+// clicks still fall through as long as the pointer didn't move more than
+// ~2 px between mousedown and mouseup (didDrag()).
+// ─────────────────────────────────────────────────────────────
+function useMapZoom(baseW, baseH, { maxZoom = 8 } = {}) {
+  const [view, setView] = React.useState({ x: 0, y: 0, w: baseW, h: baseH });
+  const drag = React.useRef(null);
+  const [, bump] = React.useState(0); // re-render on drag start/end for cursor
+
+  const scale = baseW / view.w;
+  const canZoomIn = scale < maxZoom - 1e-6;
+  const canZoomOut = scale > 1 + 1e-6;
+  const zoomed = scale > 1 + 1e-6;
+
+  // Keep the view inside the world rect, and enforce min / max zoom.
+  const clamp = v => {
+    const wMin = baseW / maxZoom;
+    const w = Math.max(wMin, Math.min(baseW, v.w));
+    const h = w * (baseH / baseW);
+    const x = Math.max(0, Math.min(baseW - w, v.x));
+    const y = Math.max(0, Math.min(baseH - h, v.y));
+    return { x, y, w, h };
+  };
+
+  const zoomAt = (cx, cy, factor) => {
+    setView(prev => {
+      const newW = prev.w / factor;
+      const newH = prev.h / factor;
+      const nx = cx - (cx - prev.x) * (newW / prev.w);
+      const ny = cy - (cy - prev.y) * (newH / prev.h);
+      return clamp({ x: nx, y: ny, w: newW, h: newH });
+    });
+  };
+  const zoomIn  = () => zoomAt(view.x + view.w / 2, view.y + view.h / 2, 1.5);
+  const zoomOut = () => zoomAt(view.x + view.w / 2, view.y + view.h / 2, 1 / 1.5);
+  const reset   = () => setView({ x: 0, y: 0, w: baseW, h: baseH });
+
+  const onMouseDown = e => {
+    if (e.button !== 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    drag.current = {
+      sx: e.clientX, sy: e.clientY,
+      vx: view.x, vy: view.y,
+      rect, moved: false,
+    };
+    bump(n => n + 1);
+  };
+  const onMouseMove = e => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = (e.clientX - d.sx) / d.rect.width  * view.w;
+    const dy = (e.clientY - d.sy) / d.rect.height * view.h;
+    if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 2) d.moved = true;
+    setView(prev => clamp({ ...prev, x: d.vx - dx, y: d.vy - dy }));
+  };
+  const stopDrag = () => { drag.current = null; bump(n => n + 1); };
+
+  const didDrag = () => !!(drag.current && drag.current.moved);
+
+  return {
+    viewBox: `${view.x} ${view.y} ${view.w} ${view.h}`,
+    svgProps: {
+      onMouseDown, onMouseMove,
+      onMouseUp: stopDrag, onMouseLeave: stopDrag,
+      style: {
+        cursor: drag.current ? 'grabbing' : (zoomed ? 'grab' : 'default'),
+        touchAction: 'none',
+      },
+    },
+    zoomIn, zoomOut, reset,
+    canZoomIn, canZoomOut, zoomed,
+    didDrag,
+  };
+}
+
+function ZoomControls({ zoom, style = {} }) {
+  const btn = (label, onClick, disabled, aria) => (
+    <button type="button" onClick={onClick} disabled={disabled} aria-label={aria} title={aria}
+      style={{
+        width: 26, height: 26, padding: 0, fontSize: 15, lineHeight: 1,
+        background: disabled ? 'var(--bg-2)' : '#fff',
+        color: disabled ? 'var(--muted-2)' : 'var(--ink)',
+        border: '1px solid var(--rule-2)',
+        cursor: disabled ? 'default' : 'pointer',
+        fontFamily: 'var(--serif)',
+      }}>{label}</button>
+  );
+  return (
+    <div style={{
+      position: 'absolute', top: 8, right: 8,
+      display: 'flex', flexDirection: 'column', gap: 3, zIndex: 2,
+      ...style,
+    }}>
+      {btn('+', zoom.zoomIn,  !zoom.canZoomIn,  'Zoom in')}
+      {btn('\u2212', zoom.zoomOut, !zoom.canZoomOut, 'Zoom out')}
+      {btn('\u21BA', zoom.reset,    !zoom.zoomed,     'Reset view')}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Country-level choropleth — each country filled by its region's shade.
 // Falls back to the schematic RegionWorldMap if WORLD_MAP hasn't been
 // generated (i.e. scripts/build_world_map.py hasn't been run).
 // ─────────────────────────────────────────────────────────────
 function WorldMapChoropleth({ data, width=720, height=380 }) {
   const worldMap = (typeof window !== 'undefined' && window.WORLD_MAP) ? window.WORLD_MAP : null;
+  const zoom = useMapZoom(width, height);
   if (!worldMap) return <RegionWorldMap data={data} width={width} height={height}/>;
   const { show, hide, node } = useTooltip();
   const byRegion = Object.fromEntries(data.map(d => [d.name, d.v]));
@@ -599,8 +708,9 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
   };
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
-      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block'}}>
-        <rect width={width} height={height} fill="var(--bg-2)"/>
+      <svg width="100%" height={height} viewBox={zoom.viewBox} {...zoom.svgProps}
+        style={{display:'block', ...zoom.svgProps.style}}>
+        <rect x={0} y={0} width={width} height={height} fill="var(--bg-2)"/>
         <g>
           {worldMap.map((c, i) => {
             const regionTotal = byRegion[c.region] ?? 0;
@@ -612,12 +722,13 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
                 fill={fillFor(regionTotal)}
                 stroke="var(--rule-2)" strokeWidth={0.4}
                 onMouseMove={e => show(e, <span><b>{c.name}</b> · {c.region}{c.region !== 'Other / Unclassified' ? <> · region total <span className="tnum">{fmtN(regionTotal)}</span> · {pct.toFixed(1)}%</> : null}</span>)}
-                onMouseLeave={hide}
-                style={{cursor:'crosshair'}}/>
+                onMouseLeave={hide}/>
             );
           })}
         </g>
-        {/* Corner badge for Other / Unclassified, kept from the schematic version */}
+        {/* Corner badge for Other / Unclassified, kept from the schematic version.
+            Rendered in world coords so it follows the pan/zoom, but is kept inside
+            the overall world rect so it stays visible until the user zooms past it. */}
         {byRegion['Other / Unclassified'] !== undefined && (
           <g onMouseMove={e => show(e, <span><b>Other / Unclassified</b> · <span className="tnum">{fmtN(byRegion['Other / Unclassified'])}</span> · Stateless, refugee, unknown</span>)} onMouseLeave={hide} style={{cursor:'crosshair'}}>
             <rect x={width-130} y={height-46} width={120} height={34} rx={6}
@@ -627,9 +738,10 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
           </g>
         )}
       </svg>
+      <ZoomControls zoom={zoom}/>
       {node}
     </figure>
   );
 }
 
-Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN });
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor });

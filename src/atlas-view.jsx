@@ -42,6 +42,8 @@ function resolveNat(mapCountryName) {
 
 function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, height=440 }) {
   const worldMap = (typeof WORLD_MAP !== 'undefined') ? WORLD_MAP : null;
+  // Hooks must be called unconditionally — call before the early return.
+  const zoom = useMapZoom(width, height);
   if (!worldMap) {
     return <div style={{padding:40,color:'var(--muted)',fontStyle:'italic'}}>World map not loaded.</div>;
   }
@@ -53,24 +55,28 @@ function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, hei
     return atlasPaletteColor(Math.sqrt(v / vMax));
   };
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block',background:'var(--map-bg, var(--bg-2))'}}>
-      <g>
-        {worldMap.map((c, i) => {
-          const nat = resolveNat(c.name);
-          const v = nat ? (countryValues[nat] ?? 0) : 0;
-          const isSel = nat && nat === selectedName;
-          return (
-            <path key={`${c.iso || ''}-${c.name}-${i}`} d={c.d}
-              fill={isSel ? 'var(--accent-warn)' : fillFor(v)}
-              stroke={isSel ? 'var(--accent)' : 'var(--rule-2)'} strokeWidth={isSel ? 1.4 : 0.4}
-              onClick={() => nat && onSelect(nat)}
-              style={{cursor: nat ? 'pointer' : 'default'}}>
-              <title>{c.name}{v > 0 ? ` — ${v.toLocaleString()} applicants` : ''}</title>
-            </path>
-          );
-        })}
-      </g>
-    </svg>
+    <div style={{position:'relative'}}>
+      <svg width="100%" height={height} viewBox={zoom.viewBox} {...zoom.svgProps}
+        style={{display:'block',background:'var(--map-bg, var(--bg-2))', ...zoom.svgProps.style}}>
+        <g>
+          {worldMap.map((c, i) => {
+            const nat = resolveNat(c.name);
+            const v = nat ? (countryValues[nat] ?? 0) : 0;
+            const isSel = nat && nat === selectedName;
+            return (
+              <path key={`${c.iso || ''}-${c.name}-${i}`} d={c.d}
+                fill={isSel ? 'var(--accent-warn)' : fillFor(v)}
+                stroke={isSel ? 'var(--accent)' : 'var(--rule-2)'} strokeWidth={isSel ? 1.4 : 0.4}
+                onClick={() => { if (!zoom.didDrag() && nat) onSelect(nat); }}
+                style={{cursor: nat ? (zoom.zoomed ? 'grab' : 'pointer') : 'default'}}>
+                <title>{c.name}{v > 0 ? ` — ${v.toLocaleString()} applicants` : ''}</title>
+              </path>
+            );
+          })}
+        </g>
+      </svg>
+      <ZoomControls zoom={zoom}/>
+    </div>
   );
 }
 
