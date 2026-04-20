@@ -52,12 +52,20 @@ SOURCES = {
         "builders": (
             "scripts/build_nat_full.py",
             "scripts/build_nat_quarterly.py",
+            "scripts/build_decisions.py",
+            "scripts/build_nat_series.py",
         ),
         "data_files": (
             "data/nat-full-data.js",
             "data/nat-quarterly-data.js",
+            "data/decisions-data.js",
+            "data/nat-series-data.js",
         ),
-        "data_globals": ("NAT_FULL", "NAT_FULL_META", "NAT_QUARTERLY"),
+        "data_globals": (
+            "NAT_FULL", "NAT_FULL_META", "NAT_QUARTERLY",
+            "DECISIONS_LATEST", "DECISIONS_META",
+            "NAT_SERIES_LATEST", "NAT_SERIES_META",
+        ),
     },
     "asylum-support": {
         "label": "Asylum seekers' receipt of support (hotels)",
@@ -94,6 +102,30 @@ SOURCES = {
         "builder": "scripts/build_returns.py",
         "data_file": "data/returns-data.js",
         "data_globals": ("RETURNS_BY_NATIONALITY", "RETURNS_META"),
+    },
+    "backlog": {
+        "label": "Asylum claims awaiting a decision",
+        "landing_url": (
+            "https://www.gov.uk/government/statistical-data-sets/"
+            "immigration-system-statistics-data-tables"
+        ),
+        "filename_stem": "asylum-claims-awaiting-decision-datasets-",
+        "fetcher": "scripts/fetch_backlog.py",
+        "builder": "scripts/build_backlog.py",
+        "data_file": "data/backlog-data.js",
+        "data_globals": ("BACKLOG_LATEST", "BACKLOG_META"),
+    },
+    "support-local-authority": {
+        "label": "Asylum seekers in receipt of support by local authority",
+        "landing_url": (
+            "https://www.gov.uk/government/statistical-data-sets/"
+            "immigration-system-statistics-data-tables"
+        ),
+        "filename_stem": "support-local-authority-datasets-",
+        "fetcher": "scripts/fetch_support_la.py",
+        "builder": "scripts/build_support_regions.py",
+        "data_file": "data/support-regions-data.js",
+        "data_globals": ("SUPPORT_REGIONS", "SUPPORT_REGIONS_META"),
     },
     "age-disputes": {
         "label": "Asylum & resettlement — age disputes",
