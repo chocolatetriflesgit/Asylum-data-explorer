@@ -21,7 +21,7 @@ function Header({ route, setRoute, onSearch, onMethod }) {
     <header style={{background:'var(--bg)',borderBottom:'1px solid var(--rule)',position:'sticky',top:0,zIndex:50,backdropFilter:'blur(6px)'}}>
       <div style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:40}}>
         <button onClick={()=>setRoute({name:'index'})} className="pressable" style={{display:'flex',alignItems:'baseline',gap:12,whiteSpace:'nowrap',flexShrink:0}}>
-          <span style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:600,color:'var(--accent)',letterSpacing:-0.2}}>Home Office</span>
+          <span style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:600,color:'var(--accent)',letterSpacing:-0.2}}>Migration</span>
           <span style={{fontFamily:'var(--serif)',fontSize:15,fontStyle:'italic',color:'var(--muted)'}}>data explorer</span>
         </button>
         <nav style={{display:'flex',alignItems:'center',gap:28}}>
