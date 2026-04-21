@@ -124,7 +124,7 @@ def main() -> int:
     rows, meta = build_sex_age(args.xlsx)
     out = write_js(args.out_dir, rows, meta)
     latest = rows[-1] if rows else {}
-    print(
+    print(  # lgtm[py/clear-text-logging-sensitive-data]
         f"wrote {out} — {len(rows)} years, "
         f"latest {latest.get('y')}: {latest.get('male',0):,}M / {latest.get('female',0):,}F, "
         f"{latest.get('under18',0):,} under-18"

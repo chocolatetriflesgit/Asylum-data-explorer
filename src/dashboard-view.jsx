@@ -358,6 +358,7 @@ function DashboardView({ setRoute }) {
                 annotations={[
                   range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
                 ].filter(Boolean)}
+                breakY={[50000, 75000]}
                 source="Home Office · ASY_D01"/>
             </DashFrame>
             <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals" sub={`UK · ${range[0]}–${range[1]}`}>

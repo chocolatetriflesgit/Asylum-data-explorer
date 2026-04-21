@@ -520,7 +520,10 @@ const fmtK = v => {
 const fmtN = v => v.toLocaleString('en-GB');
 
 // ─────────────────────────────────────────────────────────────
-// Line chart — single series with optional annotations
+// Line chart — single series with optional annotations.
+// breakY={[lo, hi]} adds a y-axis break: shaded band + zigzag
+// edges cover the skipped range; grid intervals stay consistent
+// on both sides so the slope of the line is preserved.
 // ─────────────────────────────────────────────────────────────
 function LineChart({
   data, width=720, height=320, annotations=[],
@@ -530,93 +533,160 @@ function LineChart({
   showLabels=false,
   showLine=true,
   xLabelFmt=null,
+  breakY=null,
 }) {
   const { show, hide, node } = useTooltip();
-  const pad = { t: 16, r: 24, b: 32, l: 48 };
   const W = width, H = height;
-  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
 
-  // filter by yearRange
-  const filtered = yearRange
-    ? data.filter(d => d.y >= yearRange[0] && d.y <= yearRange[1])
-    : data;
+  const filtered = yearRange ? data.filter(d => d.y >= yearRange[0] && d.y <= yearRange[1]) : data;
   const d = filtered.length ? filtered : data;
 
   const xs = d.map(p => p.y);
   const ys = d.map(p => p.v);
   const xMin = Math.min(...xs), xMax = Math.max(...xs);
   const yMax = Math.max(...ys) * 1.1;
-  const x = v => pad.l + (xMax === xMin ? iw/2 : ((v - xMin) / (xMax - xMin)) * iw);
-  const y = v => pad.t + (1 - v/yMax) * ih;
+
+  // Only apply break when data genuinely spans both zones.
+  const effectiveBreak = breakY && d.some(p => p.v < breakY[0]) && d.some(p => p.v > breakY[1]) ? breakY : null;
+
+  const BAND_H = 28;
+  const pad = { t: 16, r: effectiveBreak ? 92 : 24, b: 32, l: 48 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+
+  // Break band pixel positions — resolved once, reused in y() and render.
+  let bandBot = null, bandTop = null;
+  if (effectiveBreak) {
+    const [bLo, bHi] = effectiveBreak;
+    const lowerPx = (ih - BAND_H) * bLo / (bLo + (yMax - bHi));
+    bandBot = H - pad.b - lowerPx;
+    bandTop = bandBot - BAND_H;
+  }
+
+  const x = v => pad.l + (xMax === xMin ? iw / 2 : ((v - xMin) / (xMax - xMin)) * iw);
+  const y = v => {
+    if (!effectiveBreak) return pad.t + (1 - v / yMax) * ih;
+    const [bLo, bHi] = effectiveBreak;
+    if (v <= bLo) return H - pad.b - (v / bLo) * (H - pad.b - bandBot);
+    if (v >= bHi) return bandTop - ((v - bHi) / (yMax - bHi)) * (bandTop - pad.t);
+    return bandBot - ((v - bLo) / (bHi - bLo)) * BAND_H;
+  };
+
   const pts = d.map(p => `${x(p.y)},${y(p.v)}`).join(' ');
   const areaPath = d.length
-    ? `M${x(d[0].y)},${y(0)} L${d.map(p=>`${x(p.y)},${y(p.v)}`).join(' L')} L${x(d[d.length-1].y)},${y(0)} Z`
+    ? `M${x(d[0].y)},${y(0)} L${d.map(p => `${x(p.y)},${y(p.v)}`).join(' L')} L${x(d[d.length - 1].y)},${y(0)} Z`
     : '';
 
-  const step = yMax / 4;
-  const yTicks = Array.from({length:5}, (_,i) => Math.round(i*step/5000)*5000).filter((v,i,a)=>a.indexOf(v)===i);
+  let yTicks;
+  if (effectiveBreak) {
+    const [bLo, bHi] = effectiveBreak;
+    const step = 10000;
+    const lower = [], upper = [];
+    for (let t = 0; t <= bLo; t += step) lower.push(t);
+    for (let t = bHi; t <= Math.ceil(yMax / step) * step; t += step) upper.push(t);
+    yTicks = [...lower, ...upper];
+  } else {
+    const step = yMax / 4;
+    yTicks = Array.from({length: 5}, (_, i) => Math.round(i * step / 5000) * 5000).filter((v, i, a) => a.indexOf(v) === i);
+  }
+
+  // Zigzag path spanning the chart width at a given y pixel.
+  const zigzagPath = yPos => {
+    const x1 = pad.l, x2 = W - pad.r, amp = 2.5, half = 5;
+    const segs = [`M ${x1} ${yPos}`];
+    const n = Math.ceil((x2 - x1) / half);
+    for (let i = 0; i < n; i++) {
+      segs.push(`L ${Math.min(x1 + (i + 1) * half, x2)} ${yPos + (i % 2 === 0 ? -amp : amp)}`);
+    }
+    return segs.join(' ');
+  };
+
+  const breakNote = effectiveBreak
+    ? `Y-axis break between ${fmtK(effectiveBreak[0])} and ${fmtK(effectiveBreak[1])} — shaded band marks the gap. Grid intervals are consistent on either side so the slope of the line means what it looks like it means.`
+    : null;
 
   return (
-    <figure className="chart-wrap" style={{ position:'relative', margin:0 }}>
+    <figure className="chart-wrap" style={{position: 'relative', margin: 0}}>
       {title && (
-        <figcaption style={{marginBottom:14}}>
-          <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>{subtitle}</div>
-          <div style={{fontSize:19,fontWeight:500,letterSpacing:-0.1,color:'var(--ink)'}}>{title}</div>
+        <figcaption style={{marginBottom: 14}}>
+          <div className="uc" style={{color: 'var(--muted)', marginBottom: 3}}>{subtitle}</div>
+          <div style={{fontSize: 19, fontWeight: 500, letterSpacing: -0.1, color: 'var(--ink)'}}>{title}</div>
         </figcaption>
       )}
-      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display: 'block', overflow: 'visible'}}>
         <defs>
           <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={stroke} stopOpacity="0.18"/>
             <stop offset="100%" stopColor={stroke} stopOpacity="0"/>
           </linearGradient>
         </defs>
-        {yTicks.map(t=>(
+        {/* Area fill drawn first so band and line render on top */}
+        {area && <path d={areaPath} fill="url(#areaGrad)"/>}
+        {/* Grid lines + y-axis labels */}
+        {yTicks.map(t => (
           <g key={t}>
-            <line x1={pad.l} x2={W-pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth="1"/>
-            <text x={pad.l-10} y={y(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
+            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth="1"/>
+            <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)"
+              style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>{fmtK(t)}</text>
           </g>
         ))}
-        {d.map((p,i)=>({p,i}))
-           .filter(({i})=>i%Math.max(1,Math.ceil(d.length/8))===0 || i===d.length-1)
-           .map(({p,i})=>(
-          <text key={`xt-${i}`} x={x(p.y)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
-            {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
-          </text>
-        ))}
-        <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
-        {area && <path d={areaPath} fill="url(#areaGrad)"/>}
+        {/* X-axis labels */}
+        {d.map((p, i) => ({p, i}))
+          .filter(({i}) => i % Math.max(1, Math.ceil(d.length / 8)) === 0 || i === d.length - 1)
+          .map(({p, i}) => (
+            <text key={`xt-${i}`} x={x(p.y)} y={H - pad.b + 18} textAnchor="middle" fontSize="11" fill="var(--muted)"
+              style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>
+              {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
+            </text>
+          ))}
+        <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="var(--rule-2)"/>
+        {/* Break band — over area fill, under data line */}
+        {effectiveBreak && (
+          <>
+            <rect x={pad.l} y={bandTop} width={iw} height={BAND_H} fill="var(--bg-2)" opacity={0.97}/>
+            <path d={zigzagPath(bandBot)} fill="none" stroke="var(--rule-2)" strokeWidth="0.8"/>
+            <path d={zigzagPath(bandTop)} fill="none" stroke="var(--rule-2)" strokeWidth="0.8"/>
+            <text x={W - pad.r + 5} y={(bandTop + bandBot) / 2 + 4} fontSize="10" fill="var(--muted-2)"
+              style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
+              break · {fmtK(effectiveBreak[0])}–{fmtK(effectiveBreak[1])}
+            </text>
+          </>
+        )}
+        {/* Data line */}
         {showLine && <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"/>}
-        {d.map((p,i)=>(
+        {/* Data points + hit areas */}
+        {d.map((p, i) => (
           <g key={`pt-${i}`}>
             <circle cx={x(p.y)} cy={y(p.v)} r={showLine ? 3 : 4} fill={stroke}/>
             <circle cx={x(p.y)} cy={y(p.v)} r="14" fill="transparent"
-              onMouseMove={e=>show(e, <span><b>{p.label ?? p.y}</b> · <span className="tnum">{fmtN(p.v)}</span></span>)}
-              onMouseLeave={hide}
-              style={{cursor:'crosshair'}}
-            />
+              onMouseMove={e => show(e, <span><b>{p.label ?? p.y}</b> · <span className="tnum">{fmtN(p.v)}</span></span>)}
+              onMouseLeave={hide} style={{cursor: 'crosshair'}}/>
             {showLabels && (
-              <text x={x(p.y)} y={y(p.v)-10} textAnchor="middle" fontSize="10.5" fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
-                {fmtK(p.v)}
-              </text>
+              <text x={x(p.y)} y={y(p.v) - 10} textAnchor="middle" fontSize="10.5" fill="var(--ink-2)"
+                style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>{fmtK(p.v)}</text>
             )}
           </g>
         ))}
-        {annotations.map((a,i)=>{
-          const pt = d.find(p=>p.y===a.y); if(!pt) return null;
+        {/* Annotations */}
+        {annotations.map((a, i) => {
+          const pt = d.find(p => p.y === a.y); if (!pt) return null;
           const px = x(pt.y), py = y(pt.v);
-          const dx = a.dx||30, dy = a.dy||-26;
+          const dx = a.dx || 30, dy = a.dy || -26;
           return (
             <g key={i}>
               <circle cx={px} cy={py} r="5" fill="none" stroke={stroke} strokeWidth="1"/>
-              <line x1={px} y1={py} x2={px+dx} y2={py+dy} stroke={stroke} strokeWidth="0.8"/>
-              <text x={px+dx+4} y={py+dy+4} fontSize="11.5" fill="var(--ink-2)" style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{a.label}</text>
+              <line x1={px} y1={py} x2={px + dx} y2={py + dy} stroke={stroke} strokeWidth="0.8"/>
+              <text x={px + dx + 4} y={py + dy + 4} fontSize="11.5" fill="var(--ink-2)"
+                style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>{a.label}</text>
             </g>
           );
         })}
       </svg>
-      {caption && <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5,maxWidth:640}}>{caption}</div>}
-      {source && <div className="uc" style={{marginTop:12,color:'var(--muted-2)'}}>Source: {source}</div>}
+      {(caption || breakNote) && (
+        <div style={{fontSize: 12.5, color: 'var(--muted)', marginTop: 10, fontStyle: 'italic', lineHeight: 1.5, maxWidth: 640}}>
+          {caption}{caption && breakNote ? ' ' : ''}{breakNote}
+        </div>
+      )}
+      {source && <div className="uc" style={{marginTop: 12, color: 'var(--muted-2)'}}>Source: {source}</div>}
       {node}
     </figure>
   );
@@ -2081,6 +2151,7 @@ function DashboardView({ setRoute }) {
                 annotations={[
                   range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
                 ].filter(Boolean)}
+                breakY={[50000, 75000]}
                 source="Home Office · ASY_D01"/>
             </DashFrame>
             <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals" sub={`UK · ${range[0]}–${range[1]}`}>
@@ -2649,6 +2720,7 @@ function StoryView({ id, setRoute, onMethod }) {
                 ].filter(Boolean)}
                 caption="Main applicants only. Provisional for 2024."
                 width={720} height={340}
+                breakY={[50000, 75000]}
               />
             ) : (
               <BarChart

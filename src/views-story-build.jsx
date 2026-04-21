@@ -97,6 +97,7 @@ function StoryView({ id, setRoute, onMethod }) {
                 ].filter(Boolean)}
                 caption="Main applicants only. Provisional for 2024."
                 width={720} height={340}
+                breakY={[50000, 75000]}
               />
             ) : (
               <BarChart
