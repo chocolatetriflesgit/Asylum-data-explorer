@@ -272,6 +272,15 @@ const DATASET_OPTIONS = [
     // option is picked there too (unlikely — it's filtered out below).
     series: [],
   },
+  {
+    // Grant rate per nationality over time (annual), from NAT_GRANT_ANNUAL.
+    // The picker reuses selectedNats / natQuery state.
+    id: 'grant_rate',
+    label: 'Grant rate by nationality',
+    render: 'grant-rate',
+    color: 'var(--accent-2)',
+    series: [],
+  },
 ];
 
 const GRANULARITIES = ['daily','weekly','monthly','quarterly','annual'];
@@ -311,7 +320,8 @@ function BuildView({ setRoute }) {
   const prim = DATASET_OPTIONS.find(o => o.id === ds);
   const isMultiPrim = prim.render === 'multi';
   const isCustomNat = prim.render === 'custom-multi';
-  const overlayOpts = (!isMultiPrim && !isCustomNat)
+  const isGrantRate = prim.render === 'grant-rate';
+  const overlayOpts = (!isMultiPrim && !isCustomNat && !isGrantRate)
     ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && o.render !== 'multi' && o.render !== 'custom-multi' && o.id !== ds)
     : [];
   // sec kept for bar/stacked chart-type code paths that still render a single secondary.
@@ -321,7 +331,7 @@ function BuildView({ setRoute }) {
   const effGran = supportsGran ? (granList.includes(granularity) ? granularity : granList[0]) : 'annual';
   const isAnnual = effGran === 'annual';
 
-  const primData = isCustomNat ? [] : getGranularSeries(prim, effGran);
+  const primData = (isCustomNat || isGrantRate) ? [] : getGranularSeries(prim, effGran);
   const secData  = sec ? sec.series : null;
 
   // Custom-nationalities picker data derived from NAT_FULL (any of 187) +
@@ -330,12 +340,15 @@ function BuildView({ setRoute }) {
   const natFullYear = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META.year : null;
   const natQ = typeof NAT_QUARTERLY !== 'undefined' ? NAT_QUARTERLY : null;
   const natQNames = uM2(() => new Set((natQ?.series || []).map(s => s.name)), [natQ]);
+  // NAT_GRANT_ANNUAL for the grant-rate picker.
+  const natGrant = typeof NAT_GRANT_ANNUAL !== 'undefined' ? NAT_GRANT_ANNUAL : null;
+  const natGrantNames = uM2(() => natGrant ? natGrant.series.map(s => s.name) : [], [natGrant]);
   const filteredNatNames = uM2(() => {
     const q = natQuery.trim().toLowerCase();
-    const names = natFullRows.map(r => r.name);
+    const names = isGrantRate ? natGrantNames : natFullRows.map(r => r.name);
     if (!q) return names;
     return names.filter(n => n.toLowerCase().includes(q));
-  }, [natFullRows, natQuery]);
+  }, [natFullRows, natGrantNames, natQuery, isGrantRate]);
   const toggleNat = (name) => setSelectedNats(sel =>
     sel.includes(name) ? sel.filter(n => n !== name) : [...sel, name]
   );
@@ -382,7 +395,7 @@ function BuildView({ setRoute }) {
             </div>
           </div>
 
-          {isCustomNat && (
+          {(isCustomNat || isGrantRate) && (
             <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
               <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'flex',justifyContent:'space-between'}}>
                 <span>2 · Nationalities</span>
@@ -398,7 +411,7 @@ function BuildView({ setRoute }) {
                   ))}
                 </div>
               )}
-              <input type="search" placeholder="Search 187 nationalities…" value={natQuery}
+              <input type="search" placeholder={isGrantRate ? `Search ${natGrantNames.length} nationalities…` : 'Search 187 nationalities…'} value={natQuery}
                 onChange={e=>setNatQuery(e.target.value)}
                 style={{width:'100%',fontSize:12.5,padding:'6px 8px',fontFamily:'var(--serif)',border:'1px solid var(--rule-2)',background:'#fff',marginBottom:8}}/>
               <div style={{maxHeight:180,overflowY:'auto',marginRight:-6,paddingRight:6,borderTop:'1px dotted var(--rule-2)'}}>
@@ -413,7 +426,10 @@ function BuildView({ setRoute }) {
                 ))}
               </div>
               <div style={{fontSize:11,color:'var(--muted-2)',marginTop:8,fontStyle:'italic',lineHeight:1.45}}>
-                Rows marked <span className="mono" style={{color:'var(--accent-2)'}}>Q</span> have 8-quarter trend data (NAT_QUARTERLY, top-20). Others show a single annual point from {natFullYear ?? 'latest'}.
+                {isGrantRate
+                  ? `${natGrantNames.length} nationalities with at least 200 decisions and 5 years of data. Grant rate = (refugee + humanitarian protection) / total initial decisions.`
+                  : <>Rows marked <span className="mono" style={{color:'var(--accent-2)'}}>Q</span> have 8-quarter trend data (NAT_QUARTERLY, top-20). Others show a single annual point from {natFullYear ?? 'latest'}.</>
+                }
               </div>
             </div>
           )}
@@ -538,7 +554,60 @@ function BuildView({ setRoute }) {
             {/* Custom-nationalities picker: bar chart of latest-year applicants
                 from NAT_FULL when chartType is bar; otherwise multi-line of
                 last 8 quarters for selected countries that exist in NAT_QUARTERLY. */}
-            {isCustomNat ? (
+            {isGrantRate ? (
+              selectedNats.length === 0 ? (
+                <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
+                  Pick one or more nationalities from the list to see their grant-rate trend.
+                </div>
+              ) : !natGrant ? (
+                <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
+                  Grant-rate data not loaded. Re-run scripts/build_nat_grant_annual.py and bundle.
+                </div>
+              ) : (() => {
+                const usable = selectedNats.filter(n => natGrantNames.includes(n));
+                const missing = selectedNats.filter(n => !natGrantNames.includes(n));
+                const series = usable.map(n => {
+                  const src = natGrant.series.find(s => s.name === n);
+                  return { name: n, data: src?.data ?? [] };
+                });
+                const filteredYears = natGrant.years.filter(y => y >= range[0] && y <= range[1]);
+                const yStart = natGrant.years.indexOf(filteredYears[0]);
+                const yEnd = natGrant.years.indexOf(filteredYears[filteredYears.length - 1]);
+                const filteredSeries = series.map(s => ({
+                  ...s,
+                  data: yEnd >= 0 ? s.data.slice(yStart, yEnd + 1) : s.data,
+                }));
+                const fmtPct = v => v != null ? `${Math.round(v * 100)}%` : '—';
+                return (
+                  <>
+                    <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Grant rate · {filteredYears[0]}–{filteredYears[filteredYears.length-1]}</div>
+                    {missing.length > 0 && (
+                      <div style={{fontSize:12,color:'var(--muted-2)',marginBottom:10,fontStyle:'italic'}}>
+                        Not in grant-rate series (fewer than 200 decisions or 5 years): {missing.join(', ')}.
+                      </div>
+                    )}
+                    {usable.length === 0 ? (
+                      <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
+                        None of the selected nationalities have enough data for a grant-rate series.
+                      </div>
+                    ) : (
+                      <MultiLineChart
+                        years={filteredYears}
+                        series={filteredSeries.map(s => ({
+                          ...s,
+                          data: s.data.map(v => v != null ? Math.round(v * 100) : null),
+                        }))}
+                        width={800} height={360}
+                        showLabels={showLabels}
+                      />
+                    )}
+                    <div style={{fontSize:12,color:'var(--muted-2)',marginTop:8,fontStyle:'italic'}}>
+                      Y-axis: % of initial decisions resulting in refugee status or humanitarian protection. Source: Home Office · ASY_D02.
+                    </div>
+                  </>
+                );
+              })()
+            ) : isCustomNat ? (
               selectedNats.length === 0 ? (
                 <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
                   Pick one or more nationalities from the list to render a chart.
@@ -548,8 +617,14 @@ function BuildView({ setRoute }) {
                   const rows = selectedNats
                     .map(n => ({ name: n, v: natFullRows.find(r => r.name === n)?.v ?? 0 }))
                     .sort((a,b) => b.v - a.v);
+                  const note = (chartType !== 'bar') && (
+                    <div style={{fontSize:12,color:'var(--muted-2)',marginBottom:10,fontStyle:'italic',lineHeight:1.45}}>
+                      Annual nationalities data is a single latest-year snapshot, so <em>{chartType}</em> doesn't apply. Showing a bar chart. Switch to <em>quarterly</em> granularity for time-series chart types.
+                    </div>
+                  );
                   return (
                     <>
+                      {note}
                       <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Applicants · {natFullYear ?? 'latest year'}</div>
                       <BarChart data={rows} width={800} height={Math.max(220, rows.length*30+16)} color="var(--accent)"/>
                     </>
@@ -563,6 +638,60 @@ function BuildView({ setRoute }) {
                     const src = natQ.series.find(s => s.name === n);
                     return { name: n, data: src?.data ?? [] };
                   });
+                  if (usable.length === 0) {
+                    return (
+                      <>
+                        {missing.length > 0 && (
+                          <div style={{fontSize:12,color:'var(--muted-2)',marginBottom:10,fontStyle:'italic'}}>
+                            Not in quarterly series: {missing.join(', ')}. Switch to <em>annual</em> granularity for a snapshot of all selections.
+                          </div>
+                        )}
+                        <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
+                          None of the selected nationalities have quarterly data. Switch to <em>annual</em> granularity.
+                        </div>
+                      </>
+                    );
+                  }
+                  let chart;
+                  if (chartType === 'stacked') {
+                    chart = (
+                      <StackedColumnsMulti
+                        years={natQ.quarters}
+                        series={series}
+                        width={800} height={380}
+                        showLabels={showLabels}
+                      />
+                    );
+                  } else if (chartType === 'bar') {
+                    const latestIdx = natQ.quarters.length - 1;
+                    const latestQ = natQ.quarters[latestIdx];
+                    const rows = series
+                      .map(s => ({ name: s.name, v: s.data[latestIdx] || 0 }))
+                      .sort((a,b) => b.v - a.v);
+                    chart = (
+                      <>
+                        <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Latest quarter · {latestQ}</div>
+                        <BarChart data={rows} width={800} height={Math.max(220, rows.length*30+16)} color="var(--accent)"/>
+                      </>
+                    );
+                  } else {
+                    // line / area / scatter — MultiLineChart is line-only; note the downgrade.
+                    chart = (
+                      <>
+                        {(chartType === 'area' || chartType === 'scatter') && (
+                          <div style={{fontSize:12,color:'var(--muted-2)',marginBottom:10,fontStyle:'italic'}}>
+                            Multi-series <em>{chartType}</em> isn't yet available for nationalities — showing lines instead.
+                          </div>
+                        )}
+                        <MultiLineChart
+                          years={natQ.quarters}
+                          series={series}
+                          width={800} height={360}
+                          showLabels={showLabels}
+                        />
+                      </>
+                    );
+                  }
                   return (
                     <>
                       {missing.length > 0 && (
@@ -570,18 +699,7 @@ function BuildView({ setRoute }) {
                           Not in quarterly series: {missing.join(', ')}. Switch to <em>annual</em> granularity for a snapshot of all selections.
                         </div>
                       )}
-                      {usable.length === 0 ? (
-                        <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
-                          None of the selected nationalities have quarterly data. Switch to <em>annual</em> granularity.
-                        </div>
-                      ) : (
-                        <MultiLineChart
-                          years={natQ.quarters}
-                          series={series}
-                          width={800} height={360}
-                          showLabels={showLabels}
-                        />
-                      )}
+                      {chart}
                     </>
                   );
                 })()

@@ -213,7 +213,7 @@ function StackedColumns({ data, series=['A','B'], colors=['var(--accent)','var(-
           const bY = aY - bH;
           const cx = xCenter(i);
           return (
-            <g key={i} onMouseMove={e=>show(e, <span><b>{d.label ?? d.y}</b> · {series[0]} <span className="tnum">{fmtN(d.a||0)}</span> · {series[1]} <span className="tnum">{fmtN(d.b||0)}</span></span>)} onMouseLeave={hide} style={{cursor:'crosshair'}}>
+            <g key={i} onMouseMove={e=>show(e, <span><b>{d.label ?? d.y}</b> · {series[0]} <span className="tnum">{fmtN(d.a||0)}</span>{(series[1] && (d.b||0) > 0) ? <> · {series[1]} <span className="tnum">{fmtN(d.b)}</span></> : null}</span>)} onMouseLeave={hide} style={{cursor:'crosshair'}}>
               <rect x={cx-bw/2} y={aY} width={bw} height={aH} fill={colors[0]}/>
               {(d.b||0) > 0 && <rect x={cx-bw/2} y={bY} width={bw} height={bH} fill={colors[1]}/>}
               <text x={cx} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{d.label ?? d.y}</text>

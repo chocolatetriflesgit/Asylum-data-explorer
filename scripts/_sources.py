@@ -54,17 +54,23 @@ SOURCES = {
             "scripts/build_nat_quarterly.py",
             "scripts/build_decisions.py",
             "scripts/build_nat_series.py",
+            "scripts/build_sex_age.py",
+            "scripts/build_nat_grant_annual.py",
         ),
         "data_files": (
             "data/nat-full-data.js",
             "data/nat-quarterly-data.js",
             "data/decisions-data.js",
             "data/nat-series-data.js",
+            "data/sex-age-data.js",
+            "data/nat-grant-annual-data.js",
         ),
         "data_globals": (
             "NAT_FULL", "NAT_FULL_META", "NAT_QUARTERLY",
             "DECISIONS_LATEST", "DECISIONS_META",
             "NAT_SERIES_LATEST", "NAT_SERIES_META",
+            "SEX_AGE_ANNUAL", "SEX_AGE_META",
+            "NAT_GRANT_ANNUAL", "NAT_GRANT_ANNUAL_META",
         ),
     },
     "asylum-support": {

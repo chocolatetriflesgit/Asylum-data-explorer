@@ -83,18 +83,34 @@ function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, hei
 function AtlasLegend({ countryValues }) {
   const vMax = Math.max(...Object.values(countryValues), 1);
   const stops = ATLAS_PALETTE.length;
+  // Breakpoint at each transition between adjacent colour stops (sqrt scale).
+  const breakpoints = Array.from({length: stops - 1}, (_, i) =>
+    Math.round(vMax * Math.pow((i + 1) / (stops - 1), 2))
+  );
+  const fmtTick = v => v >= 1000 ? `${Math.round(v/1000)}k` : v.toLocaleString();
   return (
-    <div style={{display:'flex',alignItems:'center',gap:8,marginTop:10,fontSize:11}}>
-      <span className="uc" style={{fontSize:10.5,color:'var(--muted)'}}>Applicants</span>
-      <div style={{display:'flex',flex:'0 1 320px',border:'1px solid var(--rule-2)'}}>
-        {ATLAS_PALETTE.map((hex, i) => (
-          <div key={hex} style={{flex:1,height:10,background:hex}} title={
-            i === 0 ? '0' : `≈${Math.round(vMax * Math.pow(i / (stops - 1), 2)).toLocaleString()}`
-          }/>
-        ))}
+    <div style={{marginTop:10,fontSize:11}}>
+      <div className="uc" style={{fontSize:10.5,color:'var(--muted)',marginBottom:6}}>Applicants</div>
+      <div style={{position:'relative',maxWidth:360}}>
+        <div style={{display:'flex',border:'1px solid var(--rule-2)'}}>
+          {ATLAS_PALETTE.map((hex, i) => (
+            <div key={hex} style={{flex:1,height:10,background:hex}}/>
+          ))}
+        </div>
+        <div style={{position:'relative',height:14,marginTop:2}}>
+          <span style={{position:'absolute',left:0,fontSize:10.5,color:'var(--muted-2)',fontVariantNumeric:'tabular-nums'}}>0</span>
+          {breakpoints.map((v, i) => (
+            <span key={i} style={{
+              position:'absolute',
+              left:`${((i + 1) / stops) * 100}%`,
+              transform:'translateX(-50%)',
+              fontSize:10.5,
+              color:'var(--muted-2)',
+              fontVariantNumeric:'tabular-nums',
+            }}>{fmtTick(v)}</span>
+          ))}
+        </div>
       </div>
-      <span style={{color:'var(--muted-2)'}}>0</span>
-      <span style={{color:'var(--muted-2)',marginLeft:'auto'}}>{vMax.toLocaleString()}</span>
     </div>
   );
 }
