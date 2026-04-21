@@ -253,40 +253,9 @@ function DashboardView({ setRoute }) {
         ))}
       </section>
 
-      {/* Time range filter — below KPI cards so figures are seen before filtering */}
-      <div style={{borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
-        <div style={{flex:'0 1 540px',minWidth:300}}>
-          <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
-            <span className="tick tick-accent"/>Time range
-          </div>
-          <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
-        </div>
-      </div>
-
-      {/* Section focus — placed after KPIs so the numbers are visible before the user filters */}
-      <div style={{display:'flex',alignItems:'center',gap:10,margin:'0 0 28px',paddingTop:20,paddingBottom:20,borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
-        <span className="uc" style={{color:'var(--muted)',marginRight:4}}>Jump to</span>
-        {[
-          { id:'all', label:'All sections' },
-          { id:'applications', label:'Applications & journeys' },
-          { id:'decisions', label:'Decisions' },
-          { id:'geography', label:'Geography' },
-        ].map(f => (
-          <button key={f.id} onClick={()=>setFocus(f.id)}
-            style={{
-              fontSize:12,letterSpacing:0.04,padding:'6px 14px',
-              fontFamily:'var(--serif)',
-              background: focus===f.id ? 'var(--accent)' : '#fff',
-              color: focus===f.id ? 'var(--bg)' : 'var(--ink-2)',
-              border:'1px solid ' + (focus===f.id ? 'var(--accent)' : 'var(--rule-2)'),
-              cursor:'pointer',
-            }}>{f.label}</button>
-        ))}
-      </div>
-
-      {/* Provisional last-7-days strip — daily gov.uk update between weekly ODS releases. */}
-      {provisional && provisionalDays.length > 0 && (focus === 'all' || focus === 'applications') && (
-        <section style={{marginBottom:36,padding:'18px 22px',border:'1px dashed var(--rule-2)',background:'var(--bg-2)',borderRadius:4}}>
+      {/* Provisional last-7-days strip — pinned below KPI cards as latest-news. */}
+      {provisional && provisionalDays.length > 0 && (
+        <section style={{marginBottom:0,padding:'18px 22px',border:'1px dashed var(--rule-2)',background:'var(--bg-2)',borderRadius:0,borderLeft:'none',borderRight:'none'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,gap:24,flexWrap:'wrap'}}>
             <div>
               <div className="uc" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,fontWeight:500,marginBottom:8}}>Last 7 days · provisional</div>
@@ -347,6 +316,37 @@ function DashboardView({ setRoute }) {
           </div>
         </section>
       )}
+
+      {/* Time range filter */}
+      <div style={{borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
+        <div style={{flex:'0 1 540px',minWidth:300}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
+            <span className="tick tick-accent"/>Time range
+          </div>
+          <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
+        </div>
+      </div>
+
+      {/* Section focus nav */}
+      <div style={{display:'flex',alignItems:'center',gap:10,margin:'0 0 28px',paddingTop:20,paddingBottom:20,borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
+        <span className="uc" style={{color:'var(--muted)',marginRight:4}}>Jump to</span>
+        {[
+          { id:'all', label:'All sections' },
+          { id:'applications', label:'Applications & journeys' },
+          { id:'decisions', label:'Decisions' },
+          { id:'geography', label:'Geography' },
+        ].map(f => (
+          <button key={f.id} onClick={()=>setFocus(f.id)}
+            style={{
+              fontSize:12,letterSpacing:0.04,padding:'6px 14px',
+              fontFamily:'var(--serif)',
+              background: focus===f.id ? 'var(--accent)' : '#fff',
+              color: focus===f.id ? 'var(--bg)' : 'var(--ink-2)',
+              border:'1px solid ' + (focus===f.id ? 'var(--accent)' : 'var(--rule-2)'),
+              cursor:'pointer',
+            }}>{f.label}</button>
+        ))}
+      </div>
 
       {/* Main chart grid — 2 columns */}
       {(focus === 'all' || focus === 'applications') && (
