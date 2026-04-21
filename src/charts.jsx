@@ -790,4 +790,106 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
   );
 }
 
-Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor });
+// ─────────────────────────────────────────────────────────────
+// Sankey chart — two-column nationality → decision outcome flow
+// nodes: [{id, label, col (0=left,1=right), value, color}]
+// links: [{source, target, value}]  (source must be col-0 node)
+// ─────────────────────────────────────────────────────────────
+function SankeyChart({ nodes, links, width = 820, height = 500 }) {
+  const { show, hide, node: ttNode } = useTooltip();
+
+  const NODE_W = 20;
+  const GAP    = 8;
+  const PAD    = { l: 150, r: 185, t: 12, b: 12 };
+
+  const leftNodes  = nodes.filter(n => n.col === 0);
+  const rightNodes = nodes.filter(n => n.col === 1);
+  const totalVal   = leftNodes.reduce((s, n) => s + n.value, 0);
+  const innerH     = height - PAD.t - PAD.b;
+
+  // Compute pixel y and h for every node
+  const layout = {};
+  for (const [colNodes, xBase] of [
+    [leftNodes,  PAD.l],
+    [rightNodes, width - PAD.r - NODE_W],
+  ]) {
+    const avail = innerH - GAP * (colNodes.length - 1);
+    let y = PAD.t;
+    for (const n of colNodes) {
+      const h = Math.max(2, (n.value / totalVal) * avail);
+      layout[n.id] = { x: xBase, y, h };
+      y += h + GAP;
+    }
+  }
+
+  // Advancing cursors so each link picks up where the last left off
+  const srcY = Object.fromEntries(nodes.map(n => [n.id, layout[n.id]?.y ?? 0]));
+  const tgtY = Object.fromEntries(nodes.map(n => [n.id, layout[n.id]?.y ?? 0]));
+
+  const renderedLinks = links.map(lk => {
+    const sn = nodes.find(n => n.id === lk.source);
+    const tn = nodes.find(n => n.id === lk.target);
+    const sl = layout[lk.source], tl = layout[lk.target];
+    if (!sl || !tl || !sn || !tn || !sn.value || !tn.value || lk.value <= 0) return null;
+
+    const lhS = (lk.value / sn.value) * sl.h;
+    const lhT = (lk.value / tn.value) * tl.h;
+    const x0 = sl.x + NODE_W, sy = srcY[lk.source];
+    const x1 = tl.x,          ty = tgtY[lk.target];
+    const mx = (x0 + x1) / 2;
+
+    srcY[lk.source] += lhS;
+    tgtY[lk.target] += lhT;
+
+    const d = [
+      `M ${x0} ${sy}`,
+      `C ${mx} ${sy}, ${mx} ${ty}, ${x1} ${ty}`,
+      `L ${x1} ${ty + lhT}`,
+      `C ${mx} ${ty + lhT}, ${mx} ${sy + lhS}, ${x0} ${sy + lhS}`,
+      'Z',
+    ].join(' ');
+
+    const pct = ((lk.value / totalVal) * 100).toFixed(1);
+    const tt  = <span><b>{sn.label}</b> → <b>{tn.label}</b>: <span className="tnum">{fmtN(lk.value)}</span> ({pct}%)</span>;
+    return { d, color: sn.color, tt, key: `${lk.source}→${lk.target}` };
+  }).filter(Boolean);
+
+  return (
+    <figure className="chart-wrap" style={{ position: 'relative', margin: 0 }}>
+      <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+        {renderedLinks.map(lk => (
+          <path key={lk.key} d={lk.d}
+            fill={lk.color} fillOpacity={0.35} stroke="none"
+            onMouseMove={e => show(e, lk.tt)} onMouseLeave={hide}
+            style={{ cursor: 'default' }}/>
+        ))}
+        {nodes.map(n => {
+          const nl = layout[n.id];
+          if (!nl) return null;
+          const pct  = ((n.value / totalVal) * 100).toFixed(1);
+          const tt   = <span><b>{n.label}</b>: <span className="tnum">{fmtN(n.value)}</span> ({pct}%)</span>;
+          const isLeft = n.col === 0;
+          return (
+            <g key={n.id} onMouseMove={e => show(e, tt)} onMouseLeave={hide} style={{ cursor: 'default' }}>
+              <rect x={nl.x} y={nl.y} width={NODE_W} height={nl.h} fill={n.color} rx={2}/>
+              {isLeft ? (
+                <text x={nl.x - 8} y={nl.y + nl.h / 2}
+                  textAnchor="end" dominantBaseline="middle"
+                  fontSize={11} fontFamily="var(--serif)" fill="var(--ink-2)">{n.label}</text>
+              ) : (
+                <text x={nl.x + NODE_W + 8} y={nl.y + nl.h / 2 - 7}
+                  textAnchor="start" fontSize={11} fontFamily="var(--serif)" fill="var(--ink-2)">
+                  <tspan>{n.label}</tspan>
+                  <tspan x={nl.x + NODE_W + 8} dy={14} fontSize={10} fill="var(--muted)">{fmtN(n.value)} · {pct}%</tspan>
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      {ttNode}
+    </figure>
+  );
+}
+
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor, SankeyChart });

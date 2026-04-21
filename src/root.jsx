@@ -82,6 +82,7 @@ function App() {
       {route.name === 'story' && <StoryView id={route.id} setRoute={setRoute} onMethod={()=>setMethod(true)}/>}
       {route.name === 'datasets' && <DatasetsView setRoute={setRoute}/>}
       {route.name === 'build' && <BuildView setRoute={setRoute}/>}
+      {route.name === 'flow' && <FlowView setRoute={setRoute}/>}
 
       <footer style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
         <div>

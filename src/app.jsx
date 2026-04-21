@@ -16,6 +16,7 @@ function Header({ route, setRoute, onSearch, onMethod }) {
     { id: 'index', label: 'Stories' },
     { id: 'datasets', label: 'Datasets' },
     { id: 'build', label: 'Build a chart' },
+    { id: 'flow',  label: 'Flow' },
   ];
   return (
     <header style={{background:'var(--bg)',borderBottom:'1px solid var(--rule)',position:'sticky',top:0,zIndex:50,backdropFilter:'blur(6px)'}}>

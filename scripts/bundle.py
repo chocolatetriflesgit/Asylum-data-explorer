@@ -49,6 +49,7 @@ SRC_ORDER = [
     "dashboard-view.jsx",
     "views-story-build.jsx",
     "atlas-view.jsx",
+    "flow-view.jsx",
     "root.jsx",
 ]
 
