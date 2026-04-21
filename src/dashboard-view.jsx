@@ -358,7 +358,6 @@ function DashboardView({ setRoute }) {
                 annotations={[
                   range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
                 ].filter(Boolean)}
-                breakY={[50000, 75000]}
                 source="Home Office · ASY_D01"/>
             </DashFrame>
             <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals" sub={`UK · ${range[0]}–${range[1]}`}>
@@ -388,7 +387,7 @@ function DashboardView({ setRoute }) {
             <DashFrame number="03" kickerColor="var(--accent-gold)" title="Top five nationalities"
               sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}>
               {(() => { const ns = (typeof NAT_SERIES_LATEST !== 'undefined') ? NAT_SERIES_LATEST : NAT_SERIES;
-                return <MultiLineChart years={ns.years} series={ns.series} width={760} height={260}/>; })()}
+                return <MultiLineChart years={ns.years} series={ns.series} width={760} height={260} breakY={[4000, 7000]}/>; })()}
             </DashFrame>
             <DashFrame number="03a" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}>
               <NationalitiesTable data={natFull}/>

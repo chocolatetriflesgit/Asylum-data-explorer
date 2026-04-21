@@ -5,6 +5,9 @@ name: Bundle check
 # differs from the committed index.html. Push-to-main is NOT gated — the
 # daily update-data workflow is authoritative there and re-bundles itself.
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     paths:

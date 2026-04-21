@@ -200,7 +200,7 @@ function LineChart({
 // Multi-line chart
 // ─────────────────────────────────────────────────────────────
 const MULTI_COLORS = ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)', 'var(--accent-gold)', 'var(--muted)'];
-function MultiLineChart({ years, series, width=720, height=300, showLabels=false, legend=false, yLabel=null }) {
+function MultiLineChart({ years, series, width=720, height=300, showLabels=false, legend=false, yLabel=null, breakY=null }) {
   const { show, hide, node } = useTooltip();
   const pad = { t: 16, r: legend ? 24 : 120, b: 32, l: 48 };
   const W = width, H = height;
@@ -208,8 +208,36 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
   const allV = series.flatMap(s=>s.data);
   const yMax = Math.max(...allV) * 1.12;
   const x = i => pad.l + (i/(years.length-1))*iw;
-  const y = v => pad.t + (1 - v/yMax)*ih;
-  const yTicks = [0, yMax*0.25, yMax*0.5, yMax*0.75, yMax].map(v=>Math.round(v/1000)*1000).filter((v,i,a)=>a.indexOf(v)===i);
+
+  const effectiveBreak = breakY && allV.some(v=>v<breakY[0]) && allV.some(v=>v>breakY[1]) ? breakY : null;
+  const BAND_H = 28;
+  let bandBot = null, bandTop = null;
+  if (effectiveBreak) {
+    const [bLo, bHi] = effectiveBreak;
+    const lowerPx = (ih - BAND_H) * bLo / (bLo + (yMax - bHi));
+    bandBot = H - pad.b - lowerPx;
+    bandTop = bandBot - BAND_H;
+  }
+  const y = v => {
+    if (!effectiveBreak) return pad.t + (1 - v/yMax)*ih;
+    const [bLo, bHi] = effectiveBreak;
+    if (v <= bLo) return H - pad.b - (v/bLo) * (H - pad.b - bandBot);
+    if (v >= bHi) return bandTop - ((v-bHi)/(yMax-bHi)) * (bandTop - pad.t);
+    return bandBot - ((v-bLo)/(bHi-bLo)) * BAND_H;
+  };
+
+  let yTicks;
+  if (effectiveBreak) {
+    const [bLo, bHi] = effectiveBreak;
+    const loStep = Math.max(1000, Math.round(bLo/2/1000)*1000);
+    const hiStep = Math.max(1000, Math.round((Math.ceil(yMax/1000)*1000-bHi)/2/1000)*1000);
+    const lower = [], upper = [];
+    for (let v=0; v<=bLo; v+=loStep) lower.push(v);
+    for (let v=bHi; v<=Math.ceil(yMax/1000)*1000; v+=hiStep) upper.push(v);
+    yTicks = [...new Set([...lower, ...upper])];
+  } else {
+    yTicks = [0, yMax*0.25, yMax*0.5, yMax*0.75, yMax].map(v=>Math.round(v/1000)*1000).filter((v,i,a)=>a.indexOf(v)===i);
+  }
 
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
@@ -238,13 +266,34 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
         ))}
         <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
         {yLabel && <text x={pad.l} y={pad.t - 4} textAnchor="start" fontSize="10" fill="var(--muted)" style={{fontFamily:'var(--serif)'}}>{yLabel}</text>}
+        {/* Lines rendered first so break band can mask them */}
         {series.map((s,si)=>{
           const color = MULTI_COLORS[si % MULTI_COLORS.length];
           const pts = s.data.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+          return <polyline key={`line-${si}`} points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>;
+        })}
+        {/* Break band mask */}
+        {effectiveBreak && (()=>{
+          const [bLo, bHi] = effectiveBreak;
+          const zigzag = yPos => {
+            const amp=2.5, period=10, steps=Math.ceil(iw/period);
+            let d=`M ${pad.l} ${yPos}`;
+            for (let i=0;i<=steps;i++) d+=` L ${Math.min(pad.l+i*period,pad.l+iw)} ${yPos+(i%2===0?amp:-amp)}`;
+            return d;
+          };
+          return (<>
+            <rect x={pad.l} y={bandTop} width={iw} height={BAND_H} fill="var(--bg-2)" opacity="0.97"/>
+            <path d={zigzag(bandBot)} fill="none" stroke="var(--muted)" strokeWidth="0.8" strokeDasharray="2 1"/>
+            <path d={zigzag(bandTop)} fill="none" stroke="var(--muted)" strokeWidth="0.8" strokeDasharray="2 1"/>
+            <text x={pad.l+iw+8} y={(bandTop+bandBot)/2+4} fontSize="10" fill="var(--muted-2)" style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>break</text>
+          </>);
+        })()}
+        {/* Dots and labels on top of break band */}
+        {series.map((s,si)=>{
+          const color = MULTI_COLORS[si % MULTI_COLORS.length];
           const last = s.data.length-1;
           return (
-            <g key={`${si}-${s.name}`}>
-              <polyline points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>
+            <g key={`pts-${si}-${s.name}`}>
               {s.data.map((v,i)=>(
                 <g key={i}>
                   <circle cx={x(i)} cy={y(v)} r="2.6" fill={color}/>
