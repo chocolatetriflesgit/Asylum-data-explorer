@@ -127,7 +127,7 @@ function StoryView({ id, setRoute, onMethod }) {
               <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Figure 03 · 2020–2024</div>
               <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top five nationalities</div>
             </div>
-            <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={720} height={280} breakY={[4000, 7000]}/>
+            <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={720} height={280}/>
             <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · ASY_D01</div>
           </div>
         </div>
@@ -844,6 +844,7 @@ function BuildView({ setRoute }) {
                   width={800} height={360}
                   showLabels={showLabels}
                   legend={true}
+                  breakY={ds === 'nationalities' ? [4000, 7000] : null}
                 />
               )
             ) : overlayOn ? (

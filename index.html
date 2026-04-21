@@ -2229,7 +2229,7 @@ function DashboardView({ setRoute }) {
             <DashFrame number="03" kickerColor="var(--accent-gold)" title="Top five nationalities"
               sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}>
               {(() => { const ns = (typeof NAT_SERIES_LATEST !== 'undefined') ? NAT_SERIES_LATEST : NAT_SERIES;
-                return <MultiLineChart years={ns.years} series={ns.series} width={760} height={260} breakY={[4000, 7000]}/>; })()}
+                return <MultiLineChart years={ns.years} series={ns.series} width={760} height={260}/>; })()}
             </DashFrame>
             <DashFrame number="03a" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}>
               <NationalitiesTable data={natFull}/>
@@ -2798,7 +2798,7 @@ function StoryView({ id, setRoute, onMethod }) {
               <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Figure 03 · 2020–2024</div>
               <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top five nationalities</div>
             </div>
-            <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={720} height={280} breakY={[4000, 7000]}/>
+            <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={720} height={280}/>
             <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · ASY_D01</div>
           </div>
         </div>
@@ -3515,6 +3515,7 @@ function BuildView({ setRoute }) {
                   width={800} height={360}
                   showLabels={showLabels}
                   legend={true}
+                  breakY={ds === 'nationalities' ? [4000, 7000] : null}
                 />
               )
             ) : overlayOn ? (
