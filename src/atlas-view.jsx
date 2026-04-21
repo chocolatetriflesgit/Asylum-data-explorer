@@ -40,7 +40,14 @@ function resolveNat(mapCountryName) {
 // (loaded before this file in the bundle) so that both the dashboard's
 // WorldMapChoropleth and this top-level atlas view share the same 6-stop scale.
 
-function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, height=440 }) {
+const ATLAS_METRIC_OPTIONS = [
+  { id: 'applicants',   label: 'Applicants' },
+  { id: 'grant_rate',   label: 'Grant rate' },
+  { id: 'returns',      label: 'Returns' },
+  { id: 'age_disputes', label: 'Age disputes' },
+];
+
+function AtlasChoropleth({ countryValues, selectedName, onSelect, metricLabel = 'applicants', width=820, height=440 }) {
   const worldMap = (typeof WORLD_MAP !== 'undefined') ? WORLD_MAP : null;
   // Hooks must be called unconditionally — call before the early return.
   const zoom = useMapZoom(width, height);
@@ -69,7 +76,7 @@ function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, hei
                 stroke={isSel ? 'var(--accent)' : 'var(--rule-2)'} strokeWidth={isSel ? 1.4 : 0.4}
                 onClick={() => { if (!zoom.didDrag() && nat) onSelect(nat); }}
                 style={{cursor: nat ? (zoom.zoomed ? 'grab' : 'pointer') : 'default'}}>
-                <title>{c.name}{v > 0 ? ` — ${v.toLocaleString()} applicants` : ''}</title>
+                <title>{c.name}{v > 0 ? ` — ${v.toLocaleString()} ${metricLabel}` : ''}</title>
               </path>
             );
           })}
@@ -80,7 +87,7 @@ function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, hei
   );
 }
 
-function AtlasLegend({ countryValues }) {
+function AtlasLegend({ countryValues, metricLabel = 'Applicants' }) {
   const vMax = Math.max(...Object.values(countryValues), 1);
   const stops = ATLAS_PALETTE.length;
   // Breakpoint at each transition between adjacent colour stops (sqrt scale).
@@ -90,7 +97,7 @@ function AtlasLegend({ countryValues }) {
   const fmtTick = v => v >= 1000 ? `${Math.round(v/1000)}k` : v.toLocaleString();
   return (
     <div style={{marginTop:10,fontSize:11}}>
-      <div className="uc" style={{fontSize:10.5,color:'var(--muted)',marginBottom:6}}>Applicants</div>
+      <div className="uc" style={{fontSize:10.5,color:'var(--muted)',marginBottom:6}}>{metricLabel}</div>
       <div style={{position:'relative',maxWidth:360}}>
         <div style={{display:'flex',border:'1px solid var(--rule-2)'}}>
           {ATLAS_PALETTE.map((hex, i) => (
@@ -139,6 +146,9 @@ function AtlasDetail({ name, setRoute }) {
   const returns = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
   const ageDisputes = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
 
+  const grantData = typeof NAT_GRANT_ANNUAL !== 'undefined' ? NAT_GRANT_ANNUAL : null;
+  const grantSeries = grantData?.series?.find(s => s.name === name);
+
   const apps = natFull.find(r => r.name === name);
   const qRow = natQ?.series?.find(s => s.name === name);
   const ret = returns.find(r => r.name === name);
@@ -175,6 +185,23 @@ function AtlasDetail({ name, setRoute }) {
           No quarterly trend available (country not in NAT_QUARTERLY top-20).
         </div>
       )}
+      {grantSeries && grantData ? (
+        <div style={{background:'#fff',padding:'14px 16px',border:'1px solid var(--rule-2)',marginTop:10}}>
+          <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8}}>
+            Grant rate · {grantData.years[0]}–{grantData.years[grantData.years.length - 1]} · % of initial decisions granted
+          </div>
+          <MultiLineChart
+            years={grantData.years}
+            series={[{ name, data: grantSeries.data.map(v => v != null ? Math.round(v * 100) : null) }]}
+            width={720} height={140}
+            showLabels={false}
+          />
+        </div>
+      ) : (
+        <div style={{padding:'14px 16px',color:'var(--muted-2)',fontStyle:'italic',fontSize:13,background:'#fff',border:'1px dotted var(--rule-2)',marginTop:10}}>
+          No grant-rate trend (fewer than 200 total decisions, or fewer than 5 years with data).
+        </div>
+      )}
       {!apps && !ret && !ad && (
         <div style={{marginTop:12,fontSize:12,color:'var(--muted-2)',fontStyle:'italic'}}>
           No applicants, returns, or age-dispute records for this country in the latest data.
@@ -192,11 +219,24 @@ function AtlasDetail({ name, setRoute }) {
 
 function AtlasView({ setRoute }) {
   const [selected, setSelected] = uSA(null);
+  const [metric, setMetric] = uSA('applicants');
 
   const countryValues = uMA(() => {
     const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
-    return Object.fromEntries(natFull.map(r => [r.name, r.v]));
-  }, []);
+    if (metric === 'applicants') return Object.fromEntries(natFull.map(r => [r.name, r.v]));
+    if (metric === 'grant_rate') return Object.fromEntries(natFull.filter(r => r.grant != null).map(r => [r.name, Math.round(r.grant * 100)]));
+    if (metric === 'returns') {
+      const ret = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
+      return Object.fromEntries(ret.map(r => [r.name, r.total]));
+    }
+    if (metric === 'age_disputes') {
+      const ad = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
+      return Object.fromEntries(ad.map(r => [r.name, r.raised]));
+    }
+    return {};
+  }, [metric]);
+
+  const metricLabel = ATLAS_METRIC_OPTIONS.find(m => m.id === metric)?.label ?? 'Applicants';
 
   const topCountries = uMA(() => {
     const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
@@ -212,10 +252,23 @@ function AtlasView({ setRoute }) {
           Choropleth of asylum applicants by country of origin. Click any country to see applicants, grant rate, returns, and age disputes in one panel.
         </p>
       </div>
+      <div style={{display:'flex',gap:6,marginBottom:16}}>
+        {ATLAS_METRIC_OPTIONS.map(m => (
+          <button key={m.id} onClick={() => setMetric(m.id)}
+            style={{
+              padding:'4px 16px', fontSize:12, border:'1px solid var(--rule-2)',
+              background: metric === m.id ? 'var(--accent)' : 'var(--bg-2)',
+              color: metric === m.id ? '#fff' : 'var(--ink-2)',
+              fontFamily:'var(--serif)', cursor:'pointer',
+            }}>
+            {m.label}
+          </button>
+        ))}
+      </div>
       <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.4fr) minmax(360px,1fr)',gap:28,alignItems:'start'}}>
         <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'12px'}}>
-          <AtlasChoropleth countryValues={countryValues} selectedName={selected} onSelect={setSelected}/>
-          <AtlasLegend countryValues={countryValues}/>
+          <AtlasChoropleth countryValues={countryValues} selectedName={selected} onSelect={setSelected} metricLabel={metricLabel.toLowerCase()}/>
+          <AtlasLegend countryValues={countryValues} metricLabel={metricLabel}/>
           <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:12,paddingTop:10,borderTop:'1px dotted var(--rule-2)'}}>
             <span className="uc" style={{fontSize:10.5,color:'var(--muted)',marginRight:8}}>Jump to:</span>
             {topCountries.map(c => (

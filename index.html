@@ -381,14 +381,26 @@ const STORIES = [
 
 // Datasets shown on the browse list
 const DATASETS = [
-  { code: 'ASY_D01', name: 'Asylum applications, by nationality',    rows: '1,248,220', updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'ASY_D02', name: 'Initial decisions on asylum applications', rows: '884,014',   updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'ASY_D03', name: 'Age and sex of asylum applicants',         rows: '492,100',   updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'ASY_D04', name: 'Appeals outcomes',                         rows: '221,400',   updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'IRR_D01', name: 'Irregular migration to the UK',            rows: '618,900',   updated: '05 Apr 2026', freq: 'Monthly'   },
-  { code: 'RES_D01', name: 'Refugee resettlement and family schemes',  rows: '94,820',    updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'RES_D02', name: 'Ukraine schemes visa statistics',          rows: '318,400',   updated: '12 Apr 2026', freq: 'Monthly'   },
-  { code: 'ASY_D05', name: 'Support provided to asylum seekers',       rows: '412,200',   updated: '12 Apr 2026', freq: 'Quarterly' },
+  // Asylum claims
+  { code: 'ASY_D01', name: 'Asylum applications, by nationality',        rows: '1,248,220', updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D02', name: 'Initial decisions on asylum applications',    rows: '884,014',   updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D03', name: 'Age and sex of asylum applicants',            rows: '492,100',   updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D04', name: 'Appeals outcomes',                            rows: '221,400',   updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D07', name: 'Asylum seekers awaiting a decision (backlog)',rows: '~186,400',  updated: '12 Apr 2026', freq: 'Quarterly' },
+  // Support & accommodation
+  { code: 'ASY_D05', name: 'Support provided to asylum seekers',          rows: '412,200',   updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D09', name: 'Asylum seekers in receipt of support (hotels)',rows: '~88,200',  updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D11', name: 'Asylum support by local authority',           rows: '~39,600',   updated: '12 Apr 2026', freq: 'Quarterly' },
+  // Age disputes
+  { code: 'AGE_D01', name: 'Age disputes by nationality',                 rows: '~4,700',    updated: '12 Apr 2026', freq: 'Annual'    },
+  // Small boats crossings
+  { code: 'SB_D01',  name: 'Small boats: daily crossings (2018–present)', rows: '~2,920',    updated: '17 Apr 2026', freq: 'Weekly'    },
+  { code: 'SB_D02',  name: 'Small boats: last 7 days (provisional)',      rows: '7',          updated: '20 Apr 2026', freq: 'Daily'     },
+  // Irregular migration (non-boat)
+  { code: 'IRR_D01', name: 'Irregular migration to the UK',               rows: '618,900',   updated: '05 Apr 2026', freq: 'Monthly'   },
+  // Resettlement
+  { code: 'RES_D01', name: 'Refugee resettlement and family schemes',     rows: '94,820',    updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'RES_D02', name: 'Ukraine schemes visa statistics',             rows: '318,400',   updated: '12 Apr 2026', freq: 'Monthly'   },
 ];
 
 // Region-of-origin lookup for NAT_FULL. Egypt counted as Middle East per editorial call;
@@ -1003,7 +1015,25 @@ function RegionWorldMap({ data, width=720, height=380 }) {
   );
 }
 
-function RegionTable({ data }) {
+function RegionTable({ data, rows }) {
+  const [expanded, setExpanded] = React.useState(new Set());
+  const toggle = name => setExpanded(prev => {
+    const next = new Set(prev);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    return next;
+  });
+
+  // Build region → sorted country list from raw nationality rows.
+  const byRegion = React.useMemo(() => {
+    if (!rows) return {};
+    const m = {};
+    for (const r of rows) {
+      const reg = (typeof REGION_MAP !== 'undefined' ? REGION_MAP[r.name] : null) ?? 'Other / Unclassified';
+      (m[reg] = m[reg] || []).push(r);
+    }
+    return m;
+  }, [rows]);
+
   const total = data.reduce((s, d) => s + d.v, 0);
   const vMax = Math.max(...data.map(d => d.v), 1);
   // Legend swatches reuse the same 6-stop palette as the map, so the colour
@@ -1012,6 +1042,7 @@ function RegionTable({ data }) {
     if (!(v > 0)) return ATLAS_PALETTE[0];
     return atlasPaletteColor(Math.sqrt(v / vMax));
   };
+
   return (
     <table style={{width:'100%',borderCollapse:'collapse',fontSize:13.5}}>
       <thead>
@@ -1022,16 +1053,43 @@ function RegionTable({ data }) {
         </tr>
       </thead>
       <tbody>
-        {data.map(r => (
-          <tr key={r.name} style={{borderBottom:'1px solid var(--rule)'}}>
-            <td style={{padding:'10px 0',color:'var(--ink)'}}>
-              <span style={{display:'inline-block',width:12,height:12,marginRight:8,verticalAlign:'middle',background:fillFor(r.v),borderRadius:2,border:'1px solid var(--rule-2)'}}/>
-              {r.name}
-            </td>
-            <td className="tnum" style={{padding:'10px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
-            <td className="tnum" style={{padding:'10px 0',textAlign:'right',color:'var(--muted)'}}>{(r.v/total*100).toFixed(1)}%</td>
-          </tr>
-        ))}
+        {data.map(r => {
+          const isOpen = expanded.has(r.name);
+          const countries = byRegion[r.name] ? [...byRegion[r.name]].sort((a, b) => b.v - a.v) : [];
+          const canExpand = rows && countries.length > 0;
+          return (
+            <React.Fragment key={r.name}>
+              <tr
+                style={{borderBottom:'1px solid var(--rule)', cursor: canExpand ? 'pointer' : 'default'}}
+                onClick={canExpand ? () => toggle(r.name) : undefined}
+              >
+                <td style={{padding:'10px 0',color:'var(--ink)'}}>
+                  {canExpand && (
+                    <span style={{
+                      display:'inline-block', width:10, marginRight:4, fontSize:9,
+                      color:'var(--muted)', userSelect:'none',
+                      transform: isOpen ? 'rotate(90deg)' : 'none',
+                      transition:'transform 0.15s', verticalAlign:'middle',
+                    }}>▶</span>
+                  )}
+                  <span style={{display:'inline-block',width:12,height:12,marginRight:8,verticalAlign:'middle',background:fillFor(r.v),borderRadius:2,border:'1px solid var(--rule-2)'}}/>
+                  {r.name}
+                </td>
+                <td className="tnum" style={{padding:'10px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
+                <td className="tnum" style={{padding:'10px 0',textAlign:'right',color:'var(--muted)'}}>{(r.v/total*100).toFixed(1)}%</td>
+              </tr>
+              {isOpen && countries.map(c => (
+                <tr key={c.name} style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
+                  <td style={{padding:'5px 0 5px 26px',color:'var(--ink-2)',fontSize:12.5}}>{c.name}</td>
+                  <td className="tnum" style={{padding:'5px 0',textAlign:'right',fontSize:12.5}}>{fmtN(c.v)}</td>
+                  <td className="tnum" style={{padding:'5px 0',textAlign:'right',color:'var(--muted)',fontSize:12.5}}>
+                    {c.grant != null ? `${Math.round(c.grant * 100)}%` : `${(c.v / total * 100).toFixed(1)}%`}
+                  </td>
+                </tr>
+              ))}
+            </React.Fragment>
+          );
+        })}
         <tr>
           <td className="uc" style={{padding:'12px 0 0',color:'var(--muted)'}}>Total</td>
           <td className="tnum" style={{padding:'12px 0 0',textAlign:'right',color:'var(--ink)',fontWeight:500}}>{fmtN(total)}</td>
@@ -2001,9 +2059,8 @@ function DashboardView({ setRoute }) {
               <DashFrame number="08" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from ASY_D01`}>
                 <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.3fr) minmax(260px,1fr)',gap:28,alignItems:'start'}}>
                   <WorldMapChoropleth data={groupNatByRegion(natFull)} width={720} height={380}/>
-                  <RegionTable data={groupNatByRegion(natFull)}/>
+                  <RegionTable data={groupNatByRegion(natFull)} rows={natFull}/>
                 </div>
-                <RegionAccordion rows={natFull}/>
               </DashFrame>
             </div>
           )}
@@ -2364,44 +2421,6 @@ function DashFrame({ number, kickerColor, title, sub, children, style={} }) {
   );
 }
 
-function RegionAccordion({ rows }) {
-  if (!rows || !rows.length) return null;
-  const byRegion = {};
-  for (const r of rows) {
-    const reg = REGION_MAP[r.name] ?? 'Other / Unclassified';
-    (byRegion[reg] = byRegion[reg] || []).push(r);
-  }
-  const regionOrder = Object.entries(byRegion)
-    .map(([name, list]) => ({ name, list, total: list.reduce((s,x)=>s+x.v,0) }))
-    .sort((a,b) => b.total - a.total);
-  return (
-    <details style={{marginTop:24,borderTop:'1px dotted var(--rule-2)',paddingTop:14}}>
-      <summary style={{cursor:'pointer',fontSize:12.5,color:'var(--muted)',letterSpacing:0.08,textTransform:'uppercase',fontWeight:500,padding:'4px 0'}}>Countries by region</summary>
-      <div style={{marginTop:14,display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:22}}>
-        {regionOrder.map(({name, list, total}) => (
-          <section key={name} style={{border:'1px solid var(--rule-2)',padding:'14px 16px',background:'#fff'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8,paddingBottom:6,borderBottom:'1px solid var(--rule-2)'}}>
-              <div style={{fontFamily:'var(--serif)',fontSize:15,fontWeight:500,color:'var(--ink)'}}>{name}</div>
-              <div className="tnum" style={{fontSize:12,color:'var(--muted)'}}>{total.toLocaleString()} total</div>
-            </div>
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12.5}}>
-              <tbody>
-                {list.sort((a,b)=>b.v-a.v).map(r => (
-                  <tr key={r.name} style={{borderBottom:'1px dotted var(--rule-2)'}}>
-                    <td style={{padding:'4px 0',color:'var(--ink-2)'}}>{r.name}</td>
-                    <td className="tnum" style={{padding:'4px 0',textAlign:'right',color:'var(--ink)'}}>{r.v.toLocaleString()}</td>
-                    <td className="tnum" style={{padding:'4px 0 4px 10px',textAlign:'right',color:'var(--muted)',width:44}}>{r.grant != null ? `${Math.round(r.grant*100)}%` : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        ))}
-      </div>
-    </details>
-  );
-}
-
 Object.assign(window, { DashboardView });
 
 
@@ -2689,6 +2708,56 @@ const DATASET_OPTIONS = [
     color: 'var(--accent-2)',
     series: [],
   },
+  // ── Asylum & immigration datasets ────────────────────────────
+  { id: '__divider__', divider: true, label: 'Asylum & immigration' },
+  {
+    id: 'hotels',
+    label: 'People in hotels (asylum accommodation)',
+    series: (() => {
+      const h = typeof HOTELS !== 'undefined' ? HOTELS : [];
+      return h.map((d, i) => ({ y: i, v: d.persons_in_hotels, label: d.date }));
+    })(),
+    color: 'var(--accent-gold)',
+    snapshot: true,
+  },
+  {
+    id: 'resettlement',
+    label: 'Resettlement arrivals by scheme',
+    render: 'multi',
+    color: 'var(--accent-2)',
+    multi: (() => {
+      const sd   = typeof RESETTLEMENT_SERIES !== 'undefined' ? RESETTLEMENT_SERIES : [];
+      const meta = typeof RESETTLEMENT_META   !== 'undefined' ? RESETTLEMENT_META   : {};
+      const years = meta.years ?? [];
+      const colors = ['var(--accent)','var(--accent-warn)','var(--accent-2)','var(--accent-gold)','var(--ink-2)','var(--muted-2)'];
+      return {
+        years,
+        series: sd.map(s => ({ name: s.name, data: years.map(y => s[String(y)] ?? 0) })),
+        colors,
+      };
+    })(),
+    series: [],
+  },
+  {
+    id: 'returns',
+    label: 'Returns by nationality (top 20)',
+    series: (() => {
+      const ret = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
+      return ret.slice(0, 20).map((d, i) => ({ y: i, v: d.total, label: d.name }));
+    })(),
+    color: 'var(--accent-warn)',
+    snapshot: true,
+  },
+  {
+    id: 'age_disputes',
+    label: 'Age disputes by nationality',
+    series: (() => {
+      const ad = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
+      return ad.filter(d => d.raised > 0).slice(0, 20).map((d, i) => ({ y: i, v: d.raised, label: d.name }));
+    })(),
+    color: 'var(--accent-2)',
+    snapshot: true,
+  },
 ];
 
 const GRANULARITIES = ['daily','weekly','monthly','quarterly','annual'];
@@ -2730,7 +2799,7 @@ function BuildView({ setRoute }) {
   const isCustomNat = prim.render === 'custom-multi';
   const isGrantRate = prim.render === 'grant-rate';
   const overlayOpts = (!isMultiPrim && !isCustomNat && !isGrantRate)
-    ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && o.render !== 'multi' && o.render !== 'custom-multi' && o.id !== ds)
+    ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && o.id !== ds)
     : [];
   // sec kept for bar/stacked chart-type code paths that still render a single secondary.
   const sec = overlayOpts[0] ?? null;
@@ -2761,9 +2830,9 @@ function BuildView({ setRoute }) {
     sel.includes(name) ? sel.filter(n => n !== name) : [...sel, name]
   );
 
-  // Only apply yearRange filter in annual mode; other grains have index x-values.
-  const primView = isAnnual ? primData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : primData;
-  const secView  = isAnnual && secData ? secData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : secData;
+  // snapshot datasets use index-based x-values, not years — skip range filter.
+  const primView = (isAnnual && !prim.snapshot) ? primData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : primData;
+  const secView  = (isAnnual && !prim.snapshot && secData) ? secData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : secData;
 
   // Year axis + per-overlay series for MultiLineChart — only supported annual + line.
   const canOverlay = isAnnual && overlayOpts.length > 0 && chartType === 'line';
@@ -2778,7 +2847,7 @@ function BuildView({ setRoute }) {
 
   const OVERLAY_CAP = 6;
   const overlayCandidates = DATASET_OPTIONS
-    .filter(o => o.id !== ds && o.render !== 'multi' && o.render !== 'custom-multi' && !overlays.includes(o.id));
+    .filter(o => o.id !== ds && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && !overlays.includes(o.id));
 
   return (
     <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
@@ -2793,8 +2862,12 @@ function BuildView({ setRoute }) {
         <aside style={{position:'sticky',top:96,border:'1px solid var(--rule)',padding:'24px 26px',background:'#fff',maxHeight:'calc(100vh - 120px)',overflowY:'auto'}}>
           <div style={{marginBottom:22}}>
             <div className="uc" style={{color:'var(--muted)',marginBottom:8}}>1 · Primary dataset</div>
-            <div style={{maxHeight:220,overflowY:'auto',marginRight:-6,paddingRight:6}}>
-              {DATASET_OPTIONS.map(o=>(
+            <div style={{maxHeight:260,overflowY:'auto',marginRight:-6,paddingRight:6}}>
+              {DATASET_OPTIONS.map(o => o.divider ? (
+                <div key={o.id} style={{fontSize:10,textTransform:'uppercase',letterSpacing:0.08,color:'var(--muted)',fontWeight:500,padding:'8px 0 4px',marginTop:4,borderTop:'1px solid var(--rule-2)'}}>
+                  {o.label}
+                </div>
+              ) : (
                 <label key={o.id} className="chk" style={{display:'flex',padding:'6px 0',fontSize:14}}>
                   <input type="radio" name="ds" checked={ds===o.id} onChange={()=>setDs(o.id)} style={{appearance:'auto',width:14,height:14}}/>
                   {o.label}
@@ -2924,7 +2997,7 @@ function BuildView({ setRoute }) {
             </div>
           )}
 
-          {isAnnual && (
+          {isAnnual && !prim.snapshot && (
             <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
               <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>{supportsGran ? '5' : '4'} · Time range</div>
               <div style={{fontSize:12,color:'var(--muted)',display:'flex',justifyContent:'space-between'}} className="tnum">
@@ -3254,7 +3327,14 @@ function resolveNat(mapCountryName) {
 // (loaded before this file in the bundle) so that both the dashboard's
 // WorldMapChoropleth and this top-level atlas view share the same 6-stop scale.
 
-function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, height=440 }) {
+const ATLAS_METRIC_OPTIONS = [
+  { id: 'applicants',   label: 'Applicants' },
+  { id: 'grant_rate',   label: 'Grant rate' },
+  { id: 'returns',      label: 'Returns' },
+  { id: 'age_disputes', label: 'Age disputes' },
+];
+
+function AtlasChoropleth({ countryValues, selectedName, onSelect, metricLabel = 'applicants', width=820, height=440 }) {
   const worldMap = (typeof WORLD_MAP !== 'undefined') ? WORLD_MAP : null;
   // Hooks must be called unconditionally — call before the early return.
   const zoom = useMapZoom(width, height);
@@ -3283,7 +3363,7 @@ function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, hei
                 stroke={isSel ? 'var(--accent)' : 'var(--rule-2)'} strokeWidth={isSel ? 1.4 : 0.4}
                 onClick={() => { if (!zoom.didDrag() && nat) onSelect(nat); }}
                 style={{cursor: nat ? (zoom.zoomed ? 'grab' : 'pointer') : 'default'}}>
-                <title>{c.name}{v > 0 ? ` — ${v.toLocaleString()} applicants` : ''}</title>
+                <title>{c.name}{v > 0 ? ` — ${v.toLocaleString()} ${metricLabel}` : ''}</title>
               </path>
             );
           })}
@@ -3294,7 +3374,7 @@ function AtlasChoropleth({ countryValues, selectedName, onSelect, width=820, hei
   );
 }
 
-function AtlasLegend({ countryValues }) {
+function AtlasLegend({ countryValues, metricLabel = 'Applicants' }) {
   const vMax = Math.max(...Object.values(countryValues), 1);
   const stops = ATLAS_PALETTE.length;
   // Breakpoint at each transition between adjacent colour stops (sqrt scale).
@@ -3304,7 +3384,7 @@ function AtlasLegend({ countryValues }) {
   const fmtTick = v => v >= 1000 ? `${Math.round(v/1000)}k` : v.toLocaleString();
   return (
     <div style={{marginTop:10,fontSize:11}}>
-      <div className="uc" style={{fontSize:10.5,color:'var(--muted)',marginBottom:6}}>Applicants</div>
+      <div className="uc" style={{fontSize:10.5,color:'var(--muted)',marginBottom:6}}>{metricLabel}</div>
       <div style={{position:'relative',maxWidth:360}}>
         <div style={{display:'flex',border:'1px solid var(--rule-2)'}}>
           {ATLAS_PALETTE.map((hex, i) => (
@@ -3353,6 +3433,9 @@ function AtlasDetail({ name, setRoute }) {
   const returns = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
   const ageDisputes = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
 
+  const grantData = typeof NAT_GRANT_ANNUAL !== 'undefined' ? NAT_GRANT_ANNUAL : null;
+  const grantSeries = grantData?.series?.find(s => s.name === name);
+
   const apps = natFull.find(r => r.name === name);
   const qRow = natQ?.series?.find(s => s.name === name);
   const ret = returns.find(r => r.name === name);
@@ -3389,6 +3472,23 @@ function AtlasDetail({ name, setRoute }) {
           No quarterly trend available (country not in NAT_QUARTERLY top-20).
         </div>
       )}
+      {grantSeries && grantData ? (
+        <div style={{background:'#fff',padding:'14px 16px',border:'1px solid var(--rule-2)',marginTop:10}}>
+          <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8}}>
+            Grant rate · {grantData.years[0]}–{grantData.years[grantData.years.length - 1]} · % of initial decisions granted
+          </div>
+          <MultiLineChart
+            years={grantData.years}
+            series={[{ name, data: grantSeries.data.map(v => v != null ? Math.round(v * 100) : null) }]}
+            width={720} height={140}
+            showLabels={false}
+          />
+        </div>
+      ) : (
+        <div style={{padding:'14px 16px',color:'var(--muted-2)',fontStyle:'italic',fontSize:13,background:'#fff',border:'1px dotted var(--rule-2)',marginTop:10}}>
+          No grant-rate trend (fewer than 200 total decisions, or fewer than 5 years with data).
+        </div>
+      )}
       {!apps && !ret && !ad && (
         <div style={{marginTop:12,fontSize:12,color:'var(--muted-2)',fontStyle:'italic'}}>
           No applicants, returns, or age-dispute records for this country in the latest data.
@@ -3406,11 +3506,24 @@ function AtlasDetail({ name, setRoute }) {
 
 function AtlasView({ setRoute }) {
   const [selected, setSelected] = uSA(null);
+  const [metric, setMetric] = uSA('applicants');
 
   const countryValues = uMA(() => {
     const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
-    return Object.fromEntries(natFull.map(r => [r.name, r.v]));
-  }, []);
+    if (metric === 'applicants') return Object.fromEntries(natFull.map(r => [r.name, r.v]));
+    if (metric === 'grant_rate') return Object.fromEntries(natFull.filter(r => r.grant != null).map(r => [r.name, Math.round(r.grant * 100)]));
+    if (metric === 'returns') {
+      const ret = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
+      return Object.fromEntries(ret.map(r => [r.name, r.total]));
+    }
+    if (metric === 'age_disputes') {
+      const ad = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
+      return Object.fromEntries(ad.map(r => [r.name, r.raised]));
+    }
+    return {};
+  }, [metric]);
+
+  const metricLabel = ATLAS_METRIC_OPTIONS.find(m => m.id === metric)?.label ?? 'Applicants';
 
   const topCountries = uMA(() => {
     const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
@@ -3426,10 +3539,23 @@ function AtlasView({ setRoute }) {
           Choropleth of asylum applicants by country of origin. Click any country to see applicants, grant rate, returns, and age disputes in one panel.
         </p>
       </div>
+      <div style={{display:'flex',gap:6,marginBottom:16}}>
+        {ATLAS_METRIC_OPTIONS.map(m => (
+          <button key={m.id} onClick={() => setMetric(m.id)}
+            style={{
+              padding:'4px 16px', fontSize:12, border:'1px solid var(--rule-2)',
+              background: metric === m.id ? 'var(--accent)' : 'var(--bg-2)',
+              color: metric === m.id ? '#fff' : 'var(--ink-2)',
+              fontFamily:'var(--serif)', cursor:'pointer',
+            }}>
+            {m.label}
+          </button>
+        ))}
+      </div>
       <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.4fr) minmax(360px,1fr)',gap:28,alignItems:'start'}}>
         <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'12px'}}>
-          <AtlasChoropleth countryValues={countryValues} selectedName={selected} onSelect={setSelected}/>
-          <AtlasLegend countryValues={countryValues}/>
+          <AtlasChoropleth countryValues={countryValues} selectedName={selected} onSelect={setSelected} metricLabel={metricLabel.toLowerCase()}/>
+          <AtlasLegend countryValues={countryValues} metricLabel={metricLabel}/>
           <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:12,paddingTop:10,borderTop:'1px dotted var(--rule-2)'}}>
             <span className="uc" style={{fontSize:10.5,color:'var(--muted)',marginRight:8}}>Jump to:</span>
             {topCountries.map(c => (

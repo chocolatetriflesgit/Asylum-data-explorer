@@ -519,7 +519,25 @@ function RegionWorldMap({ data, width=720, height=380 }) {
   );
 }
 
-function RegionTable({ data }) {
+function RegionTable({ data, rows }) {
+  const [expanded, setExpanded] = React.useState(new Set());
+  const toggle = name => setExpanded(prev => {
+    const next = new Set(prev);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    return next;
+  });
+
+  // Build region → sorted country list from raw nationality rows.
+  const byRegion = React.useMemo(() => {
+    if (!rows) return {};
+    const m = {};
+    for (const r of rows) {
+      const reg = (typeof REGION_MAP !== 'undefined' ? REGION_MAP[r.name] : null) ?? 'Other / Unclassified';
+      (m[reg] = m[reg] || []).push(r);
+    }
+    return m;
+  }, [rows]);
+
   const total = data.reduce((s, d) => s + d.v, 0);
   const vMax = Math.max(...data.map(d => d.v), 1);
   // Legend swatches reuse the same 6-stop palette as the map, so the colour
@@ -528,6 +546,7 @@ function RegionTable({ data }) {
     if (!(v > 0)) return ATLAS_PALETTE[0];
     return atlasPaletteColor(Math.sqrt(v / vMax));
   };
+
   return (
     <table style={{width:'100%',borderCollapse:'collapse',fontSize:13.5}}>
       <thead>
@@ -538,16 +557,43 @@ function RegionTable({ data }) {
         </tr>
       </thead>
       <tbody>
-        {data.map(r => (
-          <tr key={r.name} style={{borderBottom:'1px solid var(--rule)'}}>
-            <td style={{padding:'10px 0',color:'var(--ink)'}}>
-              <span style={{display:'inline-block',width:12,height:12,marginRight:8,verticalAlign:'middle',background:fillFor(r.v),borderRadius:2,border:'1px solid var(--rule-2)'}}/>
-              {r.name}
-            </td>
-            <td className="tnum" style={{padding:'10px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
-            <td className="tnum" style={{padding:'10px 0',textAlign:'right',color:'var(--muted)'}}>{(r.v/total*100).toFixed(1)}%</td>
-          </tr>
-        ))}
+        {data.map(r => {
+          const isOpen = expanded.has(r.name);
+          const countries = byRegion[r.name] ? [...byRegion[r.name]].sort((a, b) => b.v - a.v) : [];
+          const canExpand = rows && countries.length > 0;
+          return (
+            <React.Fragment key={r.name}>
+              <tr
+                style={{borderBottom:'1px solid var(--rule)', cursor: canExpand ? 'pointer' : 'default'}}
+                onClick={canExpand ? () => toggle(r.name) : undefined}
+              >
+                <td style={{padding:'10px 0',color:'var(--ink)'}}>
+                  {canExpand && (
+                    <span style={{
+                      display:'inline-block', width:10, marginRight:4, fontSize:9,
+                      color:'var(--muted)', userSelect:'none',
+                      transform: isOpen ? 'rotate(90deg)' : 'none',
+                      transition:'transform 0.15s', verticalAlign:'middle',
+                    }}>▶</span>
+                  )}
+                  <span style={{display:'inline-block',width:12,height:12,marginRight:8,verticalAlign:'middle',background:fillFor(r.v),borderRadius:2,border:'1px solid var(--rule-2)'}}/>
+                  {r.name}
+                </td>
+                <td className="tnum" style={{padding:'10px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
+                <td className="tnum" style={{padding:'10px 0',textAlign:'right',color:'var(--muted)'}}>{(r.v/total*100).toFixed(1)}%</td>
+              </tr>
+              {isOpen && countries.map(c => (
+                <tr key={c.name} style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
+                  <td style={{padding:'5px 0 5px 26px',color:'var(--ink-2)',fontSize:12.5}}>{c.name}</td>
+                  <td className="tnum" style={{padding:'5px 0',textAlign:'right',fontSize:12.5}}>{fmtN(c.v)}</td>
+                  <td className="tnum" style={{padding:'5px 0',textAlign:'right',color:'var(--muted)',fontSize:12.5}}>
+                    {c.grant != null ? `${Math.round(c.grant * 100)}%` : `${(c.v / total * 100).toFixed(1)}%`}
+                  </td>
+                </tr>
+              ))}
+            </React.Fragment>
+          );
+        })}
         <tr>
           <td className="uc" style={{padding:'12px 0 0',color:'var(--muted)'}}>Total</td>
           <td className="tnum" style={{padding:'12px 0 0',textAlign:'right',color:'var(--ink)',fontWeight:500}}>{fmtN(total)}</td>

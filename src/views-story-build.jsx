@@ -281,6 +281,56 @@ const DATASET_OPTIONS = [
     color: 'var(--accent-2)',
     series: [],
   },
+  // ── Asylum & immigration datasets ────────────────────────────
+  { id: '__divider__', divider: true, label: 'Asylum & immigration' },
+  {
+    id: 'hotels',
+    label: 'People in hotels (asylum accommodation)',
+    series: (() => {
+      const h = typeof HOTELS !== 'undefined' ? HOTELS : [];
+      return h.map((d, i) => ({ y: i, v: d.persons_in_hotels, label: d.date }));
+    })(),
+    color: 'var(--accent-gold)',
+    snapshot: true,
+  },
+  {
+    id: 'resettlement',
+    label: 'Resettlement arrivals by scheme',
+    render: 'multi',
+    color: 'var(--accent-2)',
+    multi: (() => {
+      const sd   = typeof RESETTLEMENT_SERIES !== 'undefined' ? RESETTLEMENT_SERIES : [];
+      const meta = typeof RESETTLEMENT_META   !== 'undefined' ? RESETTLEMENT_META   : {};
+      const years = meta.years ?? [];
+      const colors = ['var(--accent)','var(--accent-warn)','var(--accent-2)','var(--accent-gold)','var(--ink-2)','var(--muted-2)'];
+      return {
+        years,
+        series: sd.map(s => ({ name: s.name, data: years.map(y => s[String(y)] ?? 0) })),
+        colors,
+      };
+    })(),
+    series: [],
+  },
+  {
+    id: 'returns',
+    label: 'Returns by nationality (top 20)',
+    series: (() => {
+      const ret = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
+      return ret.slice(0, 20).map((d, i) => ({ y: i, v: d.total, label: d.name }));
+    })(),
+    color: 'var(--accent-warn)',
+    snapshot: true,
+  },
+  {
+    id: 'age_disputes',
+    label: 'Age disputes by nationality',
+    series: (() => {
+      const ad = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
+      return ad.filter(d => d.raised > 0).slice(0, 20).map((d, i) => ({ y: i, v: d.raised, label: d.name }));
+    })(),
+    color: 'var(--accent-2)',
+    snapshot: true,
+  },
 ];
 
 const GRANULARITIES = ['daily','weekly','monthly','quarterly','annual'];
@@ -322,7 +372,7 @@ function BuildView({ setRoute }) {
   const isCustomNat = prim.render === 'custom-multi';
   const isGrantRate = prim.render === 'grant-rate';
   const overlayOpts = (!isMultiPrim && !isCustomNat && !isGrantRate)
-    ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && o.render !== 'multi' && o.render !== 'custom-multi' && o.id !== ds)
+    ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && o.id !== ds)
     : [];
   // sec kept for bar/stacked chart-type code paths that still render a single secondary.
   const sec = overlayOpts[0] ?? null;
@@ -353,9 +403,9 @@ function BuildView({ setRoute }) {
     sel.includes(name) ? sel.filter(n => n !== name) : [...sel, name]
   );
 
-  // Only apply yearRange filter in annual mode; other grains have index x-values.
-  const primView = isAnnual ? primData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : primData;
-  const secView  = isAnnual && secData ? secData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : secData;
+  // snapshot datasets use index-based x-values, not years — skip range filter.
+  const primView = (isAnnual && !prim.snapshot) ? primData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : primData;
+  const secView  = (isAnnual && !prim.snapshot && secData) ? secData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : secData;
 
   // Year axis + per-overlay series for MultiLineChart — only supported annual + line.
   const canOverlay = isAnnual && overlayOpts.length > 0 && chartType === 'line';
@@ -370,7 +420,7 @@ function BuildView({ setRoute }) {
 
   const OVERLAY_CAP = 6;
   const overlayCandidates = DATASET_OPTIONS
-    .filter(o => o.id !== ds && o.render !== 'multi' && o.render !== 'custom-multi' && !overlays.includes(o.id));
+    .filter(o => o.id !== ds && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && !overlays.includes(o.id));
 
   return (
     <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
@@ -385,8 +435,12 @@ function BuildView({ setRoute }) {
         <aside style={{position:'sticky',top:96,border:'1px solid var(--rule)',padding:'24px 26px',background:'#fff',maxHeight:'calc(100vh - 120px)',overflowY:'auto'}}>
           <div style={{marginBottom:22}}>
             <div className="uc" style={{color:'var(--muted)',marginBottom:8}}>1 · Primary dataset</div>
-            <div style={{maxHeight:220,overflowY:'auto',marginRight:-6,paddingRight:6}}>
-              {DATASET_OPTIONS.map(o=>(
+            <div style={{maxHeight:260,overflowY:'auto',marginRight:-6,paddingRight:6}}>
+              {DATASET_OPTIONS.map(o => o.divider ? (
+                <div key={o.id} style={{fontSize:10,textTransform:'uppercase',letterSpacing:0.08,color:'var(--muted)',fontWeight:500,padding:'8px 0 4px',marginTop:4,borderTop:'1px solid var(--rule-2)'}}>
+                  {o.label}
+                </div>
+              ) : (
                 <label key={o.id} className="chk" style={{display:'flex',padding:'6px 0',fontSize:14}}>
                   <input type="radio" name="ds" checked={ds===o.id} onChange={()=>setDs(o.id)} style={{appearance:'auto',width:14,height:14}}/>
                   {o.label}
@@ -516,7 +570,7 @@ function BuildView({ setRoute }) {
             </div>
           )}
 
-          {isAnnual && (
+          {isAnnual && !prim.snapshot && (
             <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
               <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>{supportsGran ? '5' : '4'} · Time range</div>
               <div style={{fontSize:12,color:'var(--muted)',display:'flex',justifyContent:'space-between'}} className="tnum">
