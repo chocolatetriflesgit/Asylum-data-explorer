@@ -227,7 +227,7 @@ const DATASET_OPTIONS = [
   { id: 'applications', label: 'Applications',         series: ASYLUM_ANNUAL.map(d=>({y:d.y, v:d.v})),     color: 'var(--accent)' },
   { id: 'boats',        label: 'Small-boat arrivals',  series: ASYLUM_ANNUAL.map(d=>({y:d.y, v:d.boats})), color: 'var(--accent-warn)', supportsGranularity: true },
   { id: 'backlog',      label: 'Backlog (pending)',    series: BACKLOG.map(d=>({y:d.y, v:d.v})),           color: 'var(--accent-2)' },
-  { id: 'preventions',  label: 'Preventions',          series: _annualFromWeekly('p'),                      color: 'var(--accent-gold)' },
+  { id: 'preventions',  label: 'Preventions',          series: _annualFromWeekly('p'),                      color: 'var(--accent-gold)', note: 'Preventions not reported before 2023 — earlier years are absent from this series, not zero.' },
   { id: 'interceptions',label: 'Interceptions',        series: _annualFromWeekly('e'),                      color: 'var(--muted-2)' },
   (() => {
     // Derive an "Other nationalities" series: total applications per year − sum of named top-5.
@@ -314,6 +314,20 @@ const DATASET_OPTIONS = [
   {
     id: 'returns',
     label: 'Returns by nationality (top 20)',
+    render: 'returns-detail',
+    stackData: (() => {
+      const ret = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
+      const top = ret.slice(0, 20);
+      const year = typeof RETURNS_META !== 'undefined' ? RETURNS_META.year : null;
+      return {
+        labels: top.map(r => r.name),
+        series: [
+          { name: 'Enforced',  data: top.map(r => r.enforced),  color: 'var(--accent-warn)' },
+          { name: 'Voluntary', data: top.map(r => r.voluntary), color: 'var(--accent-gold)' },
+        ],
+        year,
+      };
+    })(),
     series: (() => {
       const ret = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
       return ret.slice(0, 20).map((d, i) => ({ y: i, v: d.total, label: d.name }));
@@ -371,6 +385,17 @@ function BuildView({ setRoute }) {
   const isMultiPrim = prim.render === 'multi';
   const isCustomNat = prim.render === 'custom-multi';
   const isGrantRate = prim.render === 'grant-rate';
+  const isReturnsDetail = prim.render === 'returns-detail';
+
+  const disabledTypes = uM2(() => {
+    const s = new Set();
+    if (prim.snapshot) { s.add('line'); s.add('area'); s.add('scatter'); }
+    if (isReturnsDetail || isMultiPrim) s.add('stacked');
+    return s;
+  }, [prim, isReturnsDetail, isMultiPrim]);
+
+  uE2(() => { if (disabledTypes.has(chartType)) setChartType('bar'); }, [chartType, disabledTypes]);
+
   const overlayOpts = (!isMultiPrim && !isCustomNat && !isGrantRate)
     ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && o.id !== ds)
     : [];
@@ -408,7 +433,7 @@ function BuildView({ setRoute }) {
   const secView  = (isAnnual && !prim.snapshot && secData) ? secData.filter(d=>d.y>=range[0]&&d.y<=range[1]) : secData;
 
   // Year axis + per-overlay series for MultiLineChart — only supported annual + line.
-  const canOverlay = isAnnual && overlayOpts.length > 0 && chartType === 'line';
+  const canOverlay = isAnnual && !prim.snapshot && overlayOpts.length > 0 && chartType === 'line';
   const overlayOn = overlaySingleChart && canOverlay;
   const overlayViews = overlayOpts.map(o => ({
     opt: o,
@@ -451,9 +476,12 @@ function BuildView({ setRoute }) {
 
           {(isCustomNat || isGrantRate) && (
             <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
-              <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'flex',justifyContent:'space-between'}}>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
                 <span>2 · Nationalities</span>
-                <span style={{color:'var(--muted-2)'}} className="tnum">{selectedNats.length} picked</span>
+                <span style={{display:'flex',gap:10,alignItems:'baseline'}}>
+                  {selectedNats.length > 0 && <button className="ulh" onClick={()=>setSelectedNats([])} style={{fontSize:11,color:'var(--muted)',textTransform:'none',letterSpacing:0}}>Clear all</button>}
+                  <span style={{color:'var(--muted-2)'}} className="tnum">{selectedNats.length} picked</span>
+                </span>
               </div>
               {selectedNats.length > 0 && (
                 <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:10}}>
@@ -544,7 +572,9 @@ function BuildView({ setRoute }) {
             <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>3 · Chart type</div>
             <div className="seg" style={{display:'flex',flexWrap:'wrap'}}>
               {['line','bar','area','scatter','stacked'].map(t=>(
-                <button key={t} className={chartType===t?'on':''} onClick={()=>setChartType(t)} style={{flex:'1 0 30%',textTransform:'capitalize'}}>{t}</button>
+                <button key={t} className={chartType===t?'on':''} disabled={disabledTypes.has(t)}
+                  onClick={()=>setChartType(t)}
+                  style={{flex:'1 0 30%',textTransform:'capitalize',opacity:disabledTypes.has(t)?0.35:1,cursor:disabledTypes.has(t)?'not-allowed':'pointer'}}>{t}</button>
               ))}
             </div>
             <label className="chk" style={{fontSize:13,padding:'10px 0 2px'}}>
@@ -653,6 +683,7 @@ function BuildView({ setRoute }) {
                         }))}
                         width={800} height={360}
                         showLabels={showLabels}
+                        legend={usable.length > 1}
                       />
                     )}
                     <div style={{fontSize:12,color:'var(--muted-2)',marginTop:8,fontStyle:'italic'}}>
@@ -742,6 +773,7 @@ function BuildView({ setRoute }) {
                           series={series}
                           width={800} height={360}
                           showLabels={showLabels}
+                          legend={usable.length > 1}
                         />
                       </>
                     );
@@ -758,6 +790,30 @@ function BuildView({ setRoute }) {
                   );
                 })()
               )
+            ) : isReturnsDetail ? (
+              (() => {
+                const sd = prim.stackData;
+                if (!sd || !sd.labels.length) return (
+                  <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>Returns data not loaded.</div>
+                );
+                return (
+                  <>
+                    <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>
+                      Returns{sd.year ? ` · ${sd.year}` : ''} · enforced + voluntary · top 20 nationalities
+                    </div>
+                    <StackedColumnsMulti
+                      years={sd.labels}
+                      series={sd.series.map(s => ({name: s.name, data: s.data}))}
+                      colors={sd.series.map(s => s.color)}
+                      width={800} height={380}
+                      showLabels={showLabels}
+                    />
+                    <div style={{fontSize:12,color:'var(--muted-2)',marginTop:8,fontStyle:'italic'}}>
+                      {sd.year ? `${sd.year} data only` : 'Single-year snapshot'} — multi-year returns series not available.
+                    </div>
+                  </>
+                );
+              })()
             ) : isMultiPrim ? (
               chartType === 'stacked' ? (
                 <StackedColumnsMulti
@@ -787,6 +843,7 @@ function BuildView({ setRoute }) {
                   series={prim.multi.series}
                   width={800} height={360}
                   showLabels={showLabels}
+                  legend={true}
                 />
               )
             ) : overlayOn ? (
@@ -801,6 +858,7 @@ function BuildView({ setRoute }) {
                 ]}
                 width={800} height={340}
                 showLabels={showLabels}
+                legend={true}
               />
             ) : (chartType === 'line' || chartType === 'area' || chartType === 'scatter') ? (
               <>
@@ -847,6 +905,7 @@ function BuildView({ setRoute }) {
               />
             ) : null}
           </div>
+          {prim.note && <div style={{fontSize:12,color:'var(--muted-2)',marginTop:10,fontStyle:'italic',maxWidth:680}}>{prim.note}</div>}
           <div className="uc" style={{color:'var(--muted-2)',marginTop:12}}>Charts update live as you change controls. Annotations and custom titles coming in the next release.</div>
         </section>
       </div>

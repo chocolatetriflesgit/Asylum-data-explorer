@@ -130,9 +130,9 @@ function LineChart({
 // Multi-line chart
 // ─────────────────────────────────────────────────────────────
 const MULTI_COLORS = ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)', 'var(--accent-gold)', 'var(--muted)'];
-function MultiLineChart({ years, series, width=720, height=300, showLabels=false }) {
+function MultiLineChart({ years, series, width=720, height=300, showLabels=false, legend=false, yLabel=null }) {
   const { show, hide, node } = useTooltip();
-  const pad = { t: 16, r: 120, b: 32, l: 48 };
+  const pad = { t: 16, r: legend ? 24 : 120, b: 32, l: 48 };
   const W = width, H = height;
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   const allV = series.flatMap(s=>s.data);
@@ -143,6 +143,19 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
 
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      {legend && (
+        <div style={{display:'flex',flexWrap:'wrap',gap:'4px 12px',marginBottom:8,paddingBottom:6,borderBottom:'1px dotted var(--rule-2)'}}>
+          {series.map((s,si) => {
+            const c = MULTI_COLORS[si % MULTI_COLORS.length];
+            return (
+              <span key={s.name} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11.5,color:'var(--ink-2)',fontFamily:'var(--serif)'}}>
+                <span style={{display:'inline-block',width:16,height:2,background:c,flexShrink:0}}/>
+                {s.name}
+              </span>
+            );
+          })}
+        </div>
+      )}
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
         {yTicks.map(t=>(
           <g key={t}>
@@ -154,6 +167,7 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
           <text key={yr} x={x(i)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
         ))}
         <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
+        {yLabel && <text x={pad.l} y={pad.t - 4} textAnchor="start" fontSize="10" fill="var(--muted)" style={{fontFamily:'var(--serif)'}}>{yLabel}</text>}
         {series.map((s,si)=>{
           const color = MULTI_COLORS[si % MULTI_COLORS.length];
           const pts = s.data.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
@@ -170,7 +184,7 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
                   />
                 </g>
               ))}
-              <text x={x(last)+10} y={y(s.data[last])+4} fontSize="12" fill={color} style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{s.name}</text>
+              {!legend && <text x={x(last)+10} y={y(s.data[last])+4} fontSize="12" fill={color} style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{s.name}</text>}
               {showLabels && s.data.map((v,i)=>(
                 <text key={`lbl-${i}`} x={x(i)} y={y(v)-8} textAnchor="middle" fontSize="10" fill={color} style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
               ))}
@@ -368,12 +382,12 @@ function StackedBar({ data, width=720, height=80 }) {
               onMouseLeave={hide}
               style={{cursor:'crosshair'}}>
               <rect x={x} y={20} width={w-1} height={36} fill={d.color}/>
-              <text x={x} y={15} fontSize="11" fill="var(--muted)" className="uc" style={{fontFamily:'var(--serif)'}}>
+              {w > width * 0.06 && <text x={x} y={15} fontSize="11" fill="var(--muted)" className="uc" style={{fontFamily:'var(--serif)'}}>
                 {d.label}
-              </text>
-              <text x={x} y={72} fontSize="12" fill="var(--ink)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+              </text>}
+              {w > width * 0.06 && <text x={x} y={72} fontSize="12" fill="var(--ink)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
                 {fmtN(d.v)} <tspan fill="var(--muted)">· {Math.round(d.v/total*100)}%</tspan>
-              </text>
+              </text>}
             </g>
           );
         })}
@@ -587,7 +601,7 @@ function RegionTable({ data, rows }) {
                   <td style={{padding:'5px 0 5px 26px',color:'var(--ink-2)',fontSize:12.5}}>{c.name}</td>
                   <td className="tnum" style={{padding:'5px 0',textAlign:'right',fontSize:12.5}}>{fmtN(c.v)}</td>
                   <td className="tnum" style={{padding:'5px 0',textAlign:'right',color:'var(--muted)',fontSize:12.5}}>
-                    {c.grant != null ? `${Math.round(c.grant * 100)}%` : `${(c.v / total * 100).toFixed(1)}%`}
+                    {(c.v / total * 100).toFixed(1)}%
                   </td>
                 </tr>
               ))}
@@ -669,6 +683,10 @@ function useMapZoom(baseW, baseH, { maxZoom = 8 } = {}) {
   const zoomIn  = () => zoomAt(view.x + view.w / 2, view.y + view.h / 2, 1.5);
   const zoomOut = () => zoomAt(view.x + view.w / 2, view.y + view.h / 2, 1 / 1.5);
   const reset   = () => setView({ x: 0, y: 0, w: baseW, h: baseH });
+  const flyTo   = (cx, cy) => {
+    const w = baseW / 4, h = baseH / 4;
+    setView(clamp({ x: cx - w / 2, y: cy - h / 2, w, h }));
+  };
 
   const onMouseDown = e => {
     if (e.button !== 0) return;
@@ -702,7 +720,7 @@ function useMapZoom(baseW, baseH, { maxZoom = 8 } = {}) {
         touchAction: 'none',
       },
     },
-    zoomIn, zoomOut, reset,
+    zoomIn, zoomOut, reset, flyTo,
     canZoomIn, canZoomOut, zoomed,
     didDrag,
   };

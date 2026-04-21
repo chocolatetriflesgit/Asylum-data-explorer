@@ -40,6 +40,14 @@ function resolveNat(mapCountryName) {
 // (loaded before this file in the bundle) so that both the dashboard's
 // WorldMapChoropleth and this top-level atlas view share the same 6-stop scale.
 
+function pathCentroid(d) {
+  const re = /[ML]\s*([-\d.]+)[,\s]([-\d.]+)/g;
+  const pts = []; let m;
+  while ((m = re.exec(d))) pts.push([+m[1], +m[2]]);
+  if (!pts.length) return null;
+  return [pts.reduce((s,p)=>s+p[0],0)/pts.length, pts.reduce((s,p)=>s+p[1],0)/pts.length];
+}
+
 const ATLAS_METRIC_OPTIONS = [
   { id: 'applicants',   label: 'Applicants' },
   { id: 'grant_rate',   label: 'Grant rate' },
@@ -47,10 +55,8 @@ const ATLAS_METRIC_OPTIONS = [
   { id: 'age_disputes', label: 'Age disputes' },
 ];
 
-function AtlasChoropleth({ countryValues, selectedName, onSelect, metricLabel = 'applicants', width=820, height=440 }) {
+function AtlasChoropleth({ countryValues, selectedName, onSelect, metricLabel = 'applicants', width=820, height=440, zoom }) {
   const worldMap = (typeof WORLD_MAP !== 'undefined') ? WORLD_MAP : null;
-  // Hooks must be called unconditionally — call before the early return.
-  const zoom = useMapZoom(width, height);
   if (!worldMap) {
     return <div style={{padding:40,color:'var(--muted)',fontStyle:'italic'}}>World map not loaded.</div>;
   }
@@ -133,6 +139,7 @@ function AtlasKPI({ label, value, sub }) {
 }
 
 function AtlasDetail({ name, setRoute }) {
+  const [showLabels, setShowLabels] = uSA(false);
   if (!name) {
     return (
       <div style={{padding:'60px 24px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',border:'1px dashed var(--rule-2)'}}>
@@ -173,11 +180,18 @@ function AtlasDetail({ name, setRoute }) {
       </div>
       {qRow ? (
         <div style={{background:'#fff',padding:'14px 16px',border:'1px solid var(--rule-2)'}}>
-          <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8}}>Applicants · last 8 quarters</div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+            <div className="uc" style={{color:'var(--muted)',fontSize:10.5}}>Applicants · last 8 quarters</div>
+            <button className="ulh" onClick={()=>setShowLabels(v=>!v)} style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0,textTransform:'none'}}>
+              {showLabels ? '◉' : '○'} Labels
+            </button>
+          </div>
           <MultiLineChart
             years={natQ.quarters}
             series={[{ name, data: qRow.data }]}
             width={720} height={180}
+            showLabels={showLabels}
+            yLabel="applicants"
           />
         </div>
       ) : (
@@ -194,7 +208,8 @@ function AtlasDetail({ name, setRoute }) {
             years={grantData.years}
             series={[{ name, data: grantSeries.data.map(v => v != null ? Math.round(v * 100) : null) }]}
             width={720} height={140}
-            showLabels={false}
+            showLabels={showLabels}
+            yLabel="%"
           />
         </div>
       ) : (
@@ -220,6 +235,19 @@ function AtlasDetail({ name, setRoute }) {
 function AtlasView({ setRoute }) {
   const [selected, setSelected] = uSA(null);
   const [metric, setMetric] = uSA('applicants');
+  const [countryQuery, setCountryQuery] = uSA('');
+  const zoom = useMapZoom(720, 335);
+
+  const handleSelect = nat => {
+    setSelected(nat);
+    setCountryQuery('');
+    const wm = typeof WORLD_MAP !== 'undefined' ? WORLD_MAP : [];
+    const entry = wm.find(c => resolveNat(c.name) === nat);
+    if (entry) {
+      const ct = pathCentroid(entry.d);
+      if (ct) zoom.flyTo(ct[0], ct[1]);
+    }
+  };
 
   const countryValues = uMA(() => {
     const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
@@ -267,18 +295,41 @@ function AtlasView({ setRoute }) {
       </div>
       <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.4fr) minmax(360px,1fr)',gap:28,alignItems:'start'}}>
         <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'12px'}}>
-          <AtlasChoropleth countryValues={countryValues} selectedName={selected} onSelect={setSelected} metricLabel={metricLabel.toLowerCase()}/>
+          <AtlasChoropleth countryValues={countryValues} selectedName={selected} onSelect={handleSelect} metricLabel={metricLabel.toLowerCase()} zoom={zoom}/>
           <AtlasLegend countryValues={countryValues} metricLabel={metricLabel}/>
-          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:12,paddingTop:10,borderTop:'1px dotted var(--rule-2)'}}>
-            <span className="uc" style={{fontSize:10.5,color:'var(--muted)',marginRight:8}}>Jump to:</span>
-            {topCountries.map(c => (
-              <button key={c.name} onClick={()=>setSelected(c.name)}
-                style={{fontSize:11.5,padding:'2px 8px',background: selected===c.name ? 'var(--accent)' : 'var(--bg-2)',
-                        color: selected===c.name ? '#fff' : 'var(--ink-2)',
-                        border:'1px solid var(--rule-2)',fontFamily:'var(--serif)'}}>
-                {c.name}
-              </button>
-            ))}
+          <div style={{marginTop:12,paddingTop:10,borderTop:'1px dotted var(--rule-2)'}}>
+            <div style={{position:'relative',marginBottom:8}}>
+              <input type="search" value={countryQuery} onChange={e=>setCountryQuery(e.target.value)}
+                placeholder="Search countries…"
+                style={{width:'100%',fontSize:12.5,padding:'6px 8px',fontFamily:'var(--serif)',border:'1px solid var(--rule-2)',background:'#fff',boxSizing:'border-box'}}/>
+              {countryQuery.trim() && (() => {
+                const q = countryQuery.trim().toLowerCase();
+                const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
+                const matches = natFull.filter(r => r.name.toLowerCase().includes(q)).slice(0, 12);
+                if (!matches.length) return null;
+                return (
+                  <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--rule-2)',borderTop:'none',maxHeight:160,overflowY:'auto',zIndex:10}}>
+                    {matches.map(r => (
+                      <button key={r.name} onClick={()=>handleSelect(r.name)}
+                        style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',fontSize:12.5,fontFamily:'var(--serif)',background:'transparent',border:'none',borderBottom:'1px dotted var(--rule-2)',cursor:'pointer',color:'var(--ink-2)'}}>
+                        {r.name}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              <span className="uc" style={{fontSize:10.5,color:'var(--muted)',marginRight:8,alignSelf:'center'}}>Jump to:</span>
+              {topCountries.map(c => (
+                <button key={c.name} onClick={()=>handleSelect(c.name)}
+                  style={{fontSize:11.5,padding:'2px 8px',background: selected===c.name ? 'var(--accent)' : 'var(--bg-2)',
+                          color: selected===c.name ? '#fff' : 'var(--ink-2)',
+                          border:'1px solid var(--rule-2)',fontFamily:'var(--serif)'}}>
+                  {c.name}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <AtlasDetail name={selected} setRoute={setRoute}/>

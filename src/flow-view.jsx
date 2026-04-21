@@ -61,7 +61,7 @@ function buildSankeyData() {
 
   const nodes = [
     ...sources.map(s => ({ id: s.id, label: s.label, col: 0, value: s.v, color: s.color })),
-    { id: 'rG', label: 'Granted',   col: 1, value: totG, color: 'var(--accent-2)'    },
+    { id: 'rG', label: 'Granted (initial)',   col: 1, value: totG, color: 'var(--accent-2)'    },
     { id: 'rR', label: 'Refused',   col: 1, value: totR, color: 'var(--accent-warn)'  },
     { id: 'rW', label: 'Withdrawn', col: 1, value: totW, color: 'var(--muted-2)'      },
   ];
@@ -126,7 +126,7 @@ function FlowView({ setRoute }) {
       </div>
 
       <div style={{marginTop:8,fontSize:11.5,color:'var(--muted-2)',lineHeight:1.5,maxWidth:780}}>
-        Decision outcomes are estimated by applying each nationality's initial-decision grant rate to its applicant volume. The refused/withdrawn split uses the overall ratio from <em>Initial decisions on asylum applications</em> (ASY_D02). Left and right totals are identical by construction.
+        Decision outcomes are estimated by applying each nationality's initial-decision grant rate to its applicant volume. The refused/withdrawn split uses the overall ratio from <em>Initial decisions on asylum applications</em> (ASY_D02). Left and right totals are identical by construction. <strong style={{fontWeight:500,color:'var(--ink-2)'}}>Note:</strong> "Granted (initial)" refers to grants at initial decision only — appeal grants, which overturn a further ~15–20% of refused cases, are not included as cohort-level appeal data is not published.
       </div>
 
       <div style={{marginTop:32}}>

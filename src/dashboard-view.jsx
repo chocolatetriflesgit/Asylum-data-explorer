@@ -477,7 +477,7 @@ function DashboardView({ setRoute }) {
                     <tr>
                       <th className="uc" style={{padding:'0 0 12px',textAlign:'left',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>Scheme</th>
                       {resettlementYears.map(y => (
-                        <th key={y} className="uc" style={{padding:'0 0 12px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>{y}</th>
+                        <th key={y} className="uc" style={{padding:'0 0 12px',paddingLeft:16,textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>{y}</th>
                       ))}
                     </tr>
                   </thead>
@@ -486,7 +486,7 @@ function DashboardView({ setRoute }) {
                       <tr key={r.name} style={{borderBottom:'1px solid var(--rule)'}}>
                         <SchemeCell name={r.name} colorIdx={i}/>
                         {resettlementYears.map((y,j) => (
-                          <td key={y} className="tnum" style={{padding:'13px 0',textAlign:'right',color: j===resettlementYears.length-1 ? 'var(--ink)' : 'var(--muted)',fontWeight: j===resettlementYears.length-1 ? 500 : 400}}>{r[y]!=null ? fmtN(r[y]) : '—'}</td>
+                          <td key={y} className="tnum" style={{padding:'13px 0',paddingLeft:16,textAlign:'right',color: j===resettlementYears.length-1 ? 'var(--ink)' : 'var(--muted)',fontWeight: j===resettlementYears.length-1 ? 500 : 400}}>{r[y]!=null ? fmtN(r[y]) : '—'}</td>
                         ))}
                       </tr>
                     ))}
