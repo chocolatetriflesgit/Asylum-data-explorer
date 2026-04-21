@@ -187,7 +187,8 @@ function DatasetsView({ setRoute }) {
         </thead>
         <tbody>
           {filtered.map(d=>(
-            <tr key={d.code} style={{borderBottom:'1px solid var(--rule)',cursor:'pointer'}}
+            <tr key={d.code} style={{borderBottom:'1px solid var(--rule)',cursor: d.landingUrl ? 'pointer' : 'default'}}
+                onClick={() => { if (d.landingUrl) window.open(d.landingUrl, '_blank', 'noopener,noreferrer'); }}
                 onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-2)'}}
                 onMouseLeave={e=>{e.currentTarget.style.background='transparent'}}>
               <td className="mono" style={{padding:'14px 14px',color:'var(--accent)',fontSize:12}}>{d.code}</td>
@@ -196,7 +197,16 @@ function DatasetsView({ setRoute }) {
               <td style={{padding:'14px 14px',color:'var(--muted)'}}>{d.updated}</td>
               <td style={{padding:'14px 14px',color:'var(--muted)',fontStyle:'italic'}}>{d.freq}</td>
               <td style={{padding:'14px 14px',textAlign:'right'}}>
-                <span className="ulh" style={{color:'var(--accent)',fontSize:12.5}}>Explore →</span>
+                {d.landingUrl ? (
+                  <a href={d.landingUrl} target="_blank" rel="noopener noreferrer"
+                     onClick={e => e.stopPropagation()}
+                     className="ulh"
+                     style={{color:'var(--accent)',fontSize:12.5,textDecoration:'none'}}>
+                    Open on gov.uk ↗
+                  </a>
+                ) : (
+                  <span className="ulh" style={{color:'var(--muted)',fontSize:12.5}}>—</span>
+                )}
               </td>
             </tr>
           ))}

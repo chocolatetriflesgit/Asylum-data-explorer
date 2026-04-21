@@ -158,28 +158,35 @@ const STORIES = [
   },
 ];
 
-// Datasets shown on the browse list
+// Datasets shown on the browse list.
+// `landingUrl` mirrors the `landing_url` field in scripts/_sources.py — keep in sync.
+const URL_ISS_TABLES = 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables';
+const URL_SMALL_BOATS = 'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats';
+const URL_SMALL_BOATS_7 = 'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days';
+const URL_IRR_MIGRATION = 'https://www.gov.uk/government/statistics/irregular-migration-to-the-uk-statistics';
+const URL_UKRAINE = 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables';
+
 const DATASETS = [
   // Asylum claims
-  { code: 'ASY_D01', name: 'Asylum applications, by nationality',        rows: '1,248,220', updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'ASY_D02', name: 'Initial decisions on asylum applications',    rows: '884,014',   updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'ASY_D03', name: 'Age and sex of asylum applicants',            rows: '492,100',   updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'ASY_D04', name: 'Appeals outcomes',                            rows: '221,400',   updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'ASY_D07', name: 'Asylum seekers awaiting a decision (backlog)',rows: '~186,400',  updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D01', name: 'Asylum applications, by nationality',        rows: '1,248,220', updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D02', name: 'Initial decisions on asylum applications',    rows: '884,014',   updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D03', name: 'Age and sex of asylum applicants',            rows: '492,100',   updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D04', name: 'Appeals outcomes',                            rows: '221,400',   updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D07', name: 'Asylum seekers awaiting a decision (backlog)',rows: '~186,400',  updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
   // Support & accommodation
-  { code: 'ASY_D05', name: 'Support provided to asylum seekers',          rows: '412,200',   updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'ASY_D09', name: 'Asylum seekers in receipt of support (hotels)',rows: '~88,200',  updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'ASY_D11', name: 'Asylum support by local authority',           rows: '~39,600',   updated: '12 Apr 2026', freq: 'Quarterly' },
+  { code: 'ASY_D05', name: 'Support provided to asylum seekers',          rows: '412,200',   updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D09', name: 'Asylum seekers in receipt of support (hotels)',rows: '~88,200',  updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D11', name: 'Asylum support by local authority',           rows: '~39,600',   updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
   // Age disputes
-  { code: 'AGE_D01', name: 'Age disputes by nationality',                 rows: '~4,700',    updated: '12 Apr 2026', freq: 'Annual'    },
+  { code: 'AGE_D01', name: 'Age disputes by nationality',                 rows: '~4,700',    updated: '12 Apr 2026', freq: 'Annual',    landingUrl: URL_ISS_TABLES },
   // Small boats crossings
-  { code: 'SB_D01',  name: 'Small boats: daily crossings (2018–present)', rows: '~2,920',    updated: '17 Apr 2026', freq: 'Weekly'    },
-  { code: 'SB_D02',  name: 'Small boats: last 7 days (provisional)',      rows: '7',          updated: '20 Apr 2026', freq: 'Daily'     },
+  { code: 'SB_D01',  name: 'Small boats: daily crossings (2018–present)', rows: '~2,920',    updated: '17 Apr 2026', freq: 'Weekly',    landingUrl: URL_SMALL_BOATS },
+  { code: 'SB_D02',  name: 'Small boats: last 7 days (provisional)',      rows: '7',          updated: '20 Apr 2026', freq: 'Daily',     landingUrl: URL_SMALL_BOATS_7 },
   // Irregular migration (non-boat)
-  { code: 'IRR_D01', name: 'Irregular migration to the UK',               rows: '618,900',   updated: '05 Apr 2026', freq: 'Monthly'   },
+  { code: 'IRR_D01', name: 'Irregular migration to the UK',               rows: '618,900',   updated: '05 Apr 2026', freq: 'Monthly',   landingUrl: URL_IRR_MIGRATION },
   // Resettlement
-  { code: 'RES_D01', name: 'Refugee resettlement and family schemes',     rows: '94,820',    updated: '12 Apr 2026', freq: 'Quarterly' },
-  { code: 'RES_D02', name: 'Ukraine schemes visa statistics',             rows: '318,400',   updated: '12 Apr 2026', freq: 'Monthly'   },
+  { code: 'RES_D01', name: 'Refugee resettlement and family schemes',     rows: '94,820',    updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'RES_D02', name: 'Ukraine schemes visa statistics',             rows: '318,400',   updated: '12 Apr 2026', freq: 'Monthly',   landingUrl: URL_UKRAINE },
 ];
 
 // Region-of-origin lookup for NAT_FULL. Egypt counted as Middle East per editorial call;

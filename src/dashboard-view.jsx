@@ -44,11 +44,31 @@ function DashboardView({ setRoute }) {
     .filter(w => w.we?.startsWith(preventionsYear) && w.p != null)
     .reduce((s,w) => s + w.p, 0);
   const preventionsFirstWeek = boatsWeekly.find(w => w.p != null)?.we ?? null;
-  const interceptionsWeekly = boatsWeekly
-    .filter(w => w.e != null)
-    .map((w, i) => ({ y: i, v: w.e, label: w.we }));
-  const interceptionsFirstWe = interceptionsWeekly[0]?.label ?? null;
-  const interceptionsLastWe = interceptionsWeekly[interceptionsWeekly.length - 1]?.label ?? null;
+  const _fmtMonth = (ym) => {
+    if (!ym || ym.length < 7) return ym ?? '';
+    const [y, m] = ym.split('-');
+    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(+m)-1] || m;
+    return `${mn} ${y.slice(2)}`;
+  };
+  const _aggregateByMonth = (field) => {
+    const by = {};
+    for (const w of boatsWeekly) {
+      if (w[field] == null) continue;
+      const ym = w.we?.slice(0,7);
+      if (!ym) continue;
+      by[ym] = (by[ym] || 0) + w[field];
+    }
+    return Object.entries(by)
+      .map(([ym, v], i) => ({ y: i, v, label: ym }))
+      .sort((a,b) => a.label.localeCompare(b.label))
+      .map((row, i) => ({ ...row, y: i }));
+  };
+  const interceptionsMonthly = _aggregateByMonth('e');
+  const interceptionsFirstMonth = interceptionsMonthly[0]?.label ?? null;
+  const interceptionsLastMonth = interceptionsMonthly[interceptionsMonthly.length - 1]?.label ?? null;
+  const preventionsMonthly = _aggregateByMonth('p');
+  const preventionsFirstMonth = preventionsMonthly[0]?.label ?? null;
+  const preventionsLastMonth = preventionsMonthly[preventionsMonthly.length - 1]?.label ?? null;
 
   // Phase 4 placeholders — hydrate from globals when data lands.
   const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : null;
@@ -155,7 +175,7 @@ function DashboardView({ setRoute }) {
         <div className="kicker-rule" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,textTransform:'uppercase',fontWeight:500}}>Live dashboard · Q1 2026</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'6px 0 10px'}}>Asylum &amp; resettlement at a glance</h1>
         <p style={{fontSize:15.5,color:'var(--ink-2)',maxWidth:680,margin:0,lineHeight:1.5}}>
-          Eight key figures, six charts, and the regional table — all driven by a single time-range filter. Updated when the Home Office releases its quarterly figures.
+          Headline figures from Home Office data. Updated when the Home Office releases its quarterly figures.
         </p>
       </div>
 
@@ -325,6 +345,9 @@ function DashboardView({ setRoute }) {
           </div>
           <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
         </div>
+        <div style={{flex:'1 1 260px',maxWidth:360,fontSize:12.5,color:'var(--muted)',fontStyle:'italic',lineHeight:1.5,paddingTop:22}}>
+          Drag the handles to change the years covered by every statistic and chart below. Use the presets for common ranges.
+        </div>
       </div>
 
       {/* Section focus nav */}
@@ -393,14 +416,27 @@ function DashboardView({ setRoute }) {
               <NationalitiesTable data={natFull}/>
             </DashFrame>
           </div>
-          {interceptionsWeekly.length > 0 && (
-            <DashFrame number="04" kickerColor="var(--accent)" title="Weekly interceptions" sub={`Border Force events · ${interceptionsFirstWe}–${interceptionsLastWe}`} style={{marginTop:20}}>
-              <LineChart data={interceptionsWeekly} width={1120} height={220}
-                stroke="var(--accent)" area={true} showLine={true}
-                xLabelFmt={(_, i, p) => p?.label ? p.label.slice(0,7) : ''}
-                caption="Events in which Border Force prevented a crossing in progress. Weekly totals; preventions counted separately (see KPI strip)."
-                source="Home Office · SB_02"/>
-            </DashFrame>
+          {(interceptionsMonthly.length > 0 || preventionsMonthly.length > 0) && (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginTop:20}}>
+              {interceptionsMonthly.length > 0 && (
+                <DashFrame number="04" kickerColor="var(--accent)" title="Monthly interceptions" sub={`Border Force events · ${_fmtMonth(interceptionsFirstMonth)}–${_fmtMonth(interceptionsLastMonth)}`}>
+                  <LineChart data={interceptionsMonthly} width={540} height={220}
+                    stroke="var(--accent)" area={true} showLine={true}
+                    xLabelFmt={(_, i, p) => _fmtMonth(p?.label)}
+                    caption="Events in which Border Force prevented a crossing in progress. Weekly figures aggregated to calendar months."
+                    source="Home Office · SB_02"/>
+                </DashFrame>
+              )}
+              {preventionsMonthly.length > 0 && (
+                <DashFrame number="04a" kickerColor="var(--accent-warn)" title="Monthly preventions" sub={`Migrants prevented · ${_fmtMonth(preventionsFirstMonth)}–${_fmtMonth(preventionsLastMonth)}`}>
+                  <LineChart data={preventionsMonthly} width={540} height={220}
+                    stroke="var(--accent-warn)" area={true} showLine={true}
+                    xLabelFmt={(_, i, p) => _fmtMonth(p?.label)}
+                    caption="Migrants prevented from crossing, aggregated by month. Reporting of preventions began in May 2024."
+                    source="Home Office · SB_02"/>
+                </DashFrame>
+              )}
+            </div>
           )}
         </section>
       )}
@@ -700,7 +736,7 @@ function NationalitiesTable({ data }) {
   const arrow = (col) => sortBy===col ? (asc?' ↑':' ↓') : '';
 
   return (
-    <div style={{maxHeight:260,overflowY:'auto'}}>
+    <div style={{maxHeight:260,overflowY:'auto',marginTop:12}}>
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
         <thead style={{position:'sticky',top:0,background:'#fff'}}>
           <tr>

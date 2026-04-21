@@ -928,33 +928,40 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Sankey chart — two-column nationality → decision outcome flow
-// nodes: [{id, label, col (0=left,1=right), value, color}]
-// links: [{source, target, value}]  (source must be col-0 node)
+// Sankey chart — N-column left-to-right flow
+// nodes: [{id, label, col (0..N-1), value, color, mocked?}]
+// links: [{source, target, value, dashed?}]  (source.col must be < target.col)
 // ─────────────────────────────────────────────────────────────
 function SankeyChart({ nodes, links, width = 820, height = 500 }) {
   const { show, hide, node: ttNode } = useTooltip();
 
   const NODE_W = 20;
   const GAP    = 8;
-  const PAD    = { l: 150, r: 185, t: 12, b: 12 };
+  const PAD    = { l: 150, r: 200, t: 12, b: 12 };
 
-  const leftNodes  = nodes.filter(n => n.col === 0);
-  const rightNodes = nodes.filter(n => n.col === 1);
-  const totalVal   = leftNodes.reduce((s, n) => s + n.value, 0);
-  const innerH     = height - PAD.t - PAD.b;
+  const cols = Array.from(new Set(nodes.map(n => n.col))).sort((a, b) => a - b);
+  const maxCol = cols[cols.length - 1] ?? 0;
+  const colNodes = Object.fromEntries(cols.map(c => [c, nodes.filter(n => n.col === c)]));
+  const colTotals = Object.fromEntries(cols.map(c => [c, colNodes[c].reduce((s, n) => s + n.value, 0)]));
+  const totalVal = colTotals[0] ?? Math.max(...Object.values(colTotals), 1);
+  const innerH  = height - PAD.t - PAD.b;
 
-  // Compute pixel y and h for every node
+  const xForCol = (c) => {
+    if (maxCol === 0) return PAD.l;
+    const span = width - PAD.l - PAD.r - NODE_W;
+    return PAD.l + (c / maxCol) * span;
+  };
+
+  // Compute pixel y and h for every node (scale so the biggest column fills innerH).
   const layout = {};
-  for (const [colNodes, xBase] of [
-    [leftNodes,  PAD.l],
-    [rightNodes, width - PAD.r - NODE_W],
-  ]) {
-    const avail = innerH - GAP * (colNodes.length - 1);
+  for (const c of cols) {
+    const ns = colNodes[c];
+    const denom = colTotals[c] || totalVal;
+    const avail = innerH - GAP * Math.max(0, ns.length - 1);
     let y = PAD.t;
-    for (const n of colNodes) {
-      const h = Math.max(2, (n.value / totalVal) * avail);
-      layout[n.id] = { x: xBase, y, h };
+    for (const n of ns) {
+      const h = Math.max(2, (n.value / denom) * avail);
+      layout[n.id] = { x: xForCol(c), y, h };
       y += h + GAP;
     }
   }
@@ -986,9 +993,9 @@ function SankeyChart({ nodes, links, width = 820, height = 500 }) {
       'Z',
     ].join(' ');
 
-    const pct = ((lk.value / totalVal) * 100).toFixed(1);
+    const pct = ((lk.value / (colTotals[sn.col] || totalVal)) * 100).toFixed(1);
     const tt  = <span><b>{sn.label}</b> → <b>{tn.label}</b>: <span className="tnum">{fmtN(lk.value)}</span> ({pct}%)</span>;
-    return { d, color: sn.color, tt, key: `${lk.source}→${lk.target}` };
+    return { d, color: sn.color, tt, key: `${lk.source}→${lk.target}`, dashed: lk.dashed || sn.mocked || tn.mocked };
   }).filter(Boolean);
 
   return (
@@ -996,27 +1003,40 @@ function SankeyChart({ nodes, links, width = 820, height = 500 }) {
       <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
         {renderedLinks.map(lk => (
           <path key={lk.key} d={lk.d}
-            fill={lk.color} fillOpacity={0.35} stroke="none"
+            fill={lk.color} fillOpacity={lk.dashed ? 0.18 : 0.35}
+            stroke={lk.dashed ? lk.color : 'none'}
+            strokeOpacity={lk.dashed ? 0.6 : 0}
+            strokeWidth={lk.dashed ? 0.8 : 0}
+            strokeDasharray={lk.dashed ? '3 3' : undefined}
             onMouseMove={e => show(e, lk.tt)} onMouseLeave={hide}
             style={{ cursor: 'default' }}/>
         ))}
         {nodes.map(n => {
           const nl = layout[n.id];
           if (!nl) return null;
-          const pct  = ((n.value / totalVal) * 100).toFixed(1);
-          const tt   = <span><b>{n.label}</b>: <span className="tnum">{fmtN(n.value)}</span> ({pct}%)</span>;
-          const isLeft = n.col === 0;
+          const denom = colTotals[n.col] || totalVal;
+          const pct  = ((n.value / denom) * 100).toFixed(1);
+          const tt   = <span><b>{n.label}</b>: <span className="tnum">{fmtN(n.value)}</span> ({pct}%){n.mocked ? ' · placeholder' : ''}</span>;
+          const isLeftmost = n.col === 0;
           return (
             <g key={n.id} onMouseMove={e => show(e, tt)} onMouseLeave={hide} style={{ cursor: 'default' }}>
-              <rect x={nl.x} y={nl.y} width={NODE_W} height={nl.h} fill={n.color} rx={2}/>
-              {isLeft ? (
+              <rect x={nl.x} y={nl.y} width={NODE_W} height={nl.h}
+                fill={n.color}
+                fillOpacity={n.mocked ? 0.55 : 1}
+                stroke={n.mocked ? n.color : 'none'}
+                strokeDasharray={n.mocked ? '3 2' : undefined}
+                strokeWidth={n.mocked ? 1 : 0}
+                rx={2}/>
+              {isLeftmost ? (
                 <text x={nl.x - 8} y={nl.y + nl.h / 2}
                   textAnchor="end" dominantBaseline="middle"
-                  fontSize={11} fontFamily="var(--serif)" fill="var(--ink-2)">{n.label}</text>
+                  fontSize={11} fontFamily="var(--serif)" fill="var(--ink-2)">
+                  {n.label}{n.mocked ? ' *' : ''}
+                </text>
               ) : (
                 <text x={nl.x + NODE_W + 8} y={nl.y + nl.h / 2 - 7}
                   textAnchor="start" fontSize={11} fontFamily="var(--serif)" fill="var(--ink-2)">
-                  <tspan>{n.label}</tspan>
+                  <tspan>{n.label}{n.mocked ? ' *' : ''}</tspan>
                   <tspan x={nl.x + NODE_W + 8} dy={14} fontSize={10} fill="var(--muted)">{fmtN(n.value)} · {pct}%</tspan>
                 </text>
               )}

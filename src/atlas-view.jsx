@@ -78,8 +78,8 @@ function AtlasChoropleth({ countryValues, selectedName, onSelect, metricLabel = 
             const isSel = nat && nat === selectedName;
             return (
               <path key={`${c.iso || ''}-${c.name}-${i}`} d={c.d}
-                fill={isSel ? 'var(--accent-warn)' : fillFor(v)}
-                stroke={isSel ? 'var(--accent)' : 'var(--rule-2)'} strokeWidth={isSel ? 1.4 : 0.4}
+                fill={fillFor(v)}
+                stroke={isSel ? '#e91e63' : 'var(--rule-2)'} strokeWidth={isSel ? 2.5 : 0.4}
                 onClick={() => { if (!zoom.didDrag() && nat) onSelect(nat); }}
                 style={{cursor: nat ? (zoom.zoomed ? 'grab' : 'pointer') : 'default'}}>
                 <title>{c.name}{v > 0 ? ` — ${v.toLocaleString()} ${metricLabel}` : ''}</title>
@@ -122,6 +122,10 @@ function AtlasLegend({ countryValues, metricLabel = 'Applicants' }) {
               fontVariantNumeric:'tabular-nums',
             }}>{fmtTick(v)}</span>
           ))}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginTop:10,fontSize:10.5,color:'var(--muted-2)'}}>
+          <span style={{display:'inline-block',width:16,height:10,border:'2px solid #e91e63',background:'transparent'}}/>
+          Selected country
         </div>
       </div>
     </div>
@@ -195,8 +199,15 @@ function AtlasDetail({ name, setRoute }) {
           />
         </div>
       ) : (
-        <div style={{padding:'18px 16px',color:'var(--muted-2)',fontStyle:'italic',fontSize:13,background:'#fff',border:'1px dotted var(--rule-2)'}}>
-          No quarterly trend available (country not in NAT_QUARTERLY top-20).
+        <div style={{padding:'18px 20px',color:'var(--ink-2)',fontSize:13,lineHeight:1.55,background:'#fff',border:'1px dotted var(--rule-2)'}}>
+          <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8,fontStyle:'normal'}}>No quarterly trend</div>
+          The Home Office publishes a full quarterly time series only for the 20 nationalities with the largest applicant volumes. For other countries, only the most recent annual and quarterly totals are released, so a full trend can't be drawn here. Asylum applicants are not published at a daily or weekly granularity either, so the series can't be reconstructed from finer-grained data.
+          {' '}
+          <a href="https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables"
+             target="_blank" rel="noopener"
+             style={{color:'var(--accent)',textDecoration:'underline'}}>
+            Immigration system statistics methodology
+          </a>.
         </div>
       )}
       {grantSeries && grantData ? (
