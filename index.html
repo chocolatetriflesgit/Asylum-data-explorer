@@ -1874,20 +1874,12 @@ function DashboardView({ setRoute }) {
   return (
     <main className="fade-enter" style={{maxWidth:1300,margin:'0 auto',padding:'36px 48px 80px'}}>
       {/* title strip */}
-      <div style={{borderBottom:'1px solid var(--rule)',paddingBottom:22,marginBottom:28,display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:40,flexWrap:'wrap'}}>
-        <div>
-          <div className="kicker-rule" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,textTransform:'uppercase',fontWeight:500}}>Live dashboard · Q1 2026</div>
-          <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'6px 0 10px'}}>Asylum &amp; resettlement at a glance</h1>
-          <p style={{fontSize:15.5,color:'var(--ink-2)',maxWidth:680,margin:0,lineHeight:1.5}}>
-            Eight key figures, six charts, and the regional table — all driven by a single time-range filter. Updated when the Home Office releases its quarterly figures.
-          </p>
-        </div>
-        <div style={{minWidth:480,flex:'0 1 520px'}}>
-          <div className="uc" style={{color:'var(--muted)',marginBottom:6}}>
-            <span className="tick tick-accent"/>Time range
-          </div>
-          <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
-        </div>
+      <div style={{borderBottom:'1px solid var(--rule)',paddingBottom:22,marginBottom:28}}>
+        <div className="kicker-rule" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,textTransform:'uppercase',fontWeight:500}}>Live dashboard · Q1 2026</div>
+        <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'6px 0 10px'}}>Asylum &amp; resettlement at a glance</h1>
+        <p style={{fontSize:15.5,color:'var(--ink-2)',maxWidth:680,margin:0,lineHeight:1.5}}>
+          Eight key figures, six charts, and the regional table — all driven by a single time-range filter. Updated when the Home Office releases its quarterly figures.
+        </p>
       </div>
 
       {/* KPI strip row 1 — Small boat arrivals · Preventions · Applications · Initial decisions · Appeals allowed */}
@@ -1984,8 +1976,18 @@ function DashboardView({ setRoute }) {
         ))}
       </section>
 
+      {/* Time range filter — below KPI cards so figures are seen before filtering */}
+      <div style={{borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
+        <div style={{flex:'0 1 540px',minWidth:300}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
+            <span className="tick tick-accent"/>Time range
+          </div>
+          <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
+        </div>
+      </div>
+
       {/* Section focus — placed after KPIs so the numbers are visible before the user filters */}
-      <div style={{display:'flex',alignItems:'center',gap:10,margin:'28px 0',paddingTop:24,paddingBottom:24,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,margin:'0 0 28px',paddingTop:20,paddingBottom:20,borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
         <span className="uc" style={{color:'var(--muted)',marginRight:4}}>Jump to</span>
         {[
           { id:'all', label:'All sections' },
@@ -2347,14 +2349,16 @@ function FilterRange({ range, setRange, min, max }) {
         {years.map(y => {
           const x = yToX(y);
           const inRange = y >= range[0] && y <= range[1];
-          const showLabel = y === min || y === max || y % 2 === 0;
+          const isHandle = y === range[0] || y === range[1];
+          const showLabel = (y === min || y === max || y % 2 === 0) && !isHandle;
+          const anchor = y === min ? 'start' : y === max ? 'end' : 'middle';
           return (
             <g key={y} onClick={onTickClick(y)} style={{cursor:'pointer'}}>
               <rect x={x-4} y={trackY-8} width={8} height={16} fill="transparent"/>
               <line x1={x} x2={x} y1={trackY-5} y2={trackY+5}
                     stroke={inRange ? 'var(--accent)' : 'var(--muted-2)'} strokeWidth={1}/>
               {showLabel && (
-                <text x={x} y={trackY+22} fontSize={10} textAnchor="middle"
+                <text x={x} y={trackY+22} fontSize={10} textAnchor={anchor}
                       fill={inRange ? 'var(--ink-2)' : 'var(--muted-2)'}
                       style={{letterSpacing:0.04}}>{y}</text>
               )}
