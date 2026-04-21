@@ -12,89 +12,105 @@ const FLOW_NAT_PALETTE = [
 // System-flow palette — distinct from nationalities so the two sankeys don't
 // read as the same data viewed differently.
 const FLOW_SYSTEM_COLORS = {
-  visas:         '#2a5c8b', // blue
-  irregular:     '#c44a2a', // red
-  application:   '#4a4a4a', // neutral grey
-  granted:       'var(--accent-2)',
-  humanitarian:  'var(--accent-gold)',
-  refused:       'var(--accent-warn)',
-  withdrawn:     'var(--muted-2)',
-  appealAllowed: 'var(--accent-2)',
+  application:     '#4a4a4a', // neutral grey
+  granted:         'var(--accent-2)',
+  humanitarian:    'var(--accent-gold)',
+  refused:         'var(--accent-warn)',
+  withdrawn:       'var(--muted-2)',
+  appealAllowed:   'var(--accent-2)',
   appealDismissed: 'var(--muted-2)',
 };
 
-// Build the four-column system flow. Mocked nodes use placeholder values
-// (visas, appeal outcomes) and are rendered with dashed strokes and a star.
+// Col-0 entry routes — sourced from Asy_D01a (asylum-claim date basis, all
+// claimants incl. dependants). Shades within each group so the reader can see
+// the three top-level groups at a glance.
+const ROUTE_OF_ENTRY_NODES = [
+  { sub: 'Small Boat',                             group: 'Illegal Entry Routes', color: '#c44a2a' },
+  { sub: 'Clandestine',                            group: 'Illegal Entry Routes', color: '#d66a4a' },
+  { sub: 'Entered Without Relevant Documentation', group: 'Illegal Entry Routes', color: '#e8a085' },
+  { sub: 'Study Visa',                             group: 'Visas and Other Leave', color: '#2a5c8b' },
+  { sub: 'Work Visa',                              group: 'Visas and Other Leave', color: '#4a7cab' },
+  { sub: 'Visitor Visa',                           group: 'Visas and Other Leave', color: '#6a9ccb' },
+  { sub: 'Other Leave',                            group: 'Visas and Other Leave', color: '#8fbce0' },
+  { sub: 'Other',                                  group: 'Other',                 color: '#888888' },
+];
+
+// Build the four-column system flow. Only col-3 appeal outcomes remain mocked
+// (closes when R6 / ASY_D04 pipeline lands).
 function buildSystemFlow() {
-  const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
+  const route = typeof ROUTE_OF_ENTRY_QUARTERLY !== 'undefined' ? ROUTE_OF_ENTRY_QUARTERLY : [];
+  const routeMeta = typeof ROUTE_OF_ENTRY_META !== 'undefined' ? ROUTE_OF_ENTRY_META : null;
   const decisions = typeof DECISIONS_LATEST !== 'undefined' ? DECISIONS_LATEST
     : typeof DECISIONS_2024 !== 'undefined' ? DECISIONS_2024 : [];
-  const boatsAnnual = typeof BOATS_ANNUAL !== 'undefined' ? BOATS_ANNUAL : [];
 
-  if (!natFull.length) return { nodes: [], links: [] };
+  if (!route.length) return { nodes: [], links: [], year: null };
 
-  const appsTotal = natFull.reduce((s, r) => s + r.v, 0);
+  const year = routeMeta?.year;
+  const yearPrefix = year != null ? String(year) + ' ' : null;
+  const yearRows = yearPrefix
+    ? route.filter(r => r.q.indexOf(yearPrefix) === 0)
+    : route;
 
-  // Col 0: entry routes into the asylum system.
-  const irregular = boatsAnnual.length ? boatsAnnual[boatsAnnual.length - 1].m : 0;
-  // Visas are a PLACEHOLDER. Set so visas + irregular ≈ applications total,
-  // with visas carrying the rest. The exact value is illustrative only.
-  const visasMock = Math.max(0, appsTotal - irregular);
+  // Sum by sub-route for the reference year.
+  const bySub = {};
+  for (const r of yearRows) {
+    bySub[r.sub] = (bySub[r.sub] || 0) + r.v;
+  }
 
-  // Col 2: initial-decision outcomes, proportional to DECISIONS_LATEST.
+  const col0 = ROUTE_OF_ENTRY_NODES
+    .map(n => ({
+      id: 'e_' + n.sub.replace(/\s+/g, '_').toLowerCase(),
+      label: n.sub,
+      col: 0,
+      value: bySub[n.sub] || 0,
+      color: n.color,
+    }))
+    .filter(n => n.value > 0);
+
+  const appsTotal = col0.reduce((s, n) => s + n.value, 0);
+  if (!appsTotal) return { nodes: [], links: [], year };
+
+  // Col 2 — initial-decision outcomes, shares from DECISIONS_LATEST.
   // DECISIONS_LATEST rows: [granted, humanitarian, refused, withdrawn]
   const decTotal = decisions.reduce((s, r) => s + (r?.v ?? 0), 0) || 1;
   const grantedShare      = (decisions[0]?.v ?? 0) / decTotal;
   const humanitarianShare = (decisions[1]?.v ?? 0) / decTotal;
   const refusedShare      = (decisions[2]?.v ?? 0) / decTotal;
-  const withdrawnShare    = (decisions[3]?.v ?? 0) / decTotal;
 
   const granted      = Math.round(appsTotal * grantedShare);
   const humanitarian = Math.round(appsTotal * humanitarianShare);
   const refused      = Math.round(appsTotal * refusedShare);
   const withdrawn    = appsTotal - granted - humanitarian - refused;
 
-  // Col 3: appeal outcomes — PLACEHOLDER. Caveat at flow-view.jsx says
-  // appeals overturn ~15–20% of refused cases. Use 25% allowed of refused
-  // (upper end) as an illustrative split.
+  // Col 3 — appeal outcomes PLACEHOLDER until ASY_D04 is wired in (R6).
+  // Published commentary says appeals overturn ~15–20% of refused cases; use
+  // 25% at the upper end as an illustrative split.
   const APPEAL_ALLOWED_RATIO = 0.25;
   const appealAllowedMock   = Math.round(refused * APPEAL_ALLOWED_RATIO);
   const appealDismissedMock = refused - appealAllowedMock;
 
   const nodes = [
-    // Col 0 — entry routes
-    { id: 'e_visas', label: 'Visas (placeholder)', col: 0, value: visasMock, color: FLOW_SYSTEM_COLORS.visas, mocked: true },
-    { id: 'e_irreg', label: 'Irregular (small boats)', col: 0, value: irregular, color: FLOW_SYSTEM_COLORS.irregular },
-
-    // Col 1 — asylum claim
-    { id: 'app', label: 'Asylum claim', col: 1, value: appsTotal, color: FLOW_SYSTEM_COLORS.application },
-
-    // Col 2 — initial decision
-    { id: 'd_grant', label: 'Granted',     col: 2, value: granted,      color: FLOW_SYSTEM_COLORS.granted },
-    { id: 'd_human', label: 'Humanitarian',col: 2, value: humanitarian, color: FLOW_SYSTEM_COLORS.humanitarian },
-    { id: 'd_ref',   label: 'Refused',     col: 2, value: refused,      color: FLOW_SYSTEM_COLORS.refused },
-    { id: 'd_wdr',   label: 'Withdrawn',   col: 2, value: withdrawn,    color: FLOW_SYSTEM_COLORS.withdrawn },
-
-    // Col 3 — appeal outcomes (only for refused cohort)
+    ...col0,
+    { id: 'app',     label: 'Asylum claim', col: 1, value: appsTotal,    color: FLOW_SYSTEM_COLORS.application },
+    { id: 'd_grant', label: 'Granted',      col: 2, value: granted,      color: FLOW_SYSTEM_COLORS.granted },
+    { id: 'd_human', label: 'Humanitarian', col: 2, value: humanitarian, color: FLOW_SYSTEM_COLORS.humanitarian },
+    { id: 'd_ref',   label: 'Refused',      col: 2, value: refused,      color: FLOW_SYSTEM_COLORS.refused },
+    { id: 'd_wdr',   label: 'Withdrawn',    col: 2, value: withdrawn,    color: FLOW_SYSTEM_COLORS.withdrawn },
     { id: 'a_allow', label: 'Appeal allowed (placeholder)',   col: 3, value: appealAllowedMock,   color: FLOW_SYSTEM_COLORS.appealAllowed,   mocked: true },
     { id: 'a_dism',  label: 'Appeal dismissed (placeholder)', col: 3, value: appealDismissedMock, color: FLOW_SYSTEM_COLORS.appealDismissed, mocked: true },
   ];
 
   const links = [
-    // Col 0 → Col 1
-    { source: 'e_visas', target: 'app', value: visasMock, dashed: true },
-    { source: 'e_irreg', target: 'app', value: irregular },
-    // Col 1 → Col 2 — split by decision shares
-    { source: 'app', target: 'd_grant', value: granted },
-    { source: 'app', target: 'd_human', value: humanitarian },
-    { source: 'app', target: 'd_ref',   value: refused },
-    { source: 'app', target: 'd_wdr',   value: withdrawn },
-    // Col 2 → Col 3 — only refused cohort appeals
+    ...col0.map(n => ({ source: n.id, target: 'app', value: n.value })),
+    { source: 'app',   target: 'd_grant', value: granted },
+    { source: 'app',   target: 'd_human', value: humanitarian },
+    { source: 'app',   target: 'd_ref',   value: refused },
+    { source: 'app',   target: 'd_wdr',   value: withdrawn },
     { source: 'd_ref', target: 'a_allow', value: appealAllowedMock,   dashed: true },
     { source: 'd_ref', target: 'a_dism',  value: appealDismissedMock, dashed: true },
   ];
 
-  return { nodes, links };
+  return { nodes, links, year };
 }
 
 function buildSankeyData() {
@@ -172,6 +188,7 @@ function FlowKPI({ label, value, note }) {
 function FlowView({ setRoute }) {
   const { nodes, links } = React.useMemo(() => buildSankeyData(), []);
   const system = React.useMemo(() => buildSystemFlow(), []);
+  const systemYear = system.year ?? (typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META?.year : null);
 
   const natMeta = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META : null;
   const year    = natMeta?.year ?? '2024';
@@ -204,13 +221,13 @@ function FlowView({ setRoute }) {
         </p>
       </div>
 
-      {/* System flow — four-stage view with mocked visas + appeals */}
+      {/* System flow — four-stage view; col 3 appeal outcomes still mocked */}
       <div style={{marginTop:4,marginBottom:8}}>
-        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>System flow · {year}</div>
+        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>System flow · {systemYear ?? year}</div>
         <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>Entry → Application → Initial decision → Appeal</h2>
       </div>
       <div style={{padding:'10px 14px',background:'#fff7e6',border:'1px solid #e8c97a',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.5,marginBottom:12}}>
-        <strong style={{fontWeight:500}}>Placeholder data:</strong> visas (left) and appeal outcomes (right) are illustrative — the pipeline does not yet ingest entry-clearance visa grants (Immigration System Statistics) or the appeals dataset (ASY_D04). Dashed links mark placeholder segments. The Application → Initial decision split uses real shares from ASY_D02.
+        <strong style={{fontWeight:500}}>Placeholder data:</strong> appeal outcomes (right) are illustrative — the pipeline does not yet ingest the appeals dataset (ASY_D04). Dashed links mark the placeholder segment. Entry routes come from ASY_D01a (date of asylum claim) and the Application → Initial decision split uses shares from ASY_D02.
       </div>
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
         {system.nodes.length ? (

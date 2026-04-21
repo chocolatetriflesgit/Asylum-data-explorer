@@ -56,6 +56,7 @@ SOURCES = {
             "scripts/build_nat_series.py",
             "scripts/build_sex_age.py",
             "scripts/build_nat_grant_annual.py",
+            "scripts/build_route_of_entry.py",
         ),
         "data_files": (
             "data/nat-full-data.js",
@@ -64,6 +65,7 @@ SOURCES = {
             "data/nat-series-data.js",
             "data/sex-age-data.js",
             "data/nat-grant-annual-data.js",
+            "data/route-of-entry-data.js",
         ),
         "data_globals": (
             "NAT_FULL", "NAT_FULL_META", "NAT_QUARTERLY",
@@ -71,6 +73,7 @@ SOURCES = {
             "NAT_SERIES_LATEST", "NAT_SERIES_META",
             "SEX_AGE_ANNUAL", "SEX_AGE_META",
             "NAT_GRANT_ANNUAL", "NAT_GRANT_ANNUAL_META",
+            "ROUTE_OF_ENTRY_QUARTERLY", "ROUTE_OF_ENTRY_META",
         ),
     },
     "asylum-support": {

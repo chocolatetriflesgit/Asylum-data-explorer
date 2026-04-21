@@ -437,3 +437,59 @@ def test_support_regions_source_is_fresh():
         _load_globals(SUPPORT_REGIONS_JS)["SUPPORT_REGIONS_META"]["source"],
         "SUPPORT_REGIONS",
     )
+
+
+# ---------------------------------------------------------------------------
+# ROUTE_OF_ENTRY_QUARTERLY
+# ---------------------------------------------------------------------------
+
+ROUTE_OF_ENTRY_JS = ROOT / "data" / "route-of-entry-data.js"
+
+_ROUTE_GROUPS = {"Illegal Entry Routes", "Visas and Other Leave", "Other"}
+_ROUTE_SUBS = {
+    "Small Boat", "Clandestine", "Entered Without Relevant Documentation",
+    "Study Visa", "Work Visa", "Visitor Visa", "Other Leave", "Other",
+}
+
+
+def test_route_of_entry_shape_and_labels():
+    rows = _load_globals(ROUTE_OF_ENTRY_JS)["ROUTE_OF_ENTRY_QUARTERLY"]
+    assert len(rows) > 0
+    for r in rows:
+        assert set(r.keys()) == {"q", "group", "sub", "v"}, r
+        assert _QUARTER_RE.match(r["q"]), f"bad quarter: {r['q']}"
+        assert r["group"] in _ROUTE_GROUPS, r
+        assert r["sub"] in _ROUTE_SUBS, r
+        assert isinstance(r["v"], int) and r["v"] > 0
+
+
+def test_route_of_entry_is_chronological():
+    rows = _load_globals(ROUTE_OF_ENTRY_JS)["ROUTE_OF_ENTRY_QUARTERLY"]
+
+    def key(q: str) -> tuple[int, int]:
+        y, n = q.split(" Q")
+        return int(y), int(n)
+
+    quarters = [r["q"] for r in rows]
+    assert quarters == sorted(quarters, key=key), "route rows not sorted by quarter"
+
+
+def test_route_of_entry_latest_year_has_four_quarters():
+    g = _load_globals(ROUTE_OF_ENTRY_JS)
+    rows = g["ROUTE_OF_ENTRY_QUARTERLY"]
+    year = g["ROUTE_OF_ENTRY_META"]["year"]
+    quarters_in_year = {r["q"] for r in rows if r["q"].startswith(f"{year} ")}
+    assert quarters_in_year == {f"{year} Q1", f"{year} Q2", f"{year} Q3", f"{year} Q4"}
+
+
+def test_route_of_entry_meta_year_is_plausible():
+    year = _load_globals(ROUTE_OF_ENTRY_JS)["ROUTE_OF_ENTRY_META"]["year"]
+    assert 2018 <= year <= dt.date.today().year
+
+
+def test_route_of_entry_source_is_fresh():
+    """Soft warning, not failure."""
+    _warn_if_source_stale(
+        _load_globals(ROUTE_OF_ENTRY_JS)["ROUTE_OF_ENTRY_META"]["source"],
+        "ROUTE_OF_ENTRY",
+    )
