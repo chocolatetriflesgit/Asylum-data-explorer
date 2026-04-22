@@ -105,6 +105,8 @@ function App() {
       {route.name === 'flow' && <FlowView setRoute={setRoute}/>}
       {route.name === 'updates' && <UpdatesView setRoute={setRoute}/>}
 
+      {(route.name === 'dashboard' || route.name === 'atlas') && <BackToTop/>}
+
       <footer style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
         <div>
           <span style={{fontFamily:'var(--serif)',fontStyle:'italic',color:'var(--ink-2)'}}>Migration data explorer</span>

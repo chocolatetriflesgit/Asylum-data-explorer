@@ -601,7 +601,7 @@ function DashboardView({ setRoute }) {
               flattens out. */}
           {typeof BOATS_WEEKLY !== 'undefined' && BOATS_WEEKLY.length > 0 && (
             <div style={{marginTop:20}}>
-              <DashFrame number="02b" kickerColor="var(--accent-warn)" title="Arrivals by week · seasonal pattern" sub="Weekly crossings, 2018–latest · darker = more arrivals"
+              <DashFrame number="03" kickerColor="var(--accent-warn)" title="Arrivals by week · seasonal pattern" sub="Weekly crossings, 2018–latest · darker = more arrivals"
                 setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'weekly' }}>
                 <SeasonalHeatMap data={BOATS_WEEKLY} width={1100} height={260}
                   yLabel="Year" xLabel="Month"
@@ -612,13 +612,13 @@ function DashboardView({ setRoute }) {
             </div>
           )}
           <div style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
-            <DashFrame number="03" kickerColor="var(--accent-gold)" title="Top five nationalities"
+            <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top five nationalities"
               sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}
               setRoute={setRoute} forkPreset={{ d:'nationalities', ct:'line', g:'annual' }}>
               {(() => { const ns = (typeof NAT_SERIES_LATEST !== 'undefined') ? NAT_SERIES_LATEST : NAT_SERIES;
                 return <MultiLineChart years={ns.years} series={ns.series} width={760} height={260}/>; })()}
             </DashFrame>
-            <DashFrame number="03a" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}
+            <DashFrame number="05" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}
               setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'bar', g:'annual' }}>
               <NationalitiesTable data={natFull}/>
             </DashFrame>
@@ -640,7 +640,7 @@ function DashboardView({ setRoute }) {
             const lastMonth  = monthLabels[monthLabels.length - 1];
             return (
               <div style={{marginTop:20}}>
-                <DashFrame number="04" kickerColor="var(--accent)"
+                <DashFrame number="06" kickerColor="var(--accent)"
                   title="Monthly interceptions and preventions"
                   sub={`Border Force · ${_fmtMonth(firstMonth)}–${_fmtMonth(lastMonth)} · dual axis`}>
                   <DualAxisChart
@@ -666,7 +666,7 @@ function DashboardView({ setRoute }) {
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Decisions" title="Outcomes and the backlog" accent="var(--accent-2)" cadence="Quarterly"/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-            <DashFrame number="04" kickerColor="var(--accent-warn)" title={`Initial decisions, ${decisionsYear}`} sub="Share of substantive outcomes">
+            <DashFrame number="07" kickerColor="var(--accent-warn)" title={`Initial decisions, ${decisionsYear}`} sub="Share of substantive outcomes">
               <StackedBar data={decisionsData} width={600} height={110}/>
               <div style={{marginTop:18,display:'grid',gridTemplateColumns:'auto 1fr',gap:22,alignItems:'center'}}>
                 <Ring value={grantRate} size={220} stroke={22}
@@ -677,7 +677,7 @@ function DashboardView({ setRoute }) {
                 </div>
               </div>
             </DashFrame>
-            <DashFrame number="05" kickerColor="var(--accent-gold)" title="Pending cases (backlog)"
+            <DashFrame number="08" kickerColor="var(--accent-gold)" title="Pending cases (backlog)"
               sub={`${range[0]}–${range[1]}${backlogMeta ? ` · 31 Dec snapshots · Asy_D03` : ''}`}
               setRoute={setRoute} forkPreset={{ d:'backlog', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
               <LineChart data={filteredBacklog} yearRange={range} width={560} height={260}
@@ -693,7 +693,7 @@ function DashboardView({ setRoute }) {
           {/* Grant-rate small multiples — 12 nationalities, one cell each. */}
           {typeof NAT_GRANT_ANNUAL !== 'undefined' && NAT_GRANT_ANNUAL && (
             <div style={{marginTop:20}}>
-              <DashFrame number="05a" kickerColor="var(--accent-2)"
+              <DashFrame number="09" kickerColor="var(--accent-2)"
                 title="Grant rate by nationality · small multiples"
                 sub={`${NAT_GRANT_ANNUAL.years[0]}–${NAT_GRANT_ANNUAL.years[NAT_GRANT_ANNUAL.years.length-1]} · 12 nationalities · independent trends`}
                 setRoute={setRoute} forkPreset={{ d:'grant_rate', ct:'line' }}>
@@ -711,19 +711,12 @@ function DashboardView({ setRoute }) {
       {(focus === 'all' || focus === 'geography') && (
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Geography" title="Who applies" accent="var(--accent-gold)" cadence={`Applications · ${natFullYear ?? 'latest'}`}/>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
-            <DashFrame number="06" kickerColor="var(--accent-2)" title="Top nationalities" sub={`All asylum applications · UK · ${natFullYear ?? 2024}`} tableSub="Grant rate from ASY_D02">
-              <BarChart data={(natFull ?? TOP_NATIONALITIES).slice(0,8)} width={560} color="var(--accent-warn)" showGrant={true}/>
-            </DashFrame>
-            {natFull && (
-              <DashFrame number="07" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from ASY_D01`}>
-                <WorldMapChoropleth data={groupNatByRegion(natFull)} width={540} height={320}/>
-              </DashFrame>
-            )}
-          </div>
           {natFull && (
-            <div style={{display:'grid',gridTemplateColumns:'1fr',gap:20}}>
-              <DashFrame number="08" kickerColor="var(--accent-gold)" title="Applicants by region — detail" sub={`UK · ${natFullYear ?? ''} · grouped from ASY_D01`}>
+            <div style={{display:'grid',gridTemplateColumns:'1.35fr 1fr',gap:20,alignItems:'start'}}>
+              <DashFrame number="10" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
+                <WorldMapChoropleth data={groupNatByRegion(natFull)} width={720} height={420}/>
+              </DashFrame>
+              <DashFrame number="11" kickerColor="var(--accent-gold)" title="Applicants by region — detail" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
                 <RegionTable data={groupNatByRegion(natFull)} rows={natFull}/>
               </DashFrame>
             </div>
@@ -739,7 +732,7 @@ function DashboardView({ setRoute }) {
               ? SUPPORT_REGIONS : REGIONS;
             const regMeta = typeof SUPPORT_REGIONS_META !== 'undefined' ? SUPPORT_REGIONS_META : null;
             return (
-              <DashFrame number="09" kickerColor="var(--accent-warn)"
+              <DashFrame number="12" kickerColor="var(--accent-warn)"
                 title="Asylum seekers in receipt of Home Office support, by region"
                 sub={regMeta ? `UK regions · as at ${regMeta.date} · Asy_D11` : 'UK · 2024'}>
                 <BarChart data={regData} width={1100} color="var(--accent)"/>
@@ -1026,20 +1019,25 @@ function NationalitiesTable({ data }) {
       </div>
 
       <div style={{maxHeight:260,overflowY:'auto'}}>
-        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13,tableLayout:'fixed'}}>
+          <colgroup>
+            <col style={{width:'44%'}}/>
+            <col style={{width:'20%'}}/>
+            <col style={{width:'36%'}}/>
+          </colgroup>
           <thead style={{position:'sticky',top:0,background:'#fff'}}>
             <tr>
-              <th className="uc" onClick={click('name')} style={{textAlign:'left',padding:'6px 8px 6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Nationality{arrow('name')}</th>
+              <th className="uc" onClick={click('name')} style={{textAlign:'left',padding:'6px 8px 6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>Nationality{arrow('name')}</th>
               <th className="uc" onClick={click('v')}    style={{textAlign:'right',padding:'6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Apps{arrow('v')}</th>
-              <th className="uc" onClick={click('grant')}style={{textAlign:'right',padding:'6px 0 6px 8px',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer',minWidth:90}}>Grant{arrow('grant')}</th>
+              <th className="uc" onClick={click('grant')}style={{textAlign:'right',padding:'6px 0 6px 16px',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Grant{arrow('grant')}</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((r,i)=>(
               <tr key={r.name} style={{borderBottom:'1px dotted var(--rule)'}}>
-                <td style={{padding:'5px 8px 5px 0',color:'var(--ink)'}}>{r.name}</td>
+                <td style={{padding:'5px 8px 5px 0',color:'var(--ink)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={r.name}>{r.name}</td>
                 <td className="tnum" style={{padding:'5px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
-                <td style={{padding:'5px 0 5px 8px',textAlign:'right'}}>
+                <td style={{padding:'5px 0 5px 16px',textAlign:'right'}}>
                   {r.grant != null ? (
                     <div style={{display:'inline-flex',alignItems:'center',gap:6,justifyContent:'flex-end',width:'100%'}}>
                       <div style={{position:'relative',width:56,height:8,background:'var(--bg-2)'}} title={`${Math.round(r.grant*100)}%`}>

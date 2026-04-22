@@ -441,4 +441,36 @@ function IndexView({ setRoute }) {
   );
 }
 
-Object.assign(window, { Header, SearchModal, MethodologyDrawer, IndexView, TWEAK_DEFAULTS });
+// ─────────────────────────────────────────────────────────────
+// Back-to-top — fixed bottom-right button, appears after scrolling
+// past ~600px. Mounted only on the long pages (Dashboard, Atlas)
+// by root.jsx so it doesn't clutter shorter views.
+// ─────────────────────────────────────────────────────────────
+function BackToTop() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 600);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  if (!visible) return null;
+  return (
+    <button
+      aria-label="Back to top"
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      style={{
+        position:'fixed', right:24, bottom:24, zIndex:80,
+        width:44, height:44, borderRadius:'50%',
+        border:'1px solid var(--rule)', background:'var(--bg)',
+        color:'var(--ink)', cursor:'pointer',
+        boxShadow:'0 6px 18px rgba(0,0,0,0.12)',
+        display:'flex', alignItems:'center', justifyContent:'center',
+        fontFamily:'var(--serif)', fontSize:18, lineHeight:1,
+      }}>
+      <span aria-hidden="true" style={{display:'inline-block',transform:'translateY(-1px)'}}>↑</span>
+    </button>
+  );
+}
+
+Object.assign(window, { Header, SearchModal, MethodologyDrawer, IndexView, BackToTop, TWEAK_DEFAULTS });
