@@ -734,7 +734,9 @@ function DashboardView({ setRoute }) {
             const regData = (typeof SUPPORT_REGIONS !== 'undefined' && SUPPORT_REGIONS.length)
               ? SUPPORT_REGIONS : REGIONS;
             const regMeta = typeof SUPPORT_REGIONS_META !== 'undefined' ? SUPPORT_REGIONS_META : null;
+            const tiers = typeof SUPPORT_TIERS_LATEST !== 'undefined' ? SUPPORT_TIERS_LATEST : null;
             return (
+              <>
               <DashFrame number="12" kickerColor="var(--accent-warn)"
                 title="Asylum seekers in receipt of Home Office support, by region"
                 sub={regMeta ? `UK regions · as at ${regMeta.date} · Asy_D11` : 'UK · 2024'}>
@@ -743,6 +745,14 @@ function DashboardView({ setRoute }) {
                   Counts people receiving Section 95 support (accommodation and subsistence for destitute asylum seekers awaiting a decision), Section 98 (emergency support while a Section 95 application is assessed), or Section 4 (support for failed asylum seekers unable to leave the UK). This is where people are housed — not where claims were lodged.
                 </div>
               </DashFrame>
+              {tiers && tiers.total > 0 && (
+                <DashFrame number="13" kickerColor="var(--accent-warn)"
+                  title="Support by type · Section 95 / 98 / 4"
+                  sub={`UK · as at ${tiers.date} · Asy_D11`} source="Home Office · Asy_D11">
+                  <SupportTiersCard tiers={tiers}/>
+                </DashFrame>
+              )}
+              </>
             );
           })()}
         </section>
@@ -950,6 +960,38 @@ function DashSectionHeader({ kicker, title, accent, cadence }) {
       <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
         {cadence && <div className="uc" style={{color:'var(--muted-2)',fontSize:10.5,border:'1px solid var(--rule-2)',padding:'2px 7px',background:'var(--bg-2)'}}>{cadence}</div>}
         <div className="uc" style={{color:'var(--muted)'}}>↓ Export section</div>
+      </div>
+    </div>
+  );
+}
+
+function SupportTiersCard({ tiers }) {
+  const rows = [
+    { key:'s95', label:'Section 95', sub:'accommodation + subsistence while awaiting a decision', v:tiers.s95 },
+    { key:'s98', label:'Section 98', sub:'emergency support while an S95 claim is assessed',       v:tiers.s98 },
+    { key:'s4',  label:'Section 4',  sub:'support for failed claimants unable to leave the UK',     v:tiers.s4  },
+  ];
+  const total = tiers.total || rows.reduce((s,r)=>s+r.v,0);
+  const palette = ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)'];
+  return (
+    <div>
+      <div style={{display:'flex',width:'100%',height:14,border:'1px solid var(--rule)',background:'var(--bg-2)',marginBottom:18}}>
+        {rows.map((r,i) => (
+          <div key={r.key} style={{width:`${(r.v/total)*100}%`,background:palette[i]}} title={`${r.label}: ${r.v.toLocaleString()}`}/>
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:18}}>
+        {rows.map((r,i) => (
+          <div key={r.key} style={{borderTop:`2px solid ${palette[i]}`,paddingTop:12}}>
+            <div className="uc" style={{color:'var(--muted)',marginBottom:6}}>{r.label}</div>
+            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:30,fontWeight:500,color:'var(--ink)',lineHeight:1.1}}>{r.v.toLocaleString()}</div>
+            <div className="tnum" style={{fontSize:12.5,color:'var(--muted)',marginTop:4}}>{total ? Math.round((r.v/total)*100) : 0}% of total</div>
+            <div style={{fontSize:12.5,color:'var(--muted)',marginTop:8,lineHeight:1.5}}>{r.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{marginTop:14,paddingTop:12,borderTop:'1px dotted var(--rule-2)',fontSize:12.5,color:'var(--muted)'}}>
+        Total: {total.toLocaleString()} people — matches the regional sum in figure 12 by construction.
       </div>
     </div>
   );

@@ -439,6 +439,35 @@ def test_support_regions_source_is_fresh():
     )
 
 
+def test_support_tiers_latest_shape_and_sum():
+    g = _load_globals(SUPPORT_REGIONS_JS)
+    tiers = g["SUPPORT_TIERS_LATEST"]
+    assert set(tiers.keys()) >= {"date", "s95", "s98", "s4", "total"}
+    assert all(isinstance(tiers[k], int) for k in ("s95", "s98", "s4", "total"))
+    assert tiers["s95"] + tiers["s98"] + tiers["s4"] == tiers["total"]
+
+
+def test_support_tiers_total_matches_regional_sum():
+    """By construction, S95 + S98 + S4 must equal the region sum for the
+    latest snapshot — the two views sum the same People column over the same
+    date, just grouped differently."""
+    g = _load_globals(SUPPORT_REGIONS_JS)
+    tiers = g["SUPPORT_TIERS_LATEST"]
+    regional_sum = sum(r["v"] for r in g["SUPPORT_REGIONS"])
+    assert tiers["total"] == regional_sum, (tiers["total"], regional_sum)
+
+
+def test_support_tiers_annual_monotone_and_consistent():
+    annual = _load_globals(SUPPORT_REGIONS_JS)["SUPPORT_TIERS_ANNUAL"]
+    assert len(annual) > 0
+    for r in annual:
+        assert set(r.keys()) >= {"date", "s95", "s98", "s4", "total"}
+        assert r["s95"] + r["s98"] + r["s4"] == r["total"]
+    # latest entry in SUPPORT_TIERS_ANNUAL must match SUPPORT_TIERS_LATEST
+    latest = _load_globals(SUPPORT_REGIONS_JS)["SUPPORT_TIERS_LATEST"]
+    assert annual[-1] == latest
+
+
 # ---------------------------------------------------------------------------
 # ROUTE_OF_ENTRY_QUARTERLY
 # ---------------------------------------------------------------------------
