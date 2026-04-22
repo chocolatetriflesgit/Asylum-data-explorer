@@ -76,9 +76,7 @@ function DashboardView({ setRoute }) {
   const rangeLatest = filteredAnnual.length ? filteredAnnual[filteredAnnual.length - 1] : latest;
   const rangePrev   = filteredAnnual.length > 1 ? filteredAnnual[filteredAnnual.length - 2] : null;
   const pctChange   = (rangePrev && rangePrev.v > 0) ? ((rangeLatest.v - rangePrev.v) / rangePrev.v * 100).toFixed(1) : null;
-  // Use pipeline-generated BACKLOG_LATEST when available; fall back to legacy BACKLOG.
-  const backlogData = (typeof BACKLOG_LATEST !== 'undefined' && BACKLOG_LATEST.length)
-    ? BACKLOG_LATEST : BACKLOG;
+  const backlogData = (typeof BACKLOG_LATEST !== 'undefined' && BACKLOG_LATEST.length) ? BACKLOG_LATEST : [];
   const backlogMeta = typeof BACKLOG_META !== 'undefined' ? BACKLOG_META : null;
   const filteredBacklog = uMD(()=>backlogData.filter(d => d.y >= range[0] && d.y <= range[1]), [range, backlogData]);
   const backlogRangeLatest = filteredBacklog.length ? filteredBacklog[filteredBacklog.length - 1] : null;

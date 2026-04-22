@@ -252,8 +252,6 @@ function FlowView({ setRoute }) {
   const backlogLatest = (() => {
     if (typeof BACKLOG_LATEST !== 'undefined' && BACKLOG_LATEST.length)
       return BACKLOG_LATEST[BACKLOG_LATEST.length - 1]?.v ?? null;
-    if (typeof BACKLOG !== 'undefined' && BACKLOG.length)
-      return BACKLOG[BACKLOG.length - 1]?.v ?? null;
     return null;
   })();
 
@@ -436,7 +434,7 @@ function IrrBoatsByNationality() {
       <div style={{marginTop:48}}>
         <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality</div>
         <div style={{border:'1px dashed var(--rule)',background:'var(--bg-2)',padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:13}}>
-          Boats-by-nationality (Irr_D01) pending ingest. Run <code style={{fontFamily:'var(--mono)',fontSize:12}}>scripts/fetch_irregular.py</code> then <code style={{fontFamily:'var(--mono)',fontSize:12}}>scripts/build_irregular.py</code>.
+          Small boats by nationality data unavailable.
         </div>
       </div>
     );
@@ -551,6 +549,8 @@ function buildCohortAggregate() {
 // Build annual backlog waterfall: inflow from ASYLUM_ANNUAL (new claims each
 // year), pending stock from BACKLOG_LATEST (year-end snapshot), decided =
 // derived to close the balance. Returns [] when either source is missing.
+// Awaits OUTCOME_COHORT ingest (see BACKLOG.md) to replace the derived
+// "decided" term with the cohort-level initial-vs-latest split.
 function buildAnnualWaterfall() {
   const asy = (typeof ASYLUM_ANNUAL !== 'undefined' && Array.isArray(ASYLUM_ANNUAL)) ? ASYLUM_ANNUAL : [];
   const bkl = (typeof BACKLOG_LATEST !== 'undefined' && Array.isArray(BACKLOG_LATEST)) ? BACKLOG_LATEST : [];

@@ -98,14 +98,9 @@ const DECISIONS_2024 = Array.isArray(_W.DECISIONS_LATEST) && _W.DECISIONS_LATEST
       { label: 'Withdrawn',      v: 5600, color: 'var(--muted-2)' },
     ];
 
-// Backlog (pending initial decision) annual series. Shim over BACKLOG_LATEST.
-const BACKLOG = Array.isArray(_W.BACKLOG_LATEST) && _W.BACKLOG_LATEST.length
-  ? _W.BACKLOG_LATEST.map(r => ({ y: r.y, v: r.v }))
-  : [
-      { y: 2018, v: 27800 }, { y: 2019, v: 39100 }, { y: 2020, v: 52700 },
-      { y: 2021, v: 76800 }, { y: 2022, v: 109600 }, { y: 2023, v: 132200 },
-      { y: 2024, v: 91200 },
-    ];
+// Backlog (pending initial decision) annual series. Projection over BACKLOG_LATEST.
+const BACKLOG = (Array.isArray(_W.BACKLOG_LATEST) ? _W.BACKLOG_LATEST : [])
+  .map(r => ({ y: r.y, v: r.v }));
 
 // Resettlement schemes (latest year). RESETTLEMENT_SERIES is the canonical
 // wide-format pipeline output ({name, 2023:…, 2024:…, 2025:…}); collapse it
@@ -339,10 +334,13 @@ const DATASET_CONSUMERS = {
   ],
   ASY_D03: [
     { view: 'Dashboard', chart: 'Age / sex statistics block' },
-    { view: 'Build',     chart: '(future) Age / sex datasets' },
+    // Not yet surfaced on the Build view.
   ],
   ASY_D04: [
-    // All consumers pending Tranche 3 cohort-outcome ingest.
+    { view: 'Flow', chart: 'Cohort outcome ribbon' },
+    { view: 'Flow', chart: 'Backlog waterfall (annual)' },
+    { view: 'Flow', chart: 'Three-column sankey (cohort split)' },
+    // Charts render a pending-data fallback until OUTCOME_COHORT_ANNUAL is populated (see BACKLOG.md).
   ],
   ASY_D07: [
     { view: 'Dashboard', chart: 'Fig. 05 · Pending cases (backlog)' },

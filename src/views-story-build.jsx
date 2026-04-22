@@ -1259,7 +1259,7 @@ function BuildView({ setRoute }) {
             ) : null}
           </div>
           {prim.note && <div style={{fontSize:12,color:'var(--muted-2)',marginTop:10,fontStyle:'italic',maxWidth:680}}>{prim.note}</div>}
-          <div className="uc" style={{color:'var(--muted-2)',marginTop:12}}>Charts update live as you change controls. Annotations and custom titles coming in the next release.</div>
+          <div className="uc" style={{color:'var(--muted-2)',marginTop:12}}>Charts update live as you change controls.</div>
         </section>
       </div>
     </main>

@@ -363,14 +363,9 @@ const DECISIONS_2024 = Array.isArray(_W.DECISIONS_LATEST) && _W.DECISIONS_LATEST
       { label: 'Withdrawn',      v: 5600, color: 'var(--muted-2)' },
     ];
 
-// Backlog (pending initial decision) annual series. Shim over BACKLOG_LATEST.
-const BACKLOG = Array.isArray(_W.BACKLOG_LATEST) && _W.BACKLOG_LATEST.length
-  ? _W.BACKLOG_LATEST.map(r => ({ y: r.y, v: r.v }))
-  : [
-      { y: 2018, v: 27800 }, { y: 2019, v: 39100 }, { y: 2020, v: 52700 },
-      { y: 2021, v: 76800 }, { y: 2022, v: 109600 }, { y: 2023, v: 132200 },
-      { y: 2024, v: 91200 },
-    ];
+// Backlog (pending initial decision) annual series. Projection over BACKLOG_LATEST.
+const BACKLOG = (Array.isArray(_W.BACKLOG_LATEST) ? _W.BACKLOG_LATEST : [])
+  .map(r => ({ y: r.y, v: r.v }));
 
 // Resettlement schemes (latest year). RESETTLEMENT_SERIES is the canonical
 // wide-format pipeline output ({name, 2023:…, 2024:…, 2025:…}); collapse it
@@ -604,10 +599,13 @@ const DATASET_CONSUMERS = {
   ],
   ASY_D03: [
     { view: 'Dashboard', chart: 'Age / sex statistics block' },
-    { view: 'Build',     chart: '(future) Age / sex datasets' },
+    // Not yet surfaced on the Build view.
   ],
   ASY_D04: [
-    // All consumers pending Tranche 3 cohort-outcome ingest.
+    { view: 'Flow', chart: 'Cohort outcome ribbon' },
+    { view: 'Flow', chart: 'Backlog waterfall (annual)' },
+    { view: 'Flow', chart: 'Three-column sankey (cohort split)' },
+    // Charts render a pending-data fallback until OUTCOME_COHORT_ANNUAL is populated (see BACKLOG.md).
   ],
   ASY_D07: [
     { view: 'Dashboard', chart: 'Fig. 05 · Pending cases (backlog)' },
@@ -2998,9 +2996,7 @@ function DashboardView({ setRoute }) {
   const rangeLatest = filteredAnnual.length ? filteredAnnual[filteredAnnual.length - 1] : latest;
   const rangePrev   = filteredAnnual.length > 1 ? filteredAnnual[filteredAnnual.length - 2] : null;
   const pctChange   = (rangePrev && rangePrev.v > 0) ? ((rangeLatest.v - rangePrev.v) / rangePrev.v * 100).toFixed(1) : null;
-  // Use pipeline-generated BACKLOG_LATEST when available; fall back to legacy BACKLOG.
-  const backlogData = (typeof BACKLOG_LATEST !== 'undefined' && BACKLOG_LATEST.length)
-    ? BACKLOG_LATEST : BACKLOG;
+  const backlogData = (typeof BACKLOG_LATEST !== 'undefined' && BACKLOG_LATEST.length) ? BACKLOG_LATEST : [];
   const backlogMeta = typeof BACKLOG_META !== 'undefined' ? BACKLOG_META : null;
   const filteredBacklog = uMD(()=>backlogData.filter(d => d.y >= range[0] && d.y <= range[1]), [range, backlogData]);
   const backlogRangeLatest = filteredBacklog.length ? filteredBacklog[filteredBacklog.length - 1] : null;
@@ -5331,7 +5327,7 @@ function BuildView({ setRoute }) {
             ) : null}
           </div>
           {prim.note && <div style={{fontSize:12,color:'var(--muted-2)',marginTop:10,fontStyle:'italic',maxWidth:680}}>{prim.note}</div>}
-          <div className="uc" style={{color:'var(--muted-2)',marginTop:12}}>Charts update live as you change controls. Annotations and custom titles coming in the next release.</div>
+          <div className="uc" style={{color:'var(--muted-2)',marginTop:12}}>Charts update live as you change controls.</div>
         </section>
       </div>
     </main>
@@ -6282,8 +6278,6 @@ function FlowView({ setRoute }) {
   const backlogLatest = (() => {
     if (typeof BACKLOG_LATEST !== 'undefined' && BACKLOG_LATEST.length)
       return BACKLOG_LATEST[BACKLOG_LATEST.length - 1]?.v ?? null;
-    if (typeof BACKLOG !== 'undefined' && BACKLOG.length)
-      return BACKLOG[BACKLOG.length - 1]?.v ?? null;
     return null;
   })();
 
@@ -6466,7 +6460,7 @@ function IrrBoatsByNationality() {
       <div style={{marginTop:48}}>
         <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality</div>
         <div style={{border:'1px dashed var(--rule)',background:'var(--bg-2)',padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:13}}>
-          Boats-by-nationality (Irr_D01) pending ingest. Run <code style={{fontFamily:'var(--mono)',fontSize:12}}>scripts/fetch_irregular.py</code> then <code style={{fontFamily:'var(--mono)',fontSize:12}}>scripts/build_irregular.py</code>.
+          Small boats by nationality data unavailable.
         </div>
       </div>
     );
@@ -6581,6 +6575,8 @@ function buildCohortAggregate() {
 // Build annual backlog waterfall: inflow from ASYLUM_ANNUAL (new claims each
 // year), pending stock from BACKLOG_LATEST (year-end snapshot), decided =
 // derived to close the balance. Returns [] when either source is missing.
+// Awaits OUTCOME_COHORT ingest (see BACKLOG.md) to replace the derived
+// "decided" term with the cohort-level initial-vs-latest split.
 function buildAnnualWaterfall() {
   const asy = (typeof ASYLUM_ANNUAL !== 'undefined' && Array.isArray(ASYLUM_ANNUAL)) ? ASYLUM_ANNUAL : [];
   const bkl = (typeof BACKLOG_LATEST !== 'undefined' && Array.isArray(BACKLOG_LATEST)) ? BACKLOG_LATEST : [];
