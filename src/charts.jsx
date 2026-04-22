@@ -511,6 +511,9 @@ function GrantRateSmallMultiples({
   highlight=[],
   caption=null,
 }) {
+  // hover = { cellIdx, yearIdx } — identifies which cell + year the reader
+  // is nearest, so the renderer can draw a crosshair and a year/% label.
+  const [hover, setHover] = React.useState(null);
   if (!series || !Array.isArray(series.years) || !Array.isArray(series.series)) {
     return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data.</div>;
   }
@@ -587,6 +590,46 @@ function GrantRateSmallMultiples({
                 <text x={ox + cellW - pad.r} y={oy + cellH - 4} textAnchor="end" fontSize="9.5" fill="var(--muted-2)"
                   style={{fontFamily:'var(--serif)'}}>{xMax}</text>
               )}
+              {/* Per-cell hit rect — snaps to the nearest year and sets the hover state */}
+              <rect x={ox + pad.l} y={oy + pad.t} width={iw} height={ih}
+                fill="transparent"
+                onMouseMove={e => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const rel = (e.clientX - rect.left) / Math.max(1, rect.width);
+                  const yrI = Math.max(0, Math.min(years.length - 1, Math.round(rel * (years.length - 1))));
+                  setHover({ cellIdx: idx, yearIdx: yrI });
+                }}
+                onMouseLeave={() => setHover(null)}
+                style={{cursor:'crosshair'}}/>
+              {/* Crosshair + label, drawn only for the hovered cell */}
+              {hover && hover.cellIdx === idx && (() => {
+                const i = hover.yearIdx;
+                const v = s.data[i];
+                const cx = ox + x(i);
+                return (
+                  <g pointerEvents="none">
+                    <line x1={cx} x2={cx} y1={oy + pad.t} y2={oy + cellH - pad.b}
+                      stroke={stroke} strokeOpacity="0.45" strokeWidth="0.8" strokeDasharray="2 2"/>
+                    {v != null && (
+                      <>
+                        <circle cx={cx} cy={oy + y(v)} r="3" fill={stroke}/>
+                        <text x={ox + cellW / 2} y={oy + 11 + 13}
+                          textAnchor="middle" fontSize="10.5" fill="var(--ink-2)"
+                          style={{fontFamily:'var(--serif)',fontVariantNumeric:'tabular-nums'}}>
+                          {years[i]} · {Math.round(v * 100)}%
+                        </text>
+                      </>
+                    )}
+                    {v == null && (
+                      <text x={ox + cellW / 2} y={oy + 11 + 13}
+                        textAnchor="middle" fontSize="10.5" fill="var(--muted)"
+                        style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>
+                        {years[i]} · no data
+                      </text>
+                    )}
+                  </g>
+                );
+              })()}
             </g>
           );
         })}
@@ -663,11 +706,23 @@ function SeasonalHeatMap({
   const cellW = iw / WEEKS;
   const cellH = ih / years.length;
 
-  // Colour ramp: bg-2 → accent at full intensity. Nulls render as bg-2.
-  // Uses sqrt scaling so the crowded mid-band shows detail rather than
-  // pegging hot weeks and washing everything else out.
-  const intensity = v => v == null ? 0 : Math.sqrt(v / vMax);
-  const colorFor = v => v == null ? 'var(--bg-2)' : `color-mix(in srgb, var(--accent) ${Math.round(intensity(v)*100)}%, var(--bg-2))`;
+  // Colour ramp: bg-2 → accent-warn via accent at full intensity. Nulls
+  // render as bg-2. Power < 1 (sqrt steeper than 0.5) lifts mid-range
+  // cells off the floor so low-but-not-zero weeks are visible, while
+  // hot weeks shift toward accent-warn so the "summer peak" pops.
+  const intensity = v => v == null ? 0 : Math.pow(v / vMax, 0.42);
+  const colorFor = v => {
+    if (v == null) return 'var(--bg-2)';
+    const t = intensity(v);
+    if (t < 0.6) {
+      // 0 → 0.6 sits inside the accent band.
+      const pct = Math.round((t / 0.6) * 100);
+      return `color-mix(in srgb, var(--accent) ${pct}%, var(--bg-2))`;
+    }
+    // 0.6 → 1.0 rolls from accent toward accent-warn for the hottest weeks.
+    const pct = Math.round(((t - 0.6) / 0.4) * 100);
+    return `color-mix(in srgb, var(--accent-warn) ${pct}%, var(--accent))`;
+  };
 
   // Month marker positions (approximate: week of month-start / 7).
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -738,7 +793,8 @@ function SeasonalHeatMap({
         <defs>
           <linearGradient id="heatGrad" x1="0" x2="1" y1="0" y2="0">
             <stop offset="0%" stopColor="var(--bg-2)"/>
-            <stop offset="100%" stopColor="var(--accent)"/>
+            <stop offset="60%" stopColor="var(--accent)"/>
+            <stop offset="100%" stopColor="var(--accent-warn)"/>
           </linearGradient>
         </defs>
       </svg>

@@ -390,7 +390,7 @@ function DashboardView({ setRoute }) {
           { label: `Grant rate · ${decisionsYear}`,
             v: `${Math.round(grantRate*100)}%`,
             d: 'of initial decisions',
-            spark: grantSpark.length ? grantSpark.slice(-8) : [], sparkStroke: 'var(--accent-2)' },
+            spark: grantSpark, sparkStroke: 'var(--accent-2)' },
         ];
         return (
           <section style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:24,paddingBottom:22,borderBottom:'1px solid var(--rule)'}}>
@@ -623,32 +623,42 @@ function DashboardView({ setRoute }) {
               <NationalitiesTable data={natFull}/>
             </DashFrame>
           </div>
-          {(interceptionsMonthly.length > 0 || preventionsMonthly.length > 0) && (
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginTop:20}}>
-              {interceptionsMonthly.length > 0 && (
-                <DashFrame number="04" kickerColor="var(--accent)" title="Monthly interceptions" sub={`Border Force events · ${_fmtMonth(interceptionsFirstMonth)}–${_fmtMonth(interceptionsLastMonth)}`}>
-                  <LineChart data={interceptionsMonthly} width={540} height={220}
-                    stroke="var(--accent)" area={true} showLine={true}
-                    yLabel="Events" xLabel="Month"
-                    xLabelFmt={(_, i, p) => _fmtMonth(p?.label)}
-                    caption="Events in which Border Force prevented a crossing in progress. Weekly figures aggregated to calendar months."
+          {(interceptionsMonthly.length > 0 || preventionsMonthly.length > 0) && (() => {
+            // Merged dual-axis chart: interceptions (events) on the left axis,
+            // preventions (migrants) on the right axis. Re-index both series
+            // onto a shared monthly grid (union of all labels) so the x-axis
+            // aligns — otherwise DualAxisChart would plot two series against
+            // separate index spaces and their shapes wouldn't be comparable.
+            const monthLabels = Array.from(new Set([
+              ...interceptionsMonthly.map(p => p.label),
+              ...preventionsMonthly.map(p => p.label),
+            ])).sort();
+            const indexByLabel = Object.fromEntries(monthLabels.map((lbl, i) => [lbl, i]));
+            const leftAligned  = interceptionsMonthly.map(p => ({ y: indexByLabel[p.label], v: p.v, label: p.label }));
+            const rightAligned = preventionsMonthly.map(p => ({ y: indexByLabel[p.label], v: p.v, label: p.label }));
+            const firstMonth = monthLabels[0];
+            const lastMonth  = monthLabels[monthLabels.length - 1];
+            return (
+              <div style={{marginTop:20}}>
+                <DashFrame number="04" kickerColor="var(--accent)"
+                  title="Monthly interceptions and preventions"
+                  sub={`Border Force · ${_fmtMonth(firstMonth)}–${_fmtMonth(lastMonth)} · dual axis`}>
+                  <DualAxisChart
+                    left={leftAligned} right={rightAligned}
+                    leftStroke="var(--accent)" rightStroke="var(--accent-warn)"
+                    leftLabel="Interceptions" rightLabel="Preventions"
+                    yLabelLeft="Events (interceptions)"
+                    yLabelRight="Migrants (preventions)"
+                    xLabel="Month"
+                    width={1100} height={280}
+                    xLabelFmt={(_, i, p) => _fmtMonth(p?.label ?? p?.y)}
+                    caption="Interceptions (solid, left axis) count the events in which Border Force prevented a crossing in progress; preventions (dashed, right axis) count the migrants involved. Reporting of preventions began in May 2024 — the dashed line starts there."
                     source="Home Office · SB_02"
                     asOf={srcAsOf.SB_02} nextUpdate={srcAsOf.SB_02_next}/>
                 </DashFrame>
-              )}
-              {preventionsMonthly.length > 0 && (
-                <DashFrame number="04a" kickerColor="var(--accent-warn)" title="Monthly preventions" sub={`Migrants prevented · ${_fmtMonth(preventionsFirstMonth)}–${_fmtMonth(preventionsLastMonth)}`}>
-                  <LineChart data={preventionsMonthly} width={540} height={220}
-                    stroke="var(--accent-warn)" area={true} showLine={true}
-                    yLabel="Migrants" xLabel="Month"
-                    xLabelFmt={(_, i, p) => _fmtMonth(p?.label)}
-                    caption="Migrants prevented from crossing, aggregated by month. Reporting of preventions began in May 2024."
-                    source="Home Office · SB_02"
-                    asOf={srcAsOf.SB_02} nextUpdate={srcAsOf.SB_02_next}/>
-                </DashFrame>
-              )}
-            </div>
-          )}
+              </div>
+            );
+          })()}
         </section>
       )}
 
