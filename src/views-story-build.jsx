@@ -548,7 +548,10 @@ function readBuildInitial() {
       const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('build_' + key) : null;
       return stored;
     };
-    const ds = read('d') || defaults.ds;
+    const rawDs = read('d') || defaults.ds;
+    const validDs = Array.isArray(DATASET_OPTIONS)
+      && DATASET_OPTIONS.some(o => o && o.id === rawDs);
+    const ds = validDs ? rawDs : defaults.ds;
     const overlays = (read('o') || defaults.overlays.join(',')).split(',').filter(Boolean);
     const chartType = read('ct') || defaults.chartType;
     const rng = (read('r') || `${defaults.range[0]}-${defaults.range[1]}`).split('-').map(Number);
@@ -582,7 +585,7 @@ function BuildView({ setRoute }) {
     { label: 'Small-boat arrivals by month',  cfg: { ds:'boats', chartType:'line', granularity:'monthly' } },
     { label: 'Small-boat arrivals by week',   cfg: { ds:'boats', chartType:'line', granularity:'weekly' } },
     { label: 'Applications, 2014–today',      cfg: { ds:'applications', chartType:'line', granularity:'annual', range:[2014, DATA_MAX_YEAR] } },
-    { label: 'Top 5 nationalities over time', cfg: { ds:'nationalities', chartType:'line', granularity:'annual' } },
+    { label: 'Top 5 nationalities over time', cfg: { ds:'nationalities_custom', chartType:'line', granularity:'annual', selectedNats:['Pakistan','Afghanistan','Iran','Eritrea','Syria'] } },
     { label: 'Grant rate · top 5',            cfg: { ds:'grant_rate', selectedNats:['Afghanistan','Syria','Iran','Eritrea','Sudan'], range:[2016, DATA_MAX_YEAR] } },
     { label: 'Backlog since 2018',            cfg: { ds:'backlog', chartType:'line', granularity:'annual', range:[2018, DATA_MAX_YEAR] } },
     { label: 'Resettlement by scheme',        cfg: { ds:'resettlement', chartType:'stacked' } },
@@ -678,7 +681,8 @@ function BuildView({ setRoute }) {
   // Prune the primary dataset from the overlay list if the user switches to it.
   uE2(() => { setOverlays(os => os.filter(id => id !== ds)); }, [ds]);
 
-  const prim = DATASET_OPTIONS.find(o => o.id === ds);
+  const prim = DATASET_OPTIONS.find(o => o.id === ds)
+    || DATASET_OPTIONS.find(o => o && o.id === 'applications');
   const isMultiPrim = prim.render === 'multi';
   const isCustomNat = prim.render === 'custom-multi';
   const isGrantRate = prim.render === 'grant-rate';

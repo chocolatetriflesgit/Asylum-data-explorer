@@ -619,7 +619,7 @@ function DashboardView({ setRoute }) {
           <div style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
             <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top five nationalities"
               sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}
-              setRoute={setRoute} forkPreset={{ d:'nationalities', ct:'line', g:'annual' }}>
+              setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'line', g:'annual', nats:'Pakistan,Afghanistan,Iran,Eritrea,Syria' }}>
               {(() => { const ns = (typeof NAT_SERIES_LATEST !== 'undefined') ? NAT_SERIES_LATEST : NAT_SERIES;
                 return <MultiLineChart years={ns.years} series={ns.series} yearRange={range} width={760} height={260}/>; })()}
             </DashFrame>
