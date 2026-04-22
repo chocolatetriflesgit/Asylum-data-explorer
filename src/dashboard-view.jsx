@@ -151,12 +151,22 @@ function DashboardView({ setRoute }) {
   // Returns totals (RETURNS_BY_NATIONALITY from build_returns.py).
   const returnsData = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : null;
   const returnsMeta = typeof RETURNS_META !== 'undefined' ? RETURNS_META : null;
-  const returnsCard = returnsData ? {
-    enforced: returnsData.reduce((s,r) => s + (r.enforced||0), 0),
-    voluntary: returnsData.reduce((s,r) => s + (r.voluntary||0), 0),
-    total: returnsData.reduce((s,r) => s + (r.total||0), 0),
-    year: returnsMeta?.year ?? '—',
-  } : null;
+  const returnsCard = returnsData ? (() => {
+    const total = returnsData.reduce((s,r) => s + (r.total||0), 0);
+    const priorTotal = returnsMeta?.priorYearTotal ?? null;
+    const priorYear = returnsMeta?.priorYear ?? null;
+    const yoyPct = (priorTotal && priorTotal > 0)
+      ? Number(((total - priorTotal) / priorTotal * 100).toFixed(1))
+      : null;
+    return {
+      enforced: returnsData.reduce((s,r) => s + (r.enforced||0), 0),
+      voluntary: returnsData.reduce((s,r) => s + (r.voluntary||0), 0),
+      total,
+      year: returnsMeta?.year ?? '—',
+      priorYear,
+      yoyPct,
+    };
+  })() : null;
 
   // Age disputes totals (AGE_DISPUTES_BY_NATIONALITY from build_age_disputes.py).
   const ageDisputesData = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : null;
@@ -314,8 +324,14 @@ function DashboardView({ setRoute }) {
               </div>
             ))}
           </div>
-          <div style={{fontSize:11.5,color:'var(--muted)',marginTop:10,fontStyle:'italic'}}>
-            Daily figures from gov.uk provisional page. Faded cells have been verified by the weekly ODS. Hover a cell for details.
+          <div style={{fontSize:11.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5}}>
+            Figures are provisional, drawn from the Home Office{' '}
+            <a href={(typeof BOATS_PROVISIONAL_META !== 'undefined' && BOATS_PROVISIONAL_META?.sourceUrl)
+                      || 'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days'}
+               target="_blank" rel="noopener noreferrer"
+               style={{color:'inherit',textDecoration:'underline',textDecorationStyle:'dotted',textUnderlineOffset:2}}>
+              small-boat crossings · last 7 days
+            </a>{' '}page and updated each day. Faded cells have already been confirmed by the weekly ODS time series; unfaded cells may still be revised. Hover a cell for details.
           </div>
         </section>
       )}
@@ -359,9 +375,9 @@ function DashboardView({ setRoute }) {
             d: lastWk ? `week ending ${lastWk.we}` : 'Data pending',
             spark: wk.slice(-12).map((w,i) => ({ y: i, v: w.m || 0 })),
             sparkStroke: 'var(--accent-warn)' },
-          { label: `YTD arrivals · ${latestYoyYear ?? ''}`,
+          { label: `Small-boat arrivals · ${latestYoyYear ?? ''}`,
             v: ytd != null ? fmtN(ytd) : '—',
-            d: ytdDelta != null ? `${ytdDelta>=0?'+':''}${ytdDelta.toFixed(1)}% vs same day ${+latestYoyYear - 1}` : 'latest cumulative',
+            d: ytdDelta != null ? `${ytdDelta>=0?'+':''}${ytdDelta.toFixed(1)}% vs same point in ${+latestYoyYear - 1}` : 'cumulative year-to-date',
             spark: boatsAnnual, sparkStroke: 'var(--accent-warn)' },
           { label: `Backlog · ${backlogSeries[backlogSeries.length-1]?.y ?? ''}`,
             v: backlogSeries.length ? fmtN(backlogSeries[backlogSeries.length-1].v) : '—',
@@ -401,14 +417,11 @@ function DashboardView({ setRoute }) {
           <span style={{fontSize:11,color:'var(--muted-2)',fontStyle:'italic'}}>click to expand ▾</span>
         </summary>
         <div style={{paddingTop:18}}>
-      {/* KPI strip row 1 — Small boat arrivals · Preventions · Applications · Initial decisions · Appeals allowed */}
-      <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:14}}>
+      {/* KPI strip row 1 — Preventions · Applications · Initial decisions · Appeals allowed.
+          The "Small-boat arrivals · YYYY" card that lived here was a duplicate of the
+          hero card above (same number, same year) and was removed in the polish pass. */}
+      <section style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:14}}>
         {[
-          boatsRangeLatest
-            ? { cls:'', label:`Small-boat arrivals · ${boatsRangeLatest.y}`, v:fmtN(boatsRangeLatest.m),
-                d: boatsPct!=null ? `${+boatsPct>=0?'+':''}${boatsPct}% vs ${boatsRangePrev?.y??''}` : `${boatsRangeLatest.y} only`,
-                dPos: boatsPct!=null ? +boatsPct<0 : null }
-            : { cls:'', label:'Small-boat arrivals', v:'—', d:'No data in range', pending:true },
           { cls:'ink', label:`Preventions · ${preventionsYear}`, v:fmtN(preventionsYearTotal),
             d: preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true },
           { cls:'accent', label:`Applications · ${rangeLatest.y}`, v:fmtN(rangeLatest.v),
@@ -441,14 +454,23 @@ function DashboardView({ setRoute }) {
                   return s + (r[last] ?? 0);
                 }, 0)
               : 12410;
-            return { cls:'accent', label:'Resettled under schemes', v:fmtN(total), d:'Across 5 programmes'};
+            const yrs = resettlementYears || [];
+            const first = yrs.length ? yrs[0] : null;
+            const last  = yrs.length ? yrs[yrs.length - 1] : null;
+            const yrRange = (first && last) ? (first === last ? `${last}` : `${first}–${last}`) : '';
+            return {
+              cls:'accent',
+              label: `Resettled under schemes${last ? ` · ${last}` : ''}`,
+              v: fmtN(total),
+              d: yrRange ? `${yrRange} · across 5 programmes` : 'Across 5 programmes',
+            };
           })(),
           topNatCard
             ? { cls:'gold', label:`Top nationality · ${topNatCard.quarter}`, v:topNatCard.name,
                 d: topNatCard.share!=null ? `${fmtN(topNatCard.v)} · ${topNatCard.share}% of total` : `${fmtN(topNatCard.v)} apps`, pending:false }
             : { cls:'gold', label:'Top nationality · Q-o-Q', v:'—', d:'Data pending', pending:true },
           hotelsCard
-            ? { cls:'ink', label:`In asylum hotels · ${hotelsCard.date}`, v:fmtN(hotelsCard.persons_in_hotels), d: hotelsCard.delta==null ? 'latest snapshot' : `${hotelsCard.delta>=0?'+':''}${hotelsCard.delta.toFixed(1)}% vs prior`, pending:false }
+            ? { cls:'ink', label:`In asylum hotels · ${hotelsCard.date}`, v:fmtN(hotelsCard.persons_in_hotels), d: hotelsCard.delta==null ? 'latest snapshot' : `${hotelsCard.delta>=0?'+':''}${hotelsCard.delta.toFixed(1)}% vs previous snapshot`, pending:false }
             : { cls:'ink', label:'In asylum hotels', v:'—', d:'Data pending', pending:true },
         ].map((k,i)=>(
           <div key={i} className={`kpi-card ${k.cls}`} style={k.pending?{opacity:0.6}:{}}>
@@ -471,7 +493,11 @@ function DashboardView({ setRoute }) {
             ? ((sexAgeRangeLatest.under18 - sexAgeRangePrev.under18) / sexAgeRangePrev.under18 * 100).toFixed(1) : null;
           return [
             returnsCard
-              ? { cls:'ink', label:`Returns · ${returnsCard.year}`, v:fmtN(returnsCard.total), d:`${fmtN(returnsCard.enforced)} enforced · ${fmtN(returnsCard.voluntary)} voluntary` }
+              ? { cls:'ink', label:`Returns · ${returnsCard.year}`, v:fmtN(returnsCard.total),
+                  d: returnsCard.yoyPct != null
+                      ? `${returnsCard.yoyPct>=0?'+':''}${returnsCard.yoyPct}% vs ${returnsCard.priorYear} · ${fmtN(returnsCard.enforced)} enforced · ${fmtN(returnsCard.voluntary)} voluntary`
+                      : `${fmtN(returnsCard.enforced)} enforced · ${fmtN(returnsCard.voluntary)} voluntary`,
+                  dPos: returnsCard.yoyPct != null ? returnsCard.yoyPct >= 0 : null }
               : { cls:'ink', label:'Returns', v:'—', d:'Data pending', pending:true },
             sexAgeRangeLatest && maleAdultRatio != null
               ? { cls:'', label:`Sex ratio (adults) · ${yr}`, v:`${maleAdultRatio}% male`, d:`${fmtN(sexAgeRangeLatest.male_adult)}M / ${fmtN(sexAgeRangeLatest.female_adult)}F` }

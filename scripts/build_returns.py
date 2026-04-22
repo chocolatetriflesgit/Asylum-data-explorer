@@ -80,8 +80,27 @@ def build_returns(xlsx_path: Path) -> tuple[list[dict], dict]:
 
     rows.sort(key=lambda r: r["total"], reverse=True)
 
+    # Prior-year total so the Dashboard card can show a YoY delta without a
+    # second data load. Uses the four main return types summed across all
+    # nationalities in the year before `year`.
+    prior_year = year - 1
+    prior = df[df["Year"] == prior_year]
+    if len(prior):
+        prior_total = int(
+            prior[prior["Return type group"].isin([ENFORCED, VOLUNTARY, REFUSED])][
+                "Number of returns"
+            ].sum()
+        )
+    else:
+        prior_total = None
+
+    total_latest = sum(r["total"] for r in rows)
+
     meta = {
         "year": year,
+        "totalYear": total_latest,
+        "priorYear": prior_year if prior_total is not None else None,
+        "priorYearTotal": prior_total,
         "source": xlsx_path.name,
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "provider": "UK Home Office",
