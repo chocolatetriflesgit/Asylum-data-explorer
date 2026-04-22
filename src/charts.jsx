@@ -347,6 +347,7 @@ function YoYCumulative({
   caption=null,
   highlightYear=null,
   yLabel=null, xLabel=null,
+  yearRange=null,
 }) {
   const { show, hide, node } = useTooltip();
   const [hoverYr, setHoverYr] = React.useState(null);
@@ -362,7 +363,10 @@ function YoYCumulative({
   if (!series || typeof series !== 'object') {
     return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data.</div>;
   }
-  const years = Object.keys(series).filter(k => Array.isArray(series[k])).sort();
+  const allYears = Object.keys(series).filter(k => Array.isArray(series[k])).sort();
+  const years = yearRange
+    ? allYears.filter(y => +y >= yearRange[0] && +y <= yearRange[1])
+    : allYears;
   if (!years.length) {
     return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data.</div>;
   }
@@ -510,6 +514,7 @@ function GrantRateSmallMultiples({
   cols=4,
   highlight=[],
   caption=null,
+  yearRange=null,
 }) {
   // hover = { cellIdx, yearIdx } — identifies which cell + year the reader
   // is nearest, so the renderer can draw a crosshair and a year/% label.
@@ -517,12 +522,18 @@ function GrantRateSmallMultiples({
   if (!series || !Array.isArray(series.years) || !Array.isArray(series.series)) {
     return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data.</div>;
   }
-  const years = series.years;
+  const yearIdx = yearRange
+    ? series.years.map((y, i) => (+y >= yearRange[0] && +y <= yearRange[1]) ? i : -1).filter(i => i !== -1)
+    : series.years.map((_, i) => i);
+  const years = yearIdx.length ? yearIdx.map(i => series.years[i]) : series.years;
   const xMin = years[0], xMax = years[years.length - 1];
-  // Subset the series array.
-  let rows = countries
+  // Subset the series array (and slice each row's data to the active years).
+  let rows = (countries
     ? series.series.filter(s => countries.includes(s.name))
-    : series.series.slice();
+    : series.series.slice()
+  ).map(s => yearIdx.length && yearIdx.length !== series.years.length
+    ? { ...s, data: yearIdx.map(i => s.data[i]) }
+    : s);
   if (!countries) {
     // Default pick: 12 nationalities with the highest count of non-null years
     // (most complete decade+ records) — this is a legibility-first default.
@@ -657,6 +668,7 @@ function SeasonalHeatMap({
   asOf=null, nextUpdate=null, sourceUrl=null,
   caption=null,
   yLabel=null, xLabel=null,
+  yearRange=null,
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
@@ -697,7 +709,10 @@ function SeasonalHeatMap({
     if (r.m > vMax) vMax = r.m;
   });
 
-  const years = Object.keys(cells).map(Number).sort((a,b) => a-b);
+  const allYears = Object.keys(cells).map(Number).sort((a,b) => a-b);
+  const years = yearRange
+    ? allYears.filter(y => y >= yearRange[0] && y <= yearRange[1])
+    : allYears;
   if (!years.length) {
     return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data.</div>;
   }
@@ -813,14 +828,22 @@ function SeasonalHeatMap({
 // Multi-line chart
 // ─────────────────────────────────────────────────────────────
 const MULTI_COLORS = ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)', 'var(--accent-gold)', 'var(--muted)'];
-function MultiLineChart({ years, series, width=720, height=300, showLabels=false, legend=false, yLabel=null, breakY=null }) {
+function MultiLineChart({ years, series, width=720, height=300, showLabels=false, legend=false, yLabel=null, breakY=null, yearRange=null }) {
   const { show, hide, node } = useTooltip();
   const pad = { t: 16, r: legend ? 24 : 120, b: 32, l: 48 };
   const W = width, H = height;
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
-  const allV = series.flatMap(s=>s.data);
+  // Slice both years and each series in lock-step when a range is supplied.
+  const yearIdx = yearRange
+    ? years.map((y, i) => (+y >= yearRange[0] && +y <= yearRange[1]) ? i : -1).filter(i => i !== -1)
+    : years.map((_, i) => i);
+  const yrs = yearIdx.map(i => years[i]);
+  const ser = series.map(s => ({ ...s, data: yearIdx.map(i => s.data[i]) }));
+  const activeYears = yrs.length ? yrs : years;
+  const activeSeries = yrs.length ? ser : series;
+  const allV = activeSeries.flatMap(s=>s.data);
   const yMax = Math.max(...allV) * 1.12;
-  const x = i => pad.l + (i/(years.length-1))*iw;
+  const x = i => pad.l + (i/Math.max(1, activeYears.length-1))*iw;
 
   const effectiveBreak = breakY && allV.some(v=>v<breakY[0]) && allV.some(v=>v>breakY[1]) ? breakY : null;
   const BAND_H = 28;
@@ -874,13 +897,13 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
             <text x={pad.l-10} y={y(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
           </g>
         ))}
-        {years.map((yr,i)=>(
+        {activeYears.map((yr,i)=>(
           <text key={yr} x={x(i)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
         ))}
         <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
         {yLabel && <text x={pad.l} y={pad.t - 4} textAnchor="start" fontSize="10" fill="var(--muted)" style={{fontFamily:'var(--serif)'}}>{yLabel}</text>}
         {/* Lines rendered first so break band can mask them */}
-        {series.map((s,si)=>{
+        {activeSeries.map((s,si)=>{
           const color = MULTI_COLORS[si % MULTI_COLORS.length];
           const pts = s.data.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
           return <polyline key={`line-${si}`} points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>;
@@ -902,7 +925,7 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
           </>);
         })()}
         {/* Dots and labels on top of break band */}
-        {series.map((s,si)=>{
+        {activeSeries.map((s,si)=>{
           const color = MULTI_COLORS[si % MULTI_COLORS.length];
           const last = s.data.length-1;
           return (
@@ -911,7 +934,7 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
                 <g key={i}>
                   <circle cx={x(i)} cy={y(v)} r="2.6" fill={color}/>
                   <circle cx={x(i)} cy={y(v)} r="12" fill="transparent"
-                    onMouseMove={e=>show(e, <span><b>{s.name}</b> · {years[i]} · <span className="tnum">{fmtN(v)}</span></span>)}
+                    onMouseMove={e=>show(e, <span><b>{s.name}</b> · {activeYears[i]} · <span className="tnum">{fmtN(v)}</span></span>)}
                     onMouseLeave={hide}
                   />
                 </g>
@@ -948,11 +971,24 @@ function DualAxisChart({
   asOf=null, nextUpdate=null, sourceUrl=null,
   caption=null,
   xLabelFmt=null,
+  yearRange=null,             // optional [min, max] — filters points whose
+                              // label's leading YYYY is out of range.
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
-  const L = Array.isArray(left)  ? left.filter(p => p && p.v != null)  : [];
-  const R = Array.isArray(right) ? right.filter(p => p && p.v != null) : [];
+  // When yearRange is supplied, filter on the label's leading YYYY. The
+  // `y` field is an index from the caller's shared x-grid, not a year, so
+  // we can't filter on it directly — but the caller ships a "YYYY-MM"
+  // label we can read cheaply.
+  const inRange = (p) => {
+    if (!yearRange) return true;
+    const m = p && p.label ? String(p.label).match(/^(\d{4})/) : null;
+    if (!m) return true;
+    const yr = +m[1];
+    return yr >= yearRange[0] && yr <= yearRange[1];
+  };
+  const L = Array.isArray(left)  ? left.filter(p => p && p.v != null  && inRange(p)) : [];
+  const R = Array.isArray(right) ? right.filter(p => p && p.v != null && inRange(p)) : [];
   if (!L.length && !R.length) {
     return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data.</div>;
   }

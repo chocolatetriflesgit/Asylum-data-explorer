@@ -578,6 +578,7 @@ function DashboardView({ setRoute }) {
                 if (typeof BOATS_YOY !== 'undefined' && BOATS_YOY && Object.keys(BOATS_YOY).length) {
                   return (
                     <YoYCumulative series={BOATS_YOY} width={520} height={280}
+                      yearRange={range}
                       yLabel="Cumulative migrants" xLabel="Day of year"
                       caption="Each line traces cumulative small-boat arrivals through the year. The current-year line stops at the most recent published week — no interpolation past that point. Hover a line to bring it forward."
                       source="Home Office · SB_01"
@@ -604,6 +605,7 @@ function DashboardView({ setRoute }) {
               <DashFrame number="03" kickerColor="var(--accent-warn)" title="Arrivals by week · seasonal pattern" sub="Weekly crossings, 2018–latest · darker = more arrivals"
                 setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'weekly' }}>
                 <SeasonalHeatMap data={BOATS_WEEKLY} width={1100} height={260}
+                  yearRange={range}
                   yLabel="Year" xLabel="Month"
                   caption="Each cell is one ISO week × year. Darker cells are weeks with more crossings. Seasonality is unmistakable: very low from January to March, rising from April, peaking late summer."
                   source="Home Office · SB_01"
@@ -616,7 +618,7 @@ function DashboardView({ setRoute }) {
               sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}
               setRoute={setRoute} forkPreset={{ d:'nationalities', ct:'line', g:'annual' }}>
               {(() => { const ns = (typeof NAT_SERIES_LATEST !== 'undefined') ? NAT_SERIES_LATEST : NAT_SERIES;
-                return <MultiLineChart years={ns.years} series={ns.series} width={760} height={260}/>; })()}
+                return <MultiLineChart years={ns.years} series={ns.series} yearRange={range} width={760} height={260}/>; })()}
             </DashFrame>
             <DashFrame number="05" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}
               setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'bar', g:'annual' }}>
@@ -645,6 +647,7 @@ function DashboardView({ setRoute }) {
                   sub={`Border Force · ${_fmtMonth(firstMonth)}–${_fmtMonth(lastMonth)} · dual axis`}>
                   <DualAxisChart
                     left={leftAligned} right={rightAligned}
+                    yearRange={range}
                     leftStroke="var(--accent)" rightStroke="var(--accent-warn)"
                     leftLabel="Interceptions" rightLabel="Preventions"
                     yLabelLeft="Events (interceptions)"
@@ -697,7 +700,7 @@ function DashboardView({ setRoute }) {
                 title="Grant rate by nationality · small multiples"
                 sub={`${NAT_GRANT_ANNUAL.years[0]}–${NAT_GRANT_ANNUAL.years[NAT_GRANT_ANNUAL.years.length-1]} · 12 nationalities · independent trends`}
                 setRoute={setRoute} forkPreset={{ d:'grant_rate', ct:'line' }}>
-                <GrantRateSmallMultiples series={NAT_GRANT_ANNUAL} width={1100} height={380} cols={4}
+                <GrantRateSmallMultiples series={NAT_GRANT_ANNUAL} yearRange={range} width={1100} height={380} cols={4}
                   highlight={['Afghanistan','Syria','Iran','Eritrea']}
                   caption="Each cell is one nationality. Y-axis is 0–100% grant rate; x-axis runs across the full window. Dashed grid line marks 50%. Most nationalities move independently — no single macro driver explains all of them."
                   source="Home Office · Asy_D02 (derived)"
