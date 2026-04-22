@@ -517,7 +517,7 @@ function AtlasView({ setRoute }) {
   }, []);
 
   return (
-    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
       <div style={{marginBottom:24}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-warn)'}}>Atlas</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 10px'}}>The world, by country.</h1>
@@ -545,7 +545,7 @@ function AtlasView({ setRoute }) {
           );
         })}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.4fr) minmax(360px,1fr)',gap:28,alignItems:'start'}}>
+      <div className="atlas-layout" style={{display:'grid',gridTemplateColumns:'minmax(0,1.4fr) minmax(360px,1fr)',gap:28,alignItems:'start'}}>
         <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'12px'}}>
           <AtlasChoropleth countryValues={countryValues} selectedName={selected} compareName={compareWith} onSelect={handleSelect} metricLabel={metricLabel.toLowerCase()} bivariate={bivariate} zoom={zoom}/>
           <AtlasLegend countryValues={countryValues} metricLabel={metricLabel} bivariate={bivariate}/>

@@ -13,7 +13,7 @@ const { useState: uS2, useMemo: uM2, useEffect: uE2 } = React;
 function StoryDigestBlock({ story, setRoute }) {
   if (!story || (!story.digest && !story.measures && !story.excludes)) return null;
   return (
-    <section style={{marginBottom:40,display:'grid',gridTemplateColumns:'1fr 340px',gap:72,alignItems:'start'}}>
+    <section className="digest-grid" style={{marginBottom:40,display:'grid',gridTemplateColumns:'1fr 340px',gap:72,alignItems:'start'}}>
       <div>
         {story.digest && (
           <p style={{fontFamily:'var(--serif)',fontSize:17,lineHeight:1.55,color:'var(--ink)',margin:'0 0 20px',textWrap:'pretty',maxWidth:640}}>
@@ -82,7 +82,7 @@ function StoryView({ id, setRoute, onMethod }) {
   const [compareOn, setCompareOn] = uS2(true);
 
   return (
-    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 100px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 100px'}}>
       {/* breadcrumb */}
       <div style={{fontSize:12.5,color:'var(--muted)',marginBottom:24}} className="uc">
         <span style={{cursor:'pointer'}} onClick={()=>setRoute({name:'index'})}>Stories</span>
@@ -91,7 +91,7 @@ function StoryView({ id, setRoute, onMethod }) {
       </div>
 
       {/* story header */}
-      <header style={{display:'grid',gridTemplateColumns:'1fr 340px',gap:72,borderBottom:'1px solid var(--rule)',paddingBottom:36,marginBottom:40}}>
+      <header className="story-header-grid" style={{display:'grid',gridTemplateColumns:'1fr 340px',gap:72,borderBottom:'1px solid var(--rule)',paddingBottom:36,marginBottom:40}}>
         <div>
           <div className="uc" style={{color:'var(--accent-warn)',marginBottom:14,display:'inline-block',paddingBottom:5,borderBottom:'2px solid var(--accent-warn)'}}>{story.kicker} · Story</div>
           <h1 style={{fontFamily:'var(--serif)',fontSize:54,lineHeight:1.02,letterSpacing:-0.6,fontWeight:400,margin:'0 0 22px',textWrap:'balance',color:'var(--ink)'}}>
@@ -117,7 +117,7 @@ function StoryView({ id, setRoute, onMethod }) {
       <StoryDigestBlock story={story} setRoute={setRoute}/>
 
       {/* body — grid: narrative left, chart right */}
-      <article style={{display:'grid',gridTemplateColumns:'360px 1fr',gap:72,alignItems:'start'}}>
+      <article className="story-body-grid" style={{display:'grid',gridTemplateColumns:'360px 1fr',gap:72,alignItems:'start'}}>
         {/* narrative column */}
         <div style={{fontFamily:'var(--serif)',fontSize:16.5,lineHeight:1.65,color:'var(--ink-2)'}}>
           <div style={{fontFamily:'var(--serif)',fontSize:52,lineHeight:0.9,float:'left',marginRight:10,marginTop:6,color:'var(--accent)',fontWeight:400}}>T</div>
@@ -216,7 +216,7 @@ function StoryView({ id, setRoute, onMethod }) {
       {/* more in this section */}
       <section style={{marginTop:72,paddingTop:36,borderTop:'1px solid var(--rule)'}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:18}}>More in this series</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:32}}>
+        <div className="card-grid-3" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:32}}>
           {STORIES.filter(s => s.id !== story.id).slice(0,3).map(s=>(
             <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})} style={{textAlign:'left',display:'flex',flexDirection:'column',gap:8}}>
               <div className="uc" style={{color:'var(--accent-warn)'}}>{s.kicker}</div>
@@ -270,7 +270,7 @@ function DatasetsView({ setRoute }) {
   });
   const consumers = (typeof DATASET_CONSUMERS !== 'undefined') ? DATASET_CONSUMERS : {};
   return (
-    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
       <div style={{marginBottom:28}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-gold)'}}>Datasets</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 14px'}}>Raw data, curated.</h1>
@@ -749,7 +749,7 @@ function BuildView({ setRoute }) {
     .filter(o => o.id !== ds && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && !overlays.includes(o.id));
 
   return (
-    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
       <div style={{marginBottom:28}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-2)'}}>Build a chart</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 14px'}}>Make your own.</h1>
@@ -775,9 +775,9 @@ function BuildView({ setRoute }) {
         </div>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'300px 1fr',gap:40,alignItems:'start'}}>
+      <div className="build-layout" style={{display:'grid',gridTemplateColumns:'300px 1fr',gap:40,alignItems:'start'}}>
         {/* controls */}
-        <aside style={{position:'sticky',top:96,border:'1px solid var(--rule)',padding:'24px 26px',background:'#fff',maxHeight:'calc(100vh - 120px)',overflowY:'auto'}}>
+        <aside className="build-controls" style={{position:'sticky',top:96,border:'1px solid var(--rule)',padding:'24px 26px',background:'#fff',maxHeight:'calc(100vh - 120px)',overflowY:'auto'}}>
           <div style={{marginBottom:22}}>
             <div className="uc" style={{color:'var(--muted)',marginBottom:8}}>1 · Primary dataset</div>
             <div style={{maxHeight:260,overflowY:'auto',marginRight:-6,paddingRight:6}}>
@@ -1334,7 +1334,7 @@ function UpdatesView({ setRoute }) {
     'Revision':  'var(--accent-warn)',
   };
   return (
-    <main className="fade-enter" style={{maxWidth:920,margin:'0 auto',padding:'56px 48px 100px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:920,margin:'0 auto',padding:'56px 48px 100px'}}>
       <div className="uc" style={{color:'var(--muted)',marginBottom:10,fontSize:11}}>Log</div>
       <h1 style={{fontFamily:'var(--serif)',fontSize:46,lineHeight:1.05,letterSpacing:-0.5,fontWeight:400,margin:'0 0 14px',color:'var(--ink)'}}>
         Updates
@@ -1357,7 +1357,7 @@ function UpdatesView({ setRoute }) {
       )}
       <ol style={{listStyle:'none',padding:0,margin:0,borderTop:'1px solid var(--rule)'}}>
         {rows.map((r, i) => (
-          <li key={i} style={{display:'grid',gridTemplateColumns:'180px 110px 1fr',gap:24,padding:'18px 0',borderBottom:'1px solid var(--rule)',alignItems:'baseline'}}>
+          <li key={i} className="log-entry" style={{display:'grid',gridTemplateColumns:'180px 110px 1fr',gap:24,padding:'18px 0',borderBottom:'1px solid var(--rule)',alignItems:'baseline'}}>
             <div className="uc" style={{fontSize:12,color:'var(--muted)',letterSpacing:0.3}}>
               {_fmtLogDate(r.date)}
             </div>

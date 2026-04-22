@@ -107,13 +107,13 @@ function App() {
 
       {(route.name === 'dashboard' || route.name === 'atlas') && <BackToTop/>}
 
-      <footer style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
+      <footer className="site-footer" style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
         <div>
           <span style={{fontFamily:'var(--serif)',fontStyle:'italic',color:'var(--ink-2)'}}>Migration data explorer</span>
           <span style={{margin:'0 14px'}}>·</span>
           <span>Open data · Published under OGL v3.0</span>
         </div>
-        <div style={{display:'flex',gap:22}}>
+        <div className="footer-links" style={{display:'flex',gap:22}}>
           <span className="ulh" style={{cursor:'pointer'}} onClick={()=>setMethod(true)}>Methodology</span>
           <span className="ulh" style={{cursor:'pointer'}}>API</span>
           <span className="ulh" style={{cursor:'pointer'}}>Contact</span>

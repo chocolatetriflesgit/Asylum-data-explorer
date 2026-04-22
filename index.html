@@ -111,6 +111,68 @@
   .kpi-card.gold:before{background:var(--accent-gold)}
   .kpi-card.accent:before{background:var(--accent)}
   .kpi-card.ink:before{background:var(--ink)}
+
+  /* ── Mobile: 768px ── */
+  @media (max-width: 768px) {
+    .page-section { padding-left: 16px !important; padding-right: 16px !important; }
+    .dash-main { padding-top: 20px !important; padding-bottom: 48px !important; }
+    .masthead-inner { padding-left: 16px !important; padding-right: 16px !important; }
+    .header-inner { padding: 10px 16px !important; gap: 16px !important; }
+    .header-nav {
+      overflow-x: auto !important; overflow-y: hidden !important;
+      -webkit-overflow-scrolling: touch !important;
+      gap: 16px !important; max-width: 100% !important;
+      padding-bottom: 4px !important; scrollbar-width: none !important;
+    }
+    .header-nav::-webkit-scrollbar { display: none !important; }
+    .site-footer { flex-direction: column !important; gap: 16px !important; padding: 24px 16px !important; }
+    .footer-links { flex-wrap: wrap !important; gap: 12px !important; }
+    .hero-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
+    .stat-strip-5 { grid-template-columns: repeat(2, 1fr) !important; }
+    .card-grid-2 { grid-template-columns: 1fr !important; }
+    .card-grid-3 { grid-template-columns: 1fr !important; gap: 16px !important; }
+    .kpi-hero-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+    .kpi-detail-4  { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+    .kpi-detail-5  { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+    .day-strip-7   { grid-template-columns: repeat(4, 1fr) !important; gap: 6px !important; }
+    .range-filter-bar { position: static !important; flex-direction: column !important; gap: 16px !important; padding: 16px !important; }
+    .focus-nav { flex-wrap: wrap !important; gap: 8px !important; }
+    .chart-grid-2 { grid-template-columns: 1fr !important; gap: 16px !important; }
+    .story-header-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+    .story-body-grid   { grid-template-columns: 1fr !important; gap: 32px !important; }
+    .digest-grid       { grid-template-columns: 1fr !important; gap: 24px !important; }
+    .story-body-grid > div:last-child { position: static !important; }
+    .build-layout   { grid-template-columns: 1fr !important; gap: 24px !important; }
+    .build-controls { position: static !important; max-height: none !important; overflow-y: visible !important; }
+    .log-entry      { grid-template-columns: 1fr !important; gap: 4px !important; }
+    .atlas-layout   { grid-template-columns: 1fr !important; gap: 16px !important; }
+    .tweak-panel {
+      position: fixed !important; bottom: 0 !important; right: 0 !important; left: 0 !important;
+      min-width: 0 !important; width: 100% !important;
+      box-shadow: 0 -4px 20px rgba(0,0,0,.12) !important;
+      border-left: none !important; border-right: none !important; border-bottom: none !important;
+      padding: 20px 20px calc(20px + env(safe-area-inset-bottom)) !important;
+    }
+    .back-to-top-btn { bottom: 80px !important; right: 16px !important; }
+
+    /* Chart SVGs: drop the fixed pixel height so they maintain the viewBox aspect ratio */
+    .chart-wrap svg { height: auto !important; }
+    /* Filter range: both flex children have large flex-basis values which become min-heights in column layout */
+    .filter-range-wrap { max-width: 420px !important; flex-basis: auto !important; }
+    .filter-range-hint { flex-basis: auto !important; padding-top: 8px !important; }
+    /* Chart frames: tighter padding frees more space for chart content */
+    .dash-frame { padding: 14px 16px !important; }
+  }
+
+  /* ── Small phones: 480px ── */
+  @media (max-width: 480px) {
+    .kpi-hero-grid,
+    .kpi-detail-4,
+    .kpi-detail-5 { grid-template-columns: 1fr !important; }
+    .day-strip-7  { grid-template-columns: repeat(2, 1fr) !important; }
+    .header-inner { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+    .header-nav   { width: 100% !important; gap: 14px !important; }
+  }
 </style>
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
@@ -930,9 +992,11 @@ function LineChart({
   overlay=null,           // optional secondary series: [{y, v, label?}] — drawn dashed
   overlayStroke='var(--accent-warn)',
   overlayLabel='',        // short label for the overlay series (rendered at end of line)
+  compact=false,
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
+  const fs = compact ? 22 : 11;
 
   const yrFiltered = yearRange ? data.filter(d => d.y >= yearRange[0] && d.y <= yearRange[1]) : data;
   // Drop null/undefined v's so missing years (e.g. pre-2018 boats) don't plot as 0.
@@ -1037,7 +1101,7 @@ function LineChart({
         {yTicks.map(t => (
           <g key={t}>
             <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth="1"/>
-            <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)"
+            <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize={fs} fill="var(--muted)"
               style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>{fmtK(t)}</text>
           </g>
         ))}
@@ -1045,7 +1109,7 @@ function LineChart({
         {d.map((p, i) => ({p, i}))
           .filter(({i}) => i % Math.max(1, Math.ceil(d.length / 8)) === 0 || i === d.length - 1)
           .map(({p, i}) => (
-            <text key={`xt-${i}`} x={x(p.y)} y={H - pad.b + 18} textAnchor="middle" fontSize="11" fill="var(--muted)"
+            <text key={`xt-${i}`} x={x(p.y)} y={H - pad.b + 18} textAnchor="middle" fontSize={fs} fill="var(--muted)"
               style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>
               {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
             </text>
@@ -1056,7 +1120,7 @@ function LineChart({
           <text
             x={14} y={pad.t + ih / 2}
             transform={`rotate(-90 14 ${pad.t + ih / 2})`}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            textAnchor="middle" fontSize={fs} fill="var(--muted)"
             style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
             {yLabel}
           </text>
@@ -1064,7 +1128,7 @@ function LineChart({
         {xLabel && (
           <text
             x={pad.l + iw / 2} y={H - 6}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            textAnchor="middle" fontSize={fs} fill="var(--muted)"
             style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
             {xLabel}
           </text>
@@ -1788,9 +1852,11 @@ function DualAxisChart({
   xLabelFmt=null,
   yearRange=null,             // optional [min, max] — filters points whose
                               // label's leading YYYY is out of range.
+  compact=false,
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
+  const fs = compact ? 22 : 11;
   // When yearRange is supplied, filter on the label's leading YYYY. The
   // `y` field is an index from the caller's shared x-grid, not a year, so
   // we can't filter on it directly — but the caller ships a "YYYY-MM"
@@ -1842,20 +1908,20 @@ function DualAxisChart({
         {lTicks.map(t => (
           <g key={`lt-${t}`}>
             <line x1={pad.l} x2={W-pad.r} y1={yL(t)} y2={yL(t)} stroke="var(--rule)"/>
-            <text x={pad.l-10} y={yL(t)+4} textAnchor="end" fontSize="11" fill={leftStroke}
+            <text x={pad.l-10} y={yL(t)+4} textAnchor="end" fontSize={fs} fill={leftStroke}
               style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
           </g>
         ))}
         {/* Right tick labels (no grid — avoids double-ruled background) */}
         {rTicks.map(t => (
-          <text key={`rt-${t}`} x={W-pad.r+10} y={yR(t)+4} textAnchor="start" fontSize="11" fill={rightStroke}
+          <text key={`rt-${t}`} x={W-pad.r+10} y={yR(t)+4} textAnchor="start" fontSize={fs} fill={rightStroke}
             style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
         ))}
         {/* X-axis labels */}
         {xSrc.map((p,i) => ({p,i}))
           .filter(({i}) => i % Math.max(1, Math.ceil(xSrc.length/8)) === 0 || i === xSrc.length-1)
           .map(({p,i}) => (
-            <text key={`xt-${i}`} x={x(p.y)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)"
+            <text key={`xt-${i}`} x={x(p.y)} y={H-pad.b+18} textAnchor="middle" fontSize={fs} fill="var(--muted)"
               style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
               {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
             </text>
@@ -1865,18 +1931,18 @@ function DualAxisChart({
         {yLabelLeft && (
           <text x={14} y={pad.t + ih/2}
             transform={`rotate(-90 14 ${pad.t + ih/2})`}
-            textAnchor="middle" fontSize="11" fill={leftStroke}
+            textAnchor="middle" fontSize={fs} fill={leftStroke}
             style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabelLeft}</text>
         )}
         {yLabelRight && (
           <text x={W-14} y={pad.t + ih/2}
             transform={`rotate(90 ${W-14} ${pad.t + ih/2})`}
-            textAnchor="middle" fontSize="11" fill={rightStroke}
+            textAnchor="middle" fontSize={fs} fill={rightStroke}
             style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabelRight}</text>
         )}
         {xLabel && (
           <text x={pad.l + iw/2} y={H-6}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            textAnchor="middle" fontSize={fs} fill="var(--muted)"
             style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
         )}
         {/* Left series — solid */}
@@ -2586,7 +2652,7 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
 // nodes: [{id, label, col (0..N-1), value, color, mocked?}]
 // links: [{source, target, value, dashed?}]  (source.col must be < target.col)
 // ─────────────────────────────────────────────────────────────
-function SankeyChart({ nodes, links, width = 820, height = 500 }) {
+function SankeyChart({ nodes, links, width = 820, height = 500, compact = false }) {
   const { show, hide, node: ttNode } = useTooltip();
   // Two-tier focus state: hovering a node *previews* the highlight;
   // clicking pins it so the user can study a single cohort without
@@ -2602,9 +2668,9 @@ function SankeyChart({ nodes, links, width = 820, height = 500 }) {
       || links.some(lk => (lk.source === activeId && lk.target === n.id)
                        || (lk.target === activeId && lk.source === n.id));
 
-  const NODE_W = 20;
-  const GAP    = 8;
-  const PAD    = { l: 150, r: 200, t: 12, b: 12 };
+  const NODE_W = compact ? 14 : 20;
+  const GAP    = compact ? 6 : 8;
+  const PAD    = compact ? { l: 80, r: 90, t: 10, b: 10 } : { l: 150, r: 200, t: 12, b: 12 };
 
   const cols = Array.from(new Set(nodes.map(n => n.col))).sort((a, b) => a - b);
   const maxCol = cols[cols.length - 1] ?? 0;
@@ -2720,14 +2786,14 @@ function SankeyChart({ nodes, links, width = 820, height = 500 }) {
               {isLeftmost ? (
                 <text x={nl.x - 8} y={nl.y + nl.h / 2}
                   textAnchor="end" dominantBaseline="middle"
-                  fontSize={11} fontFamily="var(--serif)" fill="var(--ink-2)">
+                  fontSize={compact ? 13 : 11} fontFamily="var(--serif)" fill="var(--ink-2)">
                   {n.label}{n.mocked ? ' *' : ''}
                 </text>
               ) : (
                 <text x={nl.x + NODE_W + 8} y={nl.y + nl.h / 2 - 7}
-                  textAnchor="start" fontSize={11} fontFamily="var(--serif)" fill="var(--ink-2)">
+                  textAnchor="start" fontSize={compact ? 13 : 11} fontFamily="var(--serif)" fill="var(--ink-2)">
                   <tspan>{n.label}{n.mocked ? ' *' : ''}</tspan>
-                  <tspan x={nl.x + NODE_W + 8} dy={14} fontSize={10} fill="var(--muted)">{fmtN(n.value)} · {pct}%</tspan>
+                  <tspan x={nl.x + NODE_W + 8} dy={compact ? 16 : 14} fontSize={compact ? 11 : 10} fill="var(--muted)">{fmtN(n.value)} · {pct}%</tspan>
                 </text>
               )}
             </g>
@@ -2980,7 +3046,7 @@ function Masthead() {
   const toRoman = n => ['','I','II','III','IV','V','VI','VII','VIII','IX','X'][n] || String(n);
   return (
     <div style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
-      <div style={{maxWidth:1240,margin:'0 auto',padding:'4px 48px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:16}}>
+      <div className="masthead-inner" style={{maxWidth:1240,margin:'0 auto',padding:'4px 48px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:16}}>
         <span className="uc" style={{color:'var(--muted)'}}>Vol {toRoman(vol)} · Issue {wk}</span>
         <span className="uc" style={{color:'var(--muted)'}}>Data through {fmtMasthead(d)}</span>
       </div>
@@ -3004,12 +3070,12 @@ function Header({ route, setRoute, onSearch, onMethod }) {
   return (
     <header style={{background:'var(--bg)',borderBottom:'1px solid var(--rule)',position:'sticky',top:0,zIndex:50,backdropFilter:'blur(6px)'}}>
       <Masthead />
-      <div style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:40}}>
+      <div className="header-inner" style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:40}}>
         <button onClick={()=>setRoute({name:'index'})} className="pressable" style={{display:'flex',alignItems:'baseline',gap:12,whiteSpace:'nowrap',flexShrink:0}}>
           <span style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:600,color:'var(--accent)',letterSpacing:-0.2}}>Migration</span>
           <span style={{fontFamily:'var(--serif)',fontSize:15,fontStyle:'italic',color:'var(--muted)'}}>data explorer</span>
         </button>
-        <nav style={{display:'flex',alignItems:'center',gap:28}}>
+        <nav className="header-nav" style={{display:'flex',alignItems:'center',gap:28}}>
           {tabs.map(t=>(
             <button key={t.id} onClick={()=>setRoute({name:t.id})}
               className="ulh"
@@ -3224,7 +3290,7 @@ function IndexView({ setRoute }) {
   return (
     <main className="fade-enter">
       {dline && (
-        <section style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',borderBottom:'1px solid var(--rule)',display:'flex',gap:18,alignItems:'baseline',flexWrap:'wrap'}}>
+        <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',borderBottom:'1px solid var(--rule)',display:'flex',gap:18,alignItems:'baseline',flexWrap:'wrap'}}>
           <span className="uc" style={{color:'var(--accent-warn)',fontWeight:500}}>Small-boat arrivals · week ending {dline.weStr}</span>
           <span className="tnum" style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:500,color:'var(--ink)'}}>{dline.m.toLocaleString()}</span>
           {dline.delta && (
@@ -3235,8 +3301,8 @@ function IndexView({ setRoute }) {
         </section>
       )}
       {/* hero / featured story */}
-      <section style={{maxWidth:1240,margin:'0 auto',padding:'56px 48px 40px',borderBottom:'1px solid var(--rule)'}}>
-        <div style={{display:'grid',gridTemplateColumns:'minmax(320px,420px) 1fr',gap:72,alignItems:'start'}}>
+      <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'56px 48px 40px',borderBottom:'1px solid var(--rule)'}}>
+        <div className="hero-grid" style={{display:'grid',gridTemplateColumns:'minmax(320px,420px) 1fr',gap:72,alignItems:'start'}}>
           <div>
             <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:18}}>
               <span style={{background:'var(--accent-warn)',color:'var(--bg)',padding:'4px 9px',fontSize:10.5,letterSpacing:1.2,textTransform:'uppercase'}}>Featured</span>
@@ -3279,7 +3345,7 @@ function IndexView({ setRoute }) {
       </section>
 
       {/* Key numbers strip — computed from latest globals */}
-      <section style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px',borderBottom:'1px solid var(--rule)'}}>
+      <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px',borderBottom:'1px solid var(--rule)'}}>
         {(() => {
           const fmt = n => n == null ? '—' : Math.round(n).toLocaleString('en-GB');
           const pct = (a,b) => (!a || !b) ? null : (a - b) / b * 100;
@@ -3316,7 +3382,7 @@ function IndexView({ setRoute }) {
           ];
           return (<>
             <div className="uc" style={{marginBottom:18,color:'var(--muted)'}}>At a glance · {yearNow}</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:0,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)'}}>
+            <div className="stat-strip-5" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:0,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)'}}>
               {strip.map((s,i)=>(
                 <div key={i} style={{padding:'22px 24px',borderRight: i<4?'1px solid var(--rule)':'none'}}>
                   <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>{s.l}</div>
@@ -3330,7 +3396,7 @@ function IndexView({ setRoute }) {
       </section>
 
       {/* Story grid — asymmetric: 2 medium on top row, 3 compact below */}
-      <section style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
+      <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
         <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:24}}>
           <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,margin:0,letterSpacing:-0.2}}>Recent stories</h2>
           <div className="uc" style={{color:'var(--muted)'}}>Showing {rest.length} {rest.length === 1 ? 'story' : 'stories'}</div>
@@ -3344,7 +3410,7 @@ function IndexView({ setRoute }) {
           };
           return (<div style={{display:'flex',flexDirection:'column',gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
             {/* Medium row — 2 cards, larger type, full story hero */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:1,background:'var(--rule)'}}>
+            <div className="card-grid-2" style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:1,background:'var(--rule)'}}>
               {medium.map(s=>(
                 <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})} {...cardHover}
                   style={{background:'var(--bg)',padding:'32px 36px 28px',textAlign:'left',border:'none',cursor:'pointer',transition:'background .15s',display:'flex',flexDirection:'column',gap:18,minHeight:320}}>
@@ -3359,7 +3425,7 @@ function IndexView({ setRoute }) {
               ))}
             </div>
             {/* Compact row — 3 cards, tighter type, no hero glyph */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:1,background:'var(--rule)'}}>
+            <div className="card-grid-3" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:1,background:'var(--rule)'}}>
               {compact.map(s=>(
                 <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})} {...cardHover}
                   style={{background:'var(--bg)',padding:'22px 24px 20px',textAlign:'left',border:'none',cursor:'pointer',transition:'background .15s',display:'flex',flexDirection:'column',gap:12,minHeight:180}}>
@@ -3393,6 +3459,7 @@ function BackToTop() {
   if (!visible) return null;
   return (
     <button
+      className="back-to-top-btn"
       aria-label="Back to top"
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       style={{
@@ -3454,6 +3521,12 @@ function metaNext(meta) {
 function DashboardView({ setRoute }) {
   const [range, setRange] = uSD(() => readInitialRange(2014, DATA_MAX_YEAR));
   const [focus, setFocus] = uSD('all'); // all | applications | decisions | geography
+  const [compact, setCompact] = React.useState(window.innerWidth < 768);
+  React.useEffect(() => {
+    const handler = () => setCompact(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
 
   // Cache per-source freshness once per render — one lookup per *_META.
   const _boatsMeta = typeof BOATS_META !== 'undefined' ? BOATS_META : null;
@@ -3655,7 +3728,7 @@ function DashboardView({ setRoute }) {
   }, [provisionalDays, boatsWeekly]);
 
   return (
-    <main className="fade-enter" style={{maxWidth:1300,margin:'0 auto',padding:'36px 48px 80px'}}>
+    <main className="fade-enter dash-main page-section" style={{maxWidth:1300,margin:'0 auto',padding:'36px 48px 80px'}}>
       {/* title strip */}
       <div style={{borderBottom:'1px solid var(--rule)',paddingBottom:22,marginBottom:28}}>
         <div className="kicker-rule" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,textTransform:'uppercase',fontWeight:500}}>Live dashboard · Q1 2026</div>
@@ -3720,7 +3793,7 @@ function DashboardView({ setRoute }) {
               {canonicalLatest && <div style={{marginTop:4}}>Canonical ODS through {canonicalLatest}</div>}
             </div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:8}}>
+          <div className="day-strip-7" style={{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:8}}>
             {provisionalDays.map((d,i) => (
               <div key={d.d}
                 title={d.superseded
@@ -3808,7 +3881,7 @@ function DashboardView({ setRoute }) {
             spark: grantSpark, sparkStroke: 'var(--accent-2)' },
         ];
         return (
-          <section style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:24,paddingBottom:22,borderBottom:'1px solid var(--rule)'}}>
+          <section className="kpi-hero-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:24,paddingBottom:22,borderBottom:'1px solid var(--rule)'}}>
             {heroCards.map((k,i) => (
               <div key={i} style={{padding:'20px 22px',background:'var(--bg-2)',border:'1px solid var(--rule)'}}>
                 <div className="uc" style={{color:'var(--muted)',marginBottom:10,fontSize:10.5}}>{k.label}</div>
@@ -3835,7 +3908,7 @@ function DashboardView({ setRoute }) {
       {/* KPI strip row 1 — Preventions · Applications · Initial decisions · Appeals allowed.
           The "Small-boat arrivals · YYYY" card that lived here was a duplicate of the
           hero card above (same number, same year) and was removed in the polish pass. */}
-      <section style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:14}}>
+      <section className="kpi-detail-4" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:14}}>
         {[
           { cls:'ink', label:`Preventions · ${preventionsYear}`, v:fmtN(preventionsYearTotal),
             d: preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true },
@@ -3855,7 +3928,7 @@ function DashboardView({ setRoute }) {
       </section>
 
       {/* KPI strip row 2 — Grant rate · Backlog · Resettled · Top nationality · Hotels */}
-      <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:14}}>
+      <section className="kpi-detail-5" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:14}}>
         {[
           { cls:'olive', label:`Grant rate · ${decisionsYear}`, v:`${Math.round(grantRate*100)}%`,
             d: (range[0]<=decisionsYear&&decisionsYear<=range[1]) ? 'from 24% in 2019' : 'latest available', dPos:true },
@@ -3897,7 +3970,7 @@ function DashboardView({ setRoute }) {
       </section>
 
       {/* KPI strip row 3 — Returns · Sex ratios · Children · Age disputes */}
-      <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:0,paddingBottom:36}}>
+      <section className="kpi-detail-5" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:0,paddingBottom:36}}>
         {(() => {
           const yr = sexAgeRangeLatest?.y ?? sexAgeMeta?.latest_year ?? '—';
           const maleRatio = sexAgeRangeLatest && (sexAgeRangeLatest.male + sexAgeRangeLatest.female) > 0
@@ -3939,20 +4012,20 @@ function DashboardView({ setRoute }) {
       </details>
 
       {/* Time range filter (sticky so it stays visible while scrolling) */}
-      <div id="dash-range" style={{position:'sticky',top:0,zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
-        <div style={{flex:'0 1 540px',minWidth:300}}>
+      <div id="dash-range" className="range-filter-bar" style={{position:'sticky',top:0,zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
+        <div className="filter-range-wrap" style={{flex:'0 1 540px',minWidth:300}}>
           <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
             <span className="tick tick-accent"/>Time range
           </div>
           <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
         </div>
-        <div style={{flex:'1 1 260px',maxWidth:360,fontSize:12.5,color:'var(--muted)',fontStyle:'italic',lineHeight:1.5,paddingTop:22}}>
+        <div className="filter-range-hint" style={{flex:'1 1 260px',maxWidth:360,fontSize:12.5,color:'var(--muted)',fontStyle:'italic',lineHeight:1.5,paddingTop:22}}>
           Drag the handles to change the years covered by every statistic and chart below. Use the presets for common ranges.
         </div>
       </div>
 
       {/* Section focus nav */}
-      <div style={{display:'flex',alignItems:'center',gap:10,margin:'0 0 28px',paddingTop:20,paddingBottom:20,borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
+      <div className="focus-nav" style={{display:'flex',alignItems:'center',gap:10,margin:'0 0 28px',paddingTop:20,paddingBottom:20,borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
         <span className="uc" style={{color:'var(--muted)',marginRight:4}}>Show only</span>
         {[
           { id:'all', label:'All sections' },
@@ -3976,11 +4049,11 @@ function DashboardView({ setRoute }) {
       {(focus === 'all' || focus === 'applications') && (
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Applications and journeys" title="Volume and composition" accent="var(--accent-warn)" cadence="Annual · boats weekly"/>
-          <div style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:20}}>
+          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:20}}>
             <DashFrame number="01" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}
               setRoute={setRoute} forkPreset={{ d:'applications', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
               <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={720} height={280}
-                yLabel="Applications" xLabel="Year"
+                compact={compact} yLabel="Applications" xLabel="Year"
                 annotations={[
                   range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
                 ].filter(Boolean)}
@@ -4005,7 +4078,7 @@ function DashboardView({ setRoute }) {
                   : ASYLUM_ANNUAL.filter(d => d.boats != null).map(d => ({ y: d.y, v: d.boats }));
                 return (
                   <LineChart data={boatsAnnual} yearRange={range}
-                    stroke="var(--accent-warn)" width={520} height={280}
+                    compact={compact} stroke="var(--accent-warn)" width={520} height={280}
                     source="Home Office · SB_01"
                     asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
                 );
@@ -4031,7 +4104,7 @@ function DashboardView({ setRoute }) {
           <div style={{marginTop:20}}>
             <ChannelDeathsCard/>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
+          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
             <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top five nationalities"
               sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}
               setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'line', g:'annual', nats:'Pakistan,Afghanistan,Iran,Eritrea,Syria' }}>
@@ -4071,7 +4144,8 @@ function DashboardView({ setRoute }) {
                     yLabelLeft="Events (interceptions)"
                     yLabelRight="Migrants (preventions)"
                     xLabel="Month"
-                    width={1100} height={280}
+                    compact={compact}
+                    width={compact ? 580 : 1100} height={280}
                     xLabelFmt={(_, i, p) => _fmtMonth(p?.label ?? p?.y)}
                     caption="Interceptions (solid, left axis) count the events in which Border Force prevented a crossing in progress; preventions (dashed, right axis) count the migrants involved. Reporting of preventions began in May 2024 — the dashed line starts there."
                     source="Home Office · SB_02"
@@ -4086,7 +4160,7 @@ function DashboardView({ setRoute }) {
       {(focus === 'all' || focus === 'decisions') && (
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Decisions" title="Outcomes and the backlog" accent="var(--accent-2)" cadence="Quarterly"/>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
             <DashFrame number="07" kickerColor="var(--accent-warn)" title={`Initial decisions, ${decisionsYear}`} sub="Share of substantive outcomes">
               <StackedBar data={decisionsData} width={600} height={110}/>
               <div style={{marginTop:18,display:'grid',gridTemplateColumns:'auto 1fr',gap:22,alignItems:'center'}}>
@@ -4102,7 +4176,7 @@ function DashboardView({ setRoute }) {
               sub={`${range[0]}–${range[1]}${backlogMeta ? ` · 31 Dec snapshots · Asy_D03` : ''}`}
               setRoute={setRoute} forkPreset={{ d:'backlog', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
               <LineChart data={filteredBacklog} yearRange={range} width={560} height={260}
-                stroke="var(--accent-gold)"
+                compact={compact} stroke="var(--accent-gold)"
                 yLabel="Pending cases" xLabel="Year"
                 annotations={[
                   range[0] <= 2022 && range[1] >= 2022 && { y:2022, label:'Peak 132k', dx:-80, dy:-10 },
@@ -4133,7 +4207,7 @@ function DashboardView({ setRoute }) {
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Geography" title="Who applies" accent="var(--accent-gold)" cadence={`Applications · ${natFullYear ?? 'latest'}`}/>
           {natFull && (
-            <div style={{display:'grid',gridTemplateColumns:'1.35fr 1fr',gap:20,alignItems:'start'}}>
+            <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.35fr 1fr',gap:20,alignItems:'start'}}>
               <DashFrame number="10" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
                 <WorldMapChoropleth data={groupNatByRegion(natFull)} width={720} height={420}/>
               </DashFrame>
@@ -4180,7 +4254,7 @@ function DashboardView({ setRoute }) {
       {(focus === 'all' || focus === 'decisions') && (
         <section style={{marginTop:44,paddingTop:30,borderTop:'1px solid var(--rule)'}}>
           <DashSectionHeader kicker="Resettlement" title="Arrivals by scheme" accent="var(--accent)" cadence="Annual"/>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
             <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'22px 26px'}}>
               {resettlementSeries ? (
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}>
@@ -4664,7 +4738,7 @@ function DashFrame({ number, kickerColor, title, sub, children, style={}, forkPr
     setRoute({ name: 'build' });
   } : null;
   return (
-    <div style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
+    <div className="dash-frame" style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule)',gap:16}}>
         <div style={{flex:'1 1 auto',minWidth:0}}>
           <div style={{fontSize:10.5,letterSpacing:0.12,textTransform:'uppercase',color:kickerColor,fontWeight:500,display:'inline-block',paddingBottom:4,borderBottom:`1.5px solid ${kickerColor}`,marginBottom:10}}>Fig. {number}</div>
@@ -4713,7 +4787,7 @@ const { useState: uS2, useMemo: uM2, useEffect: uE2 } = React;
 function StoryDigestBlock({ story, setRoute }) {
   if (!story || (!story.digest && !story.measures && !story.excludes)) return null;
   return (
-    <section style={{marginBottom:40,display:'grid',gridTemplateColumns:'1fr 340px',gap:72,alignItems:'start'}}>
+    <section className="digest-grid" style={{marginBottom:40,display:'grid',gridTemplateColumns:'1fr 340px',gap:72,alignItems:'start'}}>
       <div>
         {story.digest && (
           <p style={{fontFamily:'var(--serif)',fontSize:17,lineHeight:1.55,color:'var(--ink)',margin:'0 0 20px',textWrap:'pretty',maxWidth:640}}>
@@ -4782,7 +4856,7 @@ function StoryView({ id, setRoute, onMethod }) {
   const [compareOn, setCompareOn] = uS2(true);
 
   return (
-    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 100px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 100px'}}>
       {/* breadcrumb */}
       <div style={{fontSize:12.5,color:'var(--muted)',marginBottom:24}} className="uc">
         <span style={{cursor:'pointer'}} onClick={()=>setRoute({name:'index'})}>Stories</span>
@@ -4791,7 +4865,7 @@ function StoryView({ id, setRoute, onMethod }) {
       </div>
 
       {/* story header */}
-      <header style={{display:'grid',gridTemplateColumns:'1fr 340px',gap:72,borderBottom:'1px solid var(--rule)',paddingBottom:36,marginBottom:40}}>
+      <header className="story-header-grid" style={{display:'grid',gridTemplateColumns:'1fr 340px',gap:72,borderBottom:'1px solid var(--rule)',paddingBottom:36,marginBottom:40}}>
         <div>
           <div className="uc" style={{color:'var(--accent-warn)',marginBottom:14,display:'inline-block',paddingBottom:5,borderBottom:'2px solid var(--accent-warn)'}}>{story.kicker} · Story</div>
           <h1 style={{fontFamily:'var(--serif)',fontSize:54,lineHeight:1.02,letterSpacing:-0.6,fontWeight:400,margin:'0 0 22px',textWrap:'balance',color:'var(--ink)'}}>
@@ -4817,7 +4891,7 @@ function StoryView({ id, setRoute, onMethod }) {
       <StoryDigestBlock story={story} setRoute={setRoute}/>
 
       {/* body — grid: narrative left, chart right */}
-      <article style={{display:'grid',gridTemplateColumns:'360px 1fr',gap:72,alignItems:'start'}}>
+      <article className="story-body-grid" style={{display:'grid',gridTemplateColumns:'360px 1fr',gap:72,alignItems:'start'}}>
         {/* narrative column */}
         <div style={{fontFamily:'var(--serif)',fontSize:16.5,lineHeight:1.65,color:'var(--ink-2)'}}>
           <div style={{fontFamily:'var(--serif)',fontSize:52,lineHeight:0.9,float:'left',marginRight:10,marginTop:6,color:'var(--accent)',fontWeight:400}}>T</div>
@@ -4916,7 +4990,7 @@ function StoryView({ id, setRoute, onMethod }) {
       {/* more in this section */}
       <section style={{marginTop:72,paddingTop:36,borderTop:'1px solid var(--rule)'}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:18}}>More in this series</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:32}}>
+        <div className="card-grid-3" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:32}}>
           {STORIES.filter(s => s.id !== story.id).slice(0,3).map(s=>(
             <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})} style={{textAlign:'left',display:'flex',flexDirection:'column',gap:8}}>
               <div className="uc" style={{color:'var(--accent-warn)'}}>{s.kicker}</div>
@@ -4970,7 +5044,7 @@ function DatasetsView({ setRoute }) {
   });
   const consumers = (typeof DATASET_CONSUMERS !== 'undefined') ? DATASET_CONSUMERS : {};
   return (
-    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
       <div style={{marginBottom:28}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-gold)'}}>Datasets</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 14px'}}>Raw data, curated.</h1>
@@ -5449,7 +5523,7 @@ function BuildView({ setRoute }) {
     .filter(o => o.id !== ds && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && !overlays.includes(o.id));
 
   return (
-    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
       <div style={{marginBottom:28}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-2)'}}>Build a chart</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 14px'}}>Make your own.</h1>
@@ -5475,9 +5549,9 @@ function BuildView({ setRoute }) {
         </div>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'300px 1fr',gap:40,alignItems:'start'}}>
+      <div className="build-layout" style={{display:'grid',gridTemplateColumns:'300px 1fr',gap:40,alignItems:'start'}}>
         {/* controls */}
-        <aside style={{position:'sticky',top:96,border:'1px solid var(--rule)',padding:'24px 26px',background:'#fff',maxHeight:'calc(100vh - 120px)',overflowY:'auto'}}>
+        <aside className="build-controls" style={{position:'sticky',top:96,border:'1px solid var(--rule)',padding:'24px 26px',background:'#fff',maxHeight:'calc(100vh - 120px)',overflowY:'auto'}}>
           <div style={{marginBottom:22}}>
             <div className="uc" style={{color:'var(--muted)',marginBottom:8}}>1 · Primary dataset</div>
             <div style={{maxHeight:260,overflowY:'auto',marginRight:-6,paddingRight:6}}>
@@ -6034,7 +6108,7 @@ function UpdatesView({ setRoute }) {
     'Revision':  'var(--accent-warn)',
   };
   return (
-    <main className="fade-enter" style={{maxWidth:920,margin:'0 auto',padding:'56px 48px 100px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:920,margin:'0 auto',padding:'56px 48px 100px'}}>
       <div className="uc" style={{color:'var(--muted)',marginBottom:10,fontSize:11}}>Log</div>
       <h1 style={{fontFamily:'var(--serif)',fontSize:46,lineHeight:1.05,letterSpacing:-0.5,fontWeight:400,margin:'0 0 14px',color:'var(--ink)'}}>
         Updates
@@ -6057,7 +6131,7 @@ function UpdatesView({ setRoute }) {
       )}
       <ol style={{listStyle:'none',padding:0,margin:0,borderTop:'1px solid var(--rule)'}}>
         {rows.map((r, i) => (
-          <li key={i} style={{display:'grid',gridTemplateColumns:'180px 110px 1fr',gap:24,padding:'18px 0',borderBottom:'1px solid var(--rule)',alignItems:'baseline'}}>
+          <li key={i} className="log-entry" style={{display:'grid',gridTemplateColumns:'180px 110px 1fr',gap:24,padding:'18px 0',borderBottom:'1px solid var(--rule)',alignItems:'baseline'}}>
             <div className="uc" style={{fontSize:12,color:'var(--muted)',letterSpacing:0.3}}>
               {_fmtLogDate(r.date)}
             </div>
@@ -6600,7 +6674,7 @@ function AtlasView({ setRoute }) {
   }, []);
 
   return (
-    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
       <div style={{marginBottom:24}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-warn)'}}>Atlas</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 10px'}}>The world, by country.</h1>
@@ -6628,7 +6702,7 @@ function AtlasView({ setRoute }) {
           );
         })}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.4fr) minmax(360px,1fr)',gap:28,alignItems:'start'}}>
+      <div className="atlas-layout" style={{display:'grid',gridTemplateColumns:'minmax(0,1.4fr) minmax(360px,1fr)',gap:28,alignItems:'start'}}>
         <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'12px'}}>
           <AtlasChoropleth countryValues={countryValues} selectedName={selected} compareName={compareWith} onSelect={handleSelect} metricLabel={metricLabel.toLowerCase()} bivariate={bivariate} zoom={zoom}/>
           <AtlasLegend countryValues={countryValues} metricLabel={metricLabel} bivariate={bivariate}/>
@@ -6919,6 +6993,12 @@ function FlowKPI({ label, value, note }) {
 function FlowView({ setRoute }) {
   const { nodes, links } = React.useMemo(() => buildSankeyData(), []);
   const system = React.useMemo(() => buildSystemFlow(), []);
+  const [compact, setCompact] = React.useState(window.innerWidth < 768);
+  React.useEffect(() => {
+    const handler = () => setCompact(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
   const systemYear = system.year ?? (typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META?.year : null);
 
   const natMeta = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META : null;
@@ -6941,7 +7021,7 @@ function FlowView({ setRoute }) {
   })();
 
   return (
-    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
       <div style={{marginBottom:24}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-2)'}}>Flow</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 10px'}}>From application to outcome.</h1>
@@ -6977,7 +7057,7 @@ function FlowView({ setRoute }) {
       )}
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
         {system.nodes.length ? (
-          <SankeyChart nodes={system.nodes} links={system.links} width={1120} height={480}/>
+          <SankeyChart nodes={system.nodes} links={system.links} width={compact ? 500 : 1120} height={compact ? 480 : 480} compact={compact}/>
         ) : (
           <div style={{padding:'60px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>
             Data not loaded.
@@ -7004,7 +7084,7 @@ function FlowView({ setRoute }) {
       </div>
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
         {nodes.length ? (
-          <SankeyChart nodes={nodes} links={links} width={820} height={520}/>
+          <SankeyChart nodes={nodes} links={links} width={compact ? 420 : 820} height={compact ? 520 : 520} compact={compact}/>
         ) : (
           <div style={{padding:'60px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>
             Data not loaded.
@@ -7373,13 +7453,13 @@ function App() {
 
       {(route.name === 'dashboard' || route.name === 'atlas') && <BackToTop/>}
 
-      <footer style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
+      <footer className="site-footer" style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
         <div>
           <span style={{fontFamily:'var(--serif)',fontStyle:'italic',color:'var(--ink-2)'}}>Migration data explorer</span>
           <span style={{margin:'0 14px'}}>·</span>
           <span>Open data · Published under OGL v3.0</span>
         </div>
-        <div style={{display:'flex',gap:22}}>
+        <div className="footer-links" style={{display:'flex',gap:22}}>
           <span className="ulh" style={{cursor:'pointer'}} onClick={()=>setMethod(true)}>Methodology</span>
           <span className="ulh" style={{cursor:'pointer'}}>API</span>
           <span className="ulh" style={{cursor:'pointer'}}>Contact</span>

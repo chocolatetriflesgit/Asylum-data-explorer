@@ -39,6 +39,12 @@ function metaNext(meta) {
 function DashboardView({ setRoute }) {
   const [range, setRange] = uSD(() => readInitialRange(2014, DATA_MAX_YEAR));
   const [focus, setFocus] = uSD('all'); // all | applications | decisions | geography
+  const [compact, setCompact] = React.useState(window.innerWidth < 768);
+  React.useEffect(() => {
+    const handler = () => setCompact(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
 
   // Cache per-source freshness once per render — one lookup per *_META.
   const _boatsMeta = typeof BOATS_META !== 'undefined' ? BOATS_META : null;
@@ -240,7 +246,7 @@ function DashboardView({ setRoute }) {
   }, [provisionalDays, boatsWeekly]);
 
   return (
-    <main className="fade-enter" style={{maxWidth:1300,margin:'0 auto',padding:'36px 48px 80px'}}>
+    <main className="fade-enter dash-main page-section" style={{maxWidth:1300,margin:'0 auto',padding:'36px 48px 80px'}}>
       {/* title strip */}
       <div style={{borderBottom:'1px solid var(--rule)',paddingBottom:22,marginBottom:28}}>
         <div className="kicker-rule" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,textTransform:'uppercase',fontWeight:500}}>Live dashboard · Q1 2026</div>
@@ -305,7 +311,7 @@ function DashboardView({ setRoute }) {
               {canonicalLatest && <div style={{marginTop:4}}>Canonical ODS through {canonicalLatest}</div>}
             </div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:8}}>
+          <div className="day-strip-7" style={{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:8}}>
             {provisionalDays.map((d,i) => (
               <div key={d.d}
                 title={d.superseded
@@ -393,7 +399,7 @@ function DashboardView({ setRoute }) {
             spark: grantSpark, sparkStroke: 'var(--accent-2)' },
         ];
         return (
-          <section style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:24,paddingBottom:22,borderBottom:'1px solid var(--rule)'}}>
+          <section className="kpi-hero-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:24,paddingBottom:22,borderBottom:'1px solid var(--rule)'}}>
             {heroCards.map((k,i) => (
               <div key={i} style={{padding:'20px 22px',background:'var(--bg-2)',border:'1px solid var(--rule)'}}>
                 <div className="uc" style={{color:'var(--muted)',marginBottom:10,fontSize:10.5}}>{k.label}</div>
@@ -420,7 +426,7 @@ function DashboardView({ setRoute }) {
       {/* KPI strip row 1 — Preventions · Applications · Initial decisions · Appeals allowed.
           The "Small-boat arrivals · YYYY" card that lived here was a duplicate of the
           hero card above (same number, same year) and was removed in the polish pass. */}
-      <section style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:14}}>
+      <section className="kpi-detail-4" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:14}}>
         {[
           { cls:'ink', label:`Preventions · ${preventionsYear}`, v:fmtN(preventionsYearTotal),
             d: preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true },
@@ -440,7 +446,7 @@ function DashboardView({ setRoute }) {
       </section>
 
       {/* KPI strip row 2 — Grant rate · Backlog · Resettled · Top nationality · Hotels */}
-      <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:14}}>
+      <section className="kpi-detail-5" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:14}}>
         {[
           { cls:'olive', label:`Grant rate · ${decisionsYear}`, v:`${Math.round(grantRate*100)}%`,
             d: (range[0]<=decisionsYear&&decisionsYear<=range[1]) ? 'from 24% in 2019' : 'latest available', dPos:true },
@@ -482,7 +488,7 @@ function DashboardView({ setRoute }) {
       </section>
 
       {/* KPI strip row 3 — Returns · Sex ratios · Children · Age disputes */}
-      <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:0,paddingBottom:36}}>
+      <section className="kpi-detail-5" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:0,paddingBottom:36}}>
         {(() => {
           const yr = sexAgeRangeLatest?.y ?? sexAgeMeta?.latest_year ?? '—';
           const maleRatio = sexAgeRangeLatest && (sexAgeRangeLatest.male + sexAgeRangeLatest.female) > 0
@@ -524,20 +530,20 @@ function DashboardView({ setRoute }) {
       </details>
 
       {/* Time range filter (sticky so it stays visible while scrolling) */}
-      <div id="dash-range" style={{position:'sticky',top:0,zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
-        <div style={{flex:'0 1 540px',minWidth:300}}>
+      <div id="dash-range" className="range-filter-bar" style={{position:'sticky',top:0,zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
+        <div className="filter-range-wrap" style={{flex:'0 1 540px',minWidth:300}}>
           <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
             <span className="tick tick-accent"/>Time range
           </div>
           <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
         </div>
-        <div style={{flex:'1 1 260px',maxWidth:360,fontSize:12.5,color:'var(--muted)',fontStyle:'italic',lineHeight:1.5,paddingTop:22}}>
+        <div className="filter-range-hint" style={{flex:'1 1 260px',maxWidth:360,fontSize:12.5,color:'var(--muted)',fontStyle:'italic',lineHeight:1.5,paddingTop:22}}>
           Drag the handles to change the years covered by every statistic and chart below. Use the presets for common ranges.
         </div>
       </div>
 
       {/* Section focus nav */}
-      <div style={{display:'flex',alignItems:'center',gap:10,margin:'0 0 28px',paddingTop:20,paddingBottom:20,borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
+      <div className="focus-nav" style={{display:'flex',alignItems:'center',gap:10,margin:'0 0 28px',paddingTop:20,paddingBottom:20,borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
         <span className="uc" style={{color:'var(--muted)',marginRight:4}}>Show only</span>
         {[
           { id:'all', label:'All sections' },
@@ -561,11 +567,11 @@ function DashboardView({ setRoute }) {
       {(focus === 'all' || focus === 'applications') && (
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Applications and journeys" title="Volume and composition" accent="var(--accent-warn)" cadence="Annual · boats weekly"/>
-          <div style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:20}}>
+          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:20}}>
             <DashFrame number="01" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}
               setRoute={setRoute} forkPreset={{ d:'applications', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
               <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={720} height={280}
-                yLabel="Applications" xLabel="Year"
+                compact={compact} yLabel="Applications" xLabel="Year"
                 annotations={[
                   range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
                 ].filter(Boolean)}
@@ -590,7 +596,7 @@ function DashboardView({ setRoute }) {
                   : ASYLUM_ANNUAL.filter(d => d.boats != null).map(d => ({ y: d.y, v: d.boats }));
                 return (
                   <LineChart data={boatsAnnual} yearRange={range}
-                    stroke="var(--accent-warn)" width={520} height={280}
+                    compact={compact} stroke="var(--accent-warn)" width={520} height={280}
                     source="Home Office · SB_01"
                     asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
                 );
@@ -616,7 +622,7 @@ function DashboardView({ setRoute }) {
           <div style={{marginTop:20}}>
             <ChannelDeathsCard/>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
+          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
             <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top five nationalities"
               sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}
               setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'line', g:'annual', nats:'Pakistan,Afghanistan,Iran,Eritrea,Syria' }}>
@@ -656,7 +662,8 @@ function DashboardView({ setRoute }) {
                     yLabelLeft="Events (interceptions)"
                     yLabelRight="Migrants (preventions)"
                     xLabel="Month"
-                    width={1100} height={280}
+                    compact={compact}
+                    width={compact ? 580 : 1100} height={280}
                     xLabelFmt={(_, i, p) => _fmtMonth(p?.label ?? p?.y)}
                     caption="Interceptions (solid, left axis) count the events in which Border Force prevented a crossing in progress; preventions (dashed, right axis) count the migrants involved. Reporting of preventions began in May 2024 — the dashed line starts there."
                     source="Home Office · SB_02"
@@ -671,7 +678,7 @@ function DashboardView({ setRoute }) {
       {(focus === 'all' || focus === 'decisions') && (
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Decisions" title="Outcomes and the backlog" accent="var(--accent-2)" cadence="Quarterly"/>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
             <DashFrame number="07" kickerColor="var(--accent-warn)" title={`Initial decisions, ${decisionsYear}`} sub="Share of substantive outcomes">
               <StackedBar data={decisionsData} width={600} height={110}/>
               <div style={{marginTop:18,display:'grid',gridTemplateColumns:'auto 1fr',gap:22,alignItems:'center'}}>
@@ -687,7 +694,7 @@ function DashboardView({ setRoute }) {
               sub={`${range[0]}–${range[1]}${backlogMeta ? ` · 31 Dec snapshots · Asy_D03` : ''}`}
               setRoute={setRoute} forkPreset={{ d:'backlog', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
               <LineChart data={filteredBacklog} yearRange={range} width={560} height={260}
-                stroke="var(--accent-gold)"
+                compact={compact} stroke="var(--accent-gold)"
                 yLabel="Pending cases" xLabel="Year"
                 annotations={[
                   range[0] <= 2022 && range[1] >= 2022 && { y:2022, label:'Peak 132k', dx:-80, dy:-10 },
@@ -718,7 +725,7 @@ function DashboardView({ setRoute }) {
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Geography" title="Who applies" accent="var(--accent-gold)" cadence={`Applications · ${natFullYear ?? 'latest'}`}/>
           {natFull && (
-            <div style={{display:'grid',gridTemplateColumns:'1.35fr 1fr',gap:20,alignItems:'start'}}>
+            <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.35fr 1fr',gap:20,alignItems:'start'}}>
               <DashFrame number="10" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
                 <WorldMapChoropleth data={groupNatByRegion(natFull)} width={720} height={420}/>
               </DashFrame>
@@ -765,7 +772,7 @@ function DashboardView({ setRoute }) {
       {(focus === 'all' || focus === 'decisions') && (
         <section style={{marginTop:44,paddingTop:30,borderTop:'1px solid var(--rule)'}}>
           <DashSectionHeader kicker="Resettlement" title="Arrivals by scheme" accent="var(--accent)" cadence="Annual"/>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
             <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'22px 26px'}}>
               {resettlementSeries ? (
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}>
@@ -1249,7 +1256,7 @@ function DashFrame({ number, kickerColor, title, sub, children, style={}, forkPr
     setRoute({ name: 'build' });
   } : null;
   return (
-    <div style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
+    <div className="dash-frame" style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule)',gap:16}}>
         <div style={{flex:'1 1 auto',minWidth:0}}>
           <div style={{fontSize:10.5,letterSpacing:0.12,textTransform:'uppercase',color:kickerColor,fontWeight:500,display:'inline-block',paddingBottom:4,borderBottom:`1.5px solid ${kickerColor}`,marginBottom:10}}>Fig. {number}</div>

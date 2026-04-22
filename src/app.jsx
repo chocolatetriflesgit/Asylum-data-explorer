@@ -44,7 +44,7 @@ function Masthead() {
   const toRoman = n => ['','I','II','III','IV','V','VI','VII','VIII','IX','X'][n] || String(n);
   return (
     <div style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
-      <div style={{maxWidth:1240,margin:'0 auto',padding:'4px 48px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:16}}>
+      <div className="masthead-inner" style={{maxWidth:1240,margin:'0 auto',padding:'4px 48px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:16}}>
         <span className="uc" style={{color:'var(--muted)'}}>Vol {toRoman(vol)} · Issue {wk}</span>
         <span className="uc" style={{color:'var(--muted)'}}>Data through {fmtMasthead(d)}</span>
       </div>
@@ -68,12 +68,12 @@ function Header({ route, setRoute, onSearch, onMethod }) {
   return (
     <header style={{background:'var(--bg)',borderBottom:'1px solid var(--rule)',position:'sticky',top:0,zIndex:50,backdropFilter:'blur(6px)'}}>
       <Masthead />
-      <div style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:40}}>
+      <div className="header-inner" style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:40}}>
         <button onClick={()=>setRoute({name:'index'})} className="pressable" style={{display:'flex',alignItems:'baseline',gap:12,whiteSpace:'nowrap',flexShrink:0}}>
           <span style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:600,color:'var(--accent)',letterSpacing:-0.2}}>Migration</span>
           <span style={{fontFamily:'var(--serif)',fontSize:15,fontStyle:'italic',color:'var(--muted)'}}>data explorer</span>
         </button>
-        <nav style={{display:'flex',alignItems:'center',gap:28}}>
+        <nav className="header-nav" style={{display:'flex',alignItems:'center',gap:28}}>
           {tabs.map(t=>(
             <button key={t.id} onClick={()=>setRoute({name:t.id})}
               className="ulh"
@@ -288,7 +288,7 @@ function IndexView({ setRoute }) {
   return (
     <main className="fade-enter">
       {dline && (
-        <section style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',borderBottom:'1px solid var(--rule)',display:'flex',gap:18,alignItems:'baseline',flexWrap:'wrap'}}>
+        <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',borderBottom:'1px solid var(--rule)',display:'flex',gap:18,alignItems:'baseline',flexWrap:'wrap'}}>
           <span className="uc" style={{color:'var(--accent-warn)',fontWeight:500}}>Small-boat arrivals · week ending {dline.weStr}</span>
           <span className="tnum" style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:500,color:'var(--ink)'}}>{dline.m.toLocaleString()}</span>
           {dline.delta && (
@@ -299,8 +299,8 @@ function IndexView({ setRoute }) {
         </section>
       )}
       {/* hero / featured story */}
-      <section style={{maxWidth:1240,margin:'0 auto',padding:'56px 48px 40px',borderBottom:'1px solid var(--rule)'}}>
-        <div style={{display:'grid',gridTemplateColumns:'minmax(320px,420px) 1fr',gap:72,alignItems:'start'}}>
+      <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'56px 48px 40px',borderBottom:'1px solid var(--rule)'}}>
+        <div className="hero-grid" style={{display:'grid',gridTemplateColumns:'minmax(320px,420px) 1fr',gap:72,alignItems:'start'}}>
           <div>
             <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:18}}>
               <span style={{background:'var(--accent-warn)',color:'var(--bg)',padding:'4px 9px',fontSize:10.5,letterSpacing:1.2,textTransform:'uppercase'}}>Featured</span>
@@ -343,7 +343,7 @@ function IndexView({ setRoute }) {
       </section>
 
       {/* Key numbers strip — computed from latest globals */}
-      <section style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px',borderBottom:'1px solid var(--rule)'}}>
+      <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px',borderBottom:'1px solid var(--rule)'}}>
         {(() => {
           const fmt = n => n == null ? '—' : Math.round(n).toLocaleString('en-GB');
           const pct = (a,b) => (!a || !b) ? null : (a - b) / b * 100;
@@ -380,7 +380,7 @@ function IndexView({ setRoute }) {
           ];
           return (<>
             <div className="uc" style={{marginBottom:18,color:'var(--muted)'}}>At a glance · {yearNow}</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:0,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)'}}>
+            <div className="stat-strip-5" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:0,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)'}}>
               {strip.map((s,i)=>(
                 <div key={i} style={{padding:'22px 24px',borderRight: i<4?'1px solid var(--rule)':'none'}}>
                   <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>{s.l}</div>
@@ -394,7 +394,7 @@ function IndexView({ setRoute }) {
       </section>
 
       {/* Story grid — asymmetric: 2 medium on top row, 3 compact below */}
-      <section style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
+      <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
         <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:24}}>
           <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,margin:0,letterSpacing:-0.2}}>Recent stories</h2>
           <div className="uc" style={{color:'var(--muted)'}}>Showing {rest.length} {rest.length === 1 ? 'story' : 'stories'}</div>
@@ -408,7 +408,7 @@ function IndexView({ setRoute }) {
           };
           return (<div style={{display:'flex',flexDirection:'column',gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
             {/* Medium row — 2 cards, larger type, full story hero */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:1,background:'var(--rule)'}}>
+            <div className="card-grid-2" style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:1,background:'var(--rule)'}}>
               {medium.map(s=>(
                 <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})} {...cardHover}
                   style={{background:'var(--bg)',padding:'32px 36px 28px',textAlign:'left',border:'none',cursor:'pointer',transition:'background .15s',display:'flex',flexDirection:'column',gap:18,minHeight:320}}>
@@ -423,7 +423,7 @@ function IndexView({ setRoute }) {
               ))}
             </div>
             {/* Compact row — 3 cards, tighter type, no hero glyph */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:1,background:'var(--rule)'}}>
+            <div className="card-grid-3" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:1,background:'var(--rule)'}}>
               {compact.map(s=>(
                 <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})} {...cardHover}
                   style={{background:'var(--bg)',padding:'22px 24px 20px',textAlign:'left',border:'none',cursor:'pointer',transition:'background .15s',display:'flex',flexDirection:'column',gap:12,minHeight:180}}>
@@ -457,6 +457,7 @@ function BackToTop() {
   if (!visible) return null;
   return (
     <button
+      className="back-to-top-btn"
       aria-label="Back to top"
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       style={{

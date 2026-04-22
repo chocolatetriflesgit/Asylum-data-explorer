@@ -129,9 +129,11 @@ function LineChart({
   overlay=null,           // optional secondary series: [{y, v, label?}] — drawn dashed
   overlayStroke='var(--accent-warn)',
   overlayLabel='',        // short label for the overlay series (rendered at end of line)
+  compact=false,
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
+  const fs = compact ? 22 : 11;
 
   const yrFiltered = yearRange ? data.filter(d => d.y >= yearRange[0] && d.y <= yearRange[1]) : data;
   // Drop null/undefined v's so missing years (e.g. pre-2018 boats) don't plot as 0.
@@ -236,7 +238,7 @@ function LineChart({
         {yTicks.map(t => (
           <g key={t}>
             <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth="1"/>
-            <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)"
+            <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize={fs} fill="var(--muted)"
               style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>{fmtK(t)}</text>
           </g>
         ))}
@@ -244,7 +246,7 @@ function LineChart({
         {d.map((p, i) => ({p, i}))
           .filter(({i}) => i % Math.max(1, Math.ceil(d.length / 8)) === 0 || i === d.length - 1)
           .map(({p, i}) => (
-            <text key={`xt-${i}`} x={x(p.y)} y={H - pad.b + 18} textAnchor="middle" fontSize="11" fill="var(--muted)"
+            <text key={`xt-${i}`} x={x(p.y)} y={H - pad.b + 18} textAnchor="middle" fontSize={fs} fill="var(--muted)"
               style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>
               {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
             </text>
@@ -255,7 +257,7 @@ function LineChart({
           <text
             x={14} y={pad.t + ih / 2}
             transform={`rotate(-90 14 ${pad.t + ih / 2})`}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            textAnchor="middle" fontSize={fs} fill="var(--muted)"
             style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
             {yLabel}
           </text>
@@ -263,7 +265,7 @@ function LineChart({
         {xLabel && (
           <text
             x={pad.l + iw / 2} y={H - 6}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            textAnchor="middle" fontSize={fs} fill="var(--muted)"
             style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
             {xLabel}
           </text>
@@ -987,9 +989,11 @@ function DualAxisChart({
   xLabelFmt=null,
   yearRange=null,             // optional [min, max] — filters points whose
                               // label's leading YYYY is out of range.
+  compact=false,
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
+  const fs = compact ? 22 : 11;
   // When yearRange is supplied, filter on the label's leading YYYY. The
   // `y` field is an index from the caller's shared x-grid, not a year, so
   // we can't filter on it directly — but the caller ships a "YYYY-MM"
@@ -1041,20 +1045,20 @@ function DualAxisChart({
         {lTicks.map(t => (
           <g key={`lt-${t}`}>
             <line x1={pad.l} x2={W-pad.r} y1={yL(t)} y2={yL(t)} stroke="var(--rule)"/>
-            <text x={pad.l-10} y={yL(t)+4} textAnchor="end" fontSize="11" fill={leftStroke}
+            <text x={pad.l-10} y={yL(t)+4} textAnchor="end" fontSize={fs} fill={leftStroke}
               style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
           </g>
         ))}
         {/* Right tick labels (no grid — avoids double-ruled background) */}
         {rTicks.map(t => (
-          <text key={`rt-${t}`} x={W-pad.r+10} y={yR(t)+4} textAnchor="start" fontSize="11" fill={rightStroke}
+          <text key={`rt-${t}`} x={W-pad.r+10} y={yR(t)+4} textAnchor="start" fontSize={fs} fill={rightStroke}
             style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
         ))}
         {/* X-axis labels */}
         {xSrc.map((p,i) => ({p,i}))
           .filter(({i}) => i % Math.max(1, Math.ceil(xSrc.length/8)) === 0 || i === xSrc.length-1)
           .map(({p,i}) => (
-            <text key={`xt-${i}`} x={x(p.y)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)"
+            <text key={`xt-${i}`} x={x(p.y)} y={H-pad.b+18} textAnchor="middle" fontSize={fs} fill="var(--muted)"
               style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
               {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
             </text>
@@ -1064,18 +1068,18 @@ function DualAxisChart({
         {yLabelLeft && (
           <text x={14} y={pad.t + ih/2}
             transform={`rotate(-90 14 ${pad.t + ih/2})`}
-            textAnchor="middle" fontSize="11" fill={leftStroke}
+            textAnchor="middle" fontSize={fs} fill={leftStroke}
             style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabelLeft}</text>
         )}
         {yLabelRight && (
           <text x={W-14} y={pad.t + ih/2}
             transform={`rotate(90 ${W-14} ${pad.t + ih/2})`}
-            textAnchor="middle" fontSize="11" fill={rightStroke}
+            textAnchor="middle" fontSize={fs} fill={rightStroke}
             style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabelRight}</text>
         )}
         {xLabel && (
           <text x={pad.l + iw/2} y={H-6}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            textAnchor="middle" fontSize={fs} fill="var(--muted)"
             style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
         )}
         {/* Left series — solid */}
@@ -1785,7 +1789,7 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
 // nodes: [{id, label, col (0..N-1), value, color, mocked?}]
 // links: [{source, target, value, dashed?}]  (source.col must be < target.col)
 // ─────────────────────────────────────────────────────────────
-function SankeyChart({ nodes, links, width = 820, height = 500 }) {
+function SankeyChart({ nodes, links, width = 820, height = 500, compact = false }) {
   const { show, hide, node: ttNode } = useTooltip();
   // Two-tier focus state: hovering a node *previews* the highlight;
   // clicking pins it so the user can study a single cohort without
@@ -1801,9 +1805,9 @@ function SankeyChart({ nodes, links, width = 820, height = 500 }) {
       || links.some(lk => (lk.source === activeId && lk.target === n.id)
                        || (lk.target === activeId && lk.source === n.id));
 
-  const NODE_W = 20;
-  const GAP    = 8;
-  const PAD    = { l: 150, r: 200, t: 12, b: 12 };
+  const NODE_W = compact ? 14 : 20;
+  const GAP    = compact ? 6 : 8;
+  const PAD    = compact ? { l: 80, r: 90, t: 10, b: 10 } : { l: 150, r: 200, t: 12, b: 12 };
 
   const cols = Array.from(new Set(nodes.map(n => n.col))).sort((a, b) => a - b);
   const maxCol = cols[cols.length - 1] ?? 0;
@@ -1919,14 +1923,14 @@ function SankeyChart({ nodes, links, width = 820, height = 500 }) {
               {isLeftmost ? (
                 <text x={nl.x - 8} y={nl.y + nl.h / 2}
                   textAnchor="end" dominantBaseline="middle"
-                  fontSize={11} fontFamily="var(--serif)" fill="var(--ink-2)">
+                  fontSize={compact ? 13 : 11} fontFamily="var(--serif)" fill="var(--ink-2)">
                   {n.label}{n.mocked ? ' *' : ''}
                 </text>
               ) : (
                 <text x={nl.x + NODE_W + 8} y={nl.y + nl.h / 2 - 7}
-                  textAnchor="start" fontSize={11} fontFamily="var(--serif)" fill="var(--ink-2)">
+                  textAnchor="start" fontSize={compact ? 13 : 11} fontFamily="var(--serif)" fill="var(--ink-2)">
                   <tspan>{n.label}{n.mocked ? ' *' : ''}</tspan>
-                  <tspan x={nl.x + NODE_W + 8} dy={14} fontSize={10} fill="var(--muted)">{fmtN(n.value)} · {pct}%</tspan>
+                  <tspan x={nl.x + NODE_W + 8} dy={compact ? 16 : 14} fontSize={compact ? 11 : 10} fill="var(--muted)">{fmtN(n.value)} · {pct}%</tspan>
                 </text>
               )}
             </g>

@@ -237,6 +237,12 @@ function FlowKPI({ label, value, note }) {
 function FlowView({ setRoute }) {
   const { nodes, links } = React.useMemo(() => buildSankeyData(), []);
   const system = React.useMemo(() => buildSystemFlow(), []);
+  const [compact, setCompact] = React.useState(window.innerWidth < 768);
+  React.useEffect(() => {
+    const handler = () => setCompact(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
   const systemYear = system.year ?? (typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META?.year : null);
 
   const natMeta = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META : null;
@@ -259,7 +265,7 @@ function FlowView({ setRoute }) {
   })();
 
   return (
-    <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
+    <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
       <div style={{marginBottom:24}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-2)'}}>Flow</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 10px'}}>From application to outcome.</h1>
@@ -295,7 +301,7 @@ function FlowView({ setRoute }) {
       )}
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
         {system.nodes.length ? (
-          <SankeyChart nodes={system.nodes} links={system.links} width={1120} height={480}/>
+          <SankeyChart nodes={system.nodes} links={system.links} width={compact ? 500 : 1120} height={compact ? 480 : 480} compact={compact}/>
         ) : (
           <div style={{padding:'60px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>
             Data not loaded.
@@ -322,7 +328,7 @@ function FlowView({ setRoute }) {
       </div>
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
         {nodes.length ? (
-          <SankeyChart nodes={nodes} links={links} width={820} height={520}/>
+          <SankeyChart nodes={nodes} links={links} width={compact ? 420 : 820} height={compact ? 520 : 520} compact={compact}/>
         ) : (
           <div style={{padding:'60px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>
             Data not loaded.
