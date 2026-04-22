@@ -457,6 +457,37 @@ def test_support_tiers_total_matches_regional_sum():
     assert tiers["total"] == regional_sum, (tiers["total"], regional_sum)
 
 
+DEATHS_JS = ROOT / "data" / "deaths-data.js"
+
+
+def test_deaths_globals_shape():
+    g = _load_globals(DEATHS_JS)
+    assert "DEATHS_DAILY" in g
+    assert "DEATHS_ANNUAL" in g
+    assert "DEATHS_META" in g
+    assert isinstance(g["DEATHS_DAILY"], list)
+    assert isinstance(g["DEATHS_ANNUAL"], list)
+    meta = g["DEATHS_META"]
+    assert meta.get("provider") == "IOM Missing Migrants Project"
+
+
+def test_deaths_annual_totals_consistent():
+    """If non-stub, each annual row's total equals dead+missing, and daily
+    totals summed by year match annual totals."""
+    g = _load_globals(DEATHS_JS)
+    if g["DEATHS_META"].get("pending"):
+        pytest.skip("Deaths data pending first fetch")
+    for r in g["DEATHS_ANNUAL"]:
+        assert r["dead"] + r["missing"] == r["total"], r
+    by_year: dict[int, int] = {}
+    for d in g["DEATHS_DAILY"]:
+        y = int(d["d"][:4])
+        by_year[y] = by_year.get(y, 0) + d["dead"] + d["missing"]
+    for r in g["DEATHS_ANNUAL"]:
+        if by_year.get(r["y"], 0):
+            assert by_year[r["y"]] == r["total"], (r, by_year.get(r["y"]))
+
+
 def test_support_tiers_annual_monotone_and_consistent():
     annual = _load_globals(SUPPORT_REGIONS_JS)["SUPPORT_TIERS_ANNUAL"]
     assert len(annual) > 0

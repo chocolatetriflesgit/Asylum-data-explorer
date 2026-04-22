@@ -329,8 +329,6 @@ const NEXT_RELEASE = {
 // the Updates page as a "Coming soon" block. Keep entries short — one line
 // of plain English the reader can understand without the code context.
 const PLANNED_UPDATES = [
-  { area: 'Pipeline', text: 'Channel deaths card — daily ingest from IOM Missing Migrants Project, cited as IOM (not Home Office).' },
-  { area: 'Pipeline', text: 'Section 95 / 98 / 4 support tiers — split the existing regional totals into the three support categories.' },
   { area: 'Pipeline', text: 'Ukraine and BN(O) resettlement schemes — separate fetchers for the two publications outside the main ISS set.' },
   { area: 'Pipeline', text: 'Appeal outcomes — will replace the cohort-delta proxy in the Flow Sankey once the Home Office republishes the data.' },
   { area: 'Atlas',    text: 'Child applicants by nationality — new Atlas layer once the Home Office publishes Under-18 applicants by origin country.' },

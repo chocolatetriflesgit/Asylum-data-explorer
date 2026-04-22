@@ -613,6 +613,9 @@ function DashboardView({ setRoute }) {
               </DashFrame>
             </div>
           )}
+          <div style={{marginTop:20}}>
+            <ChannelDeathsCard/>
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
             <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top five nationalities"
               sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}
@@ -962,6 +965,55 @@ function DashSectionHeader({ kicker, title, accent, cadence }) {
         <div className="uc" style={{color:'var(--muted)'}}>↓ Export section</div>
       </div>
     </div>
+  );
+}
+
+function ChannelDeathsCard() {
+  const annual = typeof DEATHS_ANNUAL !== 'undefined' ? DEATHS_ANNUAL : [];
+  const meta = typeof DEATHS_META !== 'undefined' ? DEATHS_META : null;
+  const pending = !annual.length || !meta || meta.pending;
+  const latest = annual[annual.length - 1];
+  const prior = annual[annual.length - 2];
+  const delta = latest && prior && prior.total > 0
+    ? ((latest.total - prior.total) / prior.total) * 100 : null;
+  const spark = annual.map(r => ({ y: r.y, v: r.total }));
+  return (
+    <DashFrame number="03a" kickerColor="var(--accent-warn)"
+      title="Channel deaths · recorded by IOM"
+      sub={pending ? 'Pending first IOM fetch' : `English Channel · ${annual[0]?.y}–${latest.y}`}
+      source="IOM Missing Migrants Project">
+      {pending ? (
+        <div style={{padding:'36px 0',color:'var(--muted-2)',fontStyle:'italic',fontSize:13.5,maxWidth:720,lineHeight:1.6}}>
+          Pending first pull from the IOM Missing Migrants Project. Run
+          <code style={{margin:'0 4px',fontSize:12.5}}>scripts/fetch_deaths.py</code>
+          then <code style={{margin:'0 4px',fontSize:12.5}}>scripts/build_deaths.py</code>.
+          Cited as IOM, not Home Office, since IOM is the authority for this figure.
+        </div>
+      ) : (
+        <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:28,alignItems:'center'}}>
+          <div>
+            <div className="uc" style={{color:'var(--muted)',marginBottom:6}}>{latest.y} total</div>
+            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:42,fontWeight:500,color:'var(--ink)',lineHeight:1}}>
+              {(latest.total).toLocaleString()}
+            </div>
+            <div style={{fontSize:12.5,color:'var(--muted)',marginTop:6}}>
+              {latest.dead.toLocaleString()} dead · {latest.missing.toLocaleString()} missing
+            </div>
+            {delta != null && (
+              <div style={{fontSize:12.5,marginTop:10,color: delta < 0 ? 'var(--accent-2)' : 'var(--accent-warn)',fontStyle:'italic'}}>
+                {delta >= 0 ? '+' : ''}{delta.toFixed(1)}% vs {prior.y}
+              </div>
+            )}
+          </div>
+          <div>
+            <Spark data={spark} width={460} height={78} stroke="var(--accent-warn)" area/>
+            <div style={{marginTop:10,fontSize:12.5,color:'var(--muted)',lineHeight:1.55,maxWidth:460}}>
+              Annual totals of deaths and disappearances recorded on the English Channel route. IOM records only incidents it can verify from media, NGO or official sources — undercount is likely.
+            </div>
+          </div>
+        </div>
+      )}
+    </DashFrame>
   );
 }
 

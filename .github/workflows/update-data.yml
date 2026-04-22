@@ -10,6 +10,7 @@ name: Update data
 #   - age-disputes xlsx   -> data/age-disputes-data.js
 #   - backlog xlsx        -> data/backlog-data.js
 #   - support-by-LA xlsx  -> data/support-regions-data.js
+#   - IOM missing-migrants -> data/deaths-data.js (non-gov.uk source)
 #   - last-7-days HTML    -> data/provisional-data.js
 # Then re-bundles index.html, runs integrity tests, and commits if anything
 # changed. Failure is loud — each fetcher exits non-zero if the gov.uk page
@@ -106,6 +107,18 @@ jobs:
 
       - name: Build support regions data module
         run: python scripts/build_support_regions.py cache/support-local-authority-datasets-*.xlsx data/
+
+      - name: Fetch IOM Missing Migrants CSV
+        run: python scripts/fetch_deaths.py
+        continue-on-error: true  # IOM is out-of-band; don't fail the job if their URL blips.
+
+      - name: Build Channel deaths data module
+        run: |
+          if [ -f cache/deaths/latest.csv ]; then
+            python scripts/build_deaths.py cache/deaths/latest.csv data/
+          else
+            python scripts/build_deaths.py --empty data/
+          fi
 
       - name: Fetch gov.uk last-7-days provisional page
         run: python scripts/fetch_last_7_days.py

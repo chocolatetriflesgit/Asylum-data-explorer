@@ -1,0 +1,182 @@
+"""
+Build `data/deaths-data.js` — recorded migrant deaths and disappearances
+on the English Channel route, from the IOM Missing Migrants Project
+global CSV.
+
+Source
+------
+  IOM Missing Migrants Project (not Home Office data)
+    https://missingmigrants.iom.int/
+
+Emits
+-----
+  window.DEATHS_DAILY  = [{d, dead, missing}]   (only days with an incident)
+  window.DEATHS_ANNUAL = [{y, dead, missing, total}]
+  window.DEATHS_META   = {provider, sourceUrl, sourceFile, generatedAt, ...}
+
+Design
+------
+- The global CSV carries one row per incident, with columns
+  "Incident Date", "Region of Incident", "Migration route", "Number of Dead",
+  "Minimum Estimated Number of Missing", and free-text "Location of death".
+- We filter to rows whose migration route or incident location identifies
+  the English Channel / La Manche. The filter is deliberately broad
+  (any cell containing "channel" or "la manche") so new labelling
+  conventions by IOM don't silently drop rows.
+- Empty or missing numeric cells are coerced to 0.
+- An empty DEATHS_DAILY is a valid state: if the fetcher hasn't run yet
+  (no CSV in cache), the builder emits a stub file so the UI can render a
+  "Data pending" card rather than crashing on missing globals.
+
+Usage:
+    python scripts/build_deaths.py cache/deaths/latest.csv data/
+    python scripts/build_deaths.py --empty data/       # emit pending-state stub
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pandas as pd
+
+
+CHANNEL_MARKERS = ("channel", "la manche", "calais", "dover")
+
+
+def _row_matches_channel(row: pd.Series) -> bool:
+    haystack_cols = [c for c in row.index if c.lower() in {
+        "migration route", "region of incident", "location of death",
+        "location of incident", "incident location",
+    }]
+    for c in haystack_cols:
+        v = row.get(c)
+        if isinstance(v, str) and any(m in v.lower() for m in CHANNEL_MARKERS):
+            return True
+    return False
+
+
+def _first_col(df: pd.DataFrame, *names: str) -> str | None:
+    for n in names:
+        for c in df.columns:
+            if c.strip().lower() == n.strip().lower():
+                return c
+    return None
+
+
+def build(csv_path: Path) -> tuple[list[dict], list[dict], dict]:
+    df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
+    channel = df[df.apply(_row_matches_channel, axis=1)].copy()
+
+    date_col = _first_col(channel, "Incident Date", "Incident date", "Date")
+    dead_col = _first_col(channel, "Number of Dead", "Number Dead", "Dead")
+    missing_col = _first_col(channel, "Minimum Estimated Number of Missing",
+                             "Number of Missing", "Missing")
+    if not (date_col and dead_col and missing_col):
+        raise SystemExit(
+            f"IOM CSV columns not recognised — got {list(df.columns)}"
+        )
+
+    channel["_d"] = pd.to_datetime(channel[date_col], errors="coerce", dayfirst=True)
+    channel["_dead"] = pd.to_numeric(channel[dead_col], errors="coerce").fillna(0).astype(int)
+    channel["_missing"] = pd.to_numeric(channel[missing_col], errors="coerce").fillna(0).astype(int)
+
+    channel = channel[channel["_d"].notna()]
+    daily = (channel.groupby(channel["_d"].dt.date)[["_dead", "_missing"]]
+                   .sum().reset_index().sort_values("_d"))
+    daily_out = [
+        {"d": str(r["_d"]), "dead": int(r["_dead"]), "missing": int(r["_missing"])}
+        for _, r in daily.iterrows()
+        if (r["_dead"] + r["_missing"]) > 0
+    ]
+
+    channel["_y"] = channel["_d"].dt.year
+    annual = (channel.groupby("_y")[["_dead", "_missing"]].sum()
+                     .reset_index().sort_values("_y"))
+    annual_out = [
+        {"y": int(r["_y"]), "dead": int(r["_dead"]), "missing": int(r["_missing"]),
+         "total": int(r["_dead"] + r["_missing"])}
+        for _, r in annual.iterrows()
+    ]
+
+    latest = channel["_d"].max()
+    meta = {
+        "provider": "IOM Missing Migrants Project",
+        "sourceUrl": "https://missingmigrants.iom.int/",
+        "sourceFile": csv_path.name,
+        "sourceDated": latest.strftime("%Y-%m-%d") if pd.notna(latest) else None,
+        "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "licence": "CC BY-NC 4.0 (IOM)",
+        "notes": (
+            "Incident-level records filtered to the English Channel / La Manche "
+            "route. 'Dead' and 'Missing' are reported separately by IOM; both are "
+            "people who lost their lives or are presumed dead. Undercount is "
+            "likely — IOM records only incidents they can verify from media, "
+            "NGO or official sources."
+        ),
+        "rowsIn": int(len(df)),
+        "rowsChannel": int(len(channel)),
+    }
+    return daily_out, annual_out, meta
+
+
+def write_js(out_dir: Path, daily: list[dict], annual: list[dict], meta: dict) -> Path:
+    out = out_dir / "deaths-data.js"
+    body = (
+        "/* AUTO-GENERATED by scripts/build_deaths.py. Do not edit. */\n"
+        f"window.DEATHS_DAILY = {json.dumps(daily, ensure_ascii=False)};\n"
+        f"window.DEATHS_ANNUAL = {json.dumps(annual, ensure_ascii=False)};\n"
+        f"window.DEATHS_META = {json.dumps(meta, ensure_ascii=False)};\n"
+    )
+    out.write_text(body, encoding="utf-8")
+    return out
+
+
+def stub(out_dir: Path) -> Path:
+    meta = {
+        "provider": "IOM Missing Migrants Project",
+        "sourceUrl": "https://missingmigrants.iom.int/",
+        "sourceFile": None,
+        "sourceDated": None,
+        "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "licence": "CC BY-NC 4.0 (IOM)",
+        "notes": "Pending first fetch — run scripts/fetch_deaths.py.",
+        "pending": True,
+    }
+    return write_js(out_dir, [], [], meta)
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("csv", type=Path, nargs="?",
+                   help="Path to IOM CSV (omit with --empty).")
+    p.add_argument("out_dir", type=Path, nargs="?", default=Path("data"),
+                   help="Output directory (default: data/).")
+    p.add_argument("--empty", action="store_true",
+                   help="Write the pending-state stub instead of parsing a CSV.")
+    args = p.parse_args()
+
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.empty:
+        out = stub(args.out_dir)
+        print(f"wrote {out} (pending stub)")
+        return 0
+
+    if args.csv is None or not args.csv.exists():
+        print("error: csv path is required (or pass --empty)", file=sys.stderr)
+        return 2
+
+    daily, annual, meta = build(args.csv)
+    out = write_js(args.out_dir, daily, annual, meta)
+    print(
+        f"wrote {out} — {len(daily)} days with incidents, "
+        f"{len(annual)} years, {meta['rowsChannel']} channel rows of {meta['rowsIn']}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

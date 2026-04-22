@@ -179,6 +179,19 @@ SOURCES = {
         "data_file": "data/outcome-cohort-data.js",
         "data_globals": ("OUTCOME_COHORT_ANNUAL", "OUTCOME_COHORT_META"),
     },
+    "iom-missing-migrants": {
+        "label": "IOM Missing Migrants Project (English Channel deaths)",
+        "landing_url": "https://missingmigrants.iom.int/",
+        # Not a gov.uk source — IOM publishes one global CSV covering every
+        # route they track. The builder filters to the English Channel in
+        # Python rather than requesting a route-specific file, so the URL
+        # never changes per route.
+        "filename_stem": None,
+        "fetcher": "scripts/fetch_deaths.py",
+        "builder": "scripts/build_deaths.py",
+        "data_file": "data/deaths-data.js",
+        "data_globals": ("DEATHS_DAILY", "DEATHS_ANNUAL", "DEATHS_META"),
+    },
     "age-disputes": {
         "label": "Asylum & resettlement — age disputes",
         "landing_url": (
