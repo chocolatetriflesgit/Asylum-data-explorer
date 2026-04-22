@@ -6607,11 +6607,14 @@ function buildSystemFlow() {
     const lRef   = L('refusals');
     const lWdr   = L('withdrawals') + L('admin');
     const lPend  = Math.max(0, appsTotal - lGrant - lRef - lWdr);
+    // Col-3 nodes carry `mocked: true` so SankeyChart draws them in a paler
+    // tint with a dashed outline — this column is a proxy (cohort initial-vs-
+    // latest delta), not real appeals data. See C2 in the pre-copy polish plan.
     latestNodes = [
-      { id: 'l_grant', label: 'Granted (latest)',   col: 3, value: lGrant, color: FLOW_SYSTEM_COLORS.granted },
-      { id: 'l_ref',   label: 'Refused (latest)',   col: 3, value: lRef,   color: FLOW_SYSTEM_COLORS.refused },
-      { id: 'l_wdr',   label: 'Withdrawn (latest)', col: 3, value: lWdr,   color: FLOW_SYSTEM_COLORS.withdrawn },
-      ...(lPend > 0 ? [{ id: 'l_pend', label: 'Still pending', col: 3, value: lPend, color: 'var(--bg-3)' }] : []),
+      { id: 'l_grant', label: 'Granted (latest)',   col: 3, value: lGrant, color: FLOW_SYSTEM_COLORS.granted,    mocked: true },
+      { id: 'l_ref',   label: 'Refused (latest)',   col: 3, value: lRef,   color: FLOW_SYSTEM_COLORS.refused,    mocked: true },
+      { id: 'l_wdr',   label: 'Withdrawn (latest)', col: 3, value: lWdr,   color: FLOW_SYSTEM_COLORS.withdrawn,  mocked: true },
+      ...(lPend > 0 ? [{ id: 'l_pend', label: 'Still pending — awaiting a final outcome', col: 3, value: lPend, color: 'var(--bg-3)', mocked: true }] : []),
     ];
     // Naive routing: each initial bucket sends its mass proportionally to
     // the four latest buckets based on global shares. Good enough for an
@@ -6620,10 +6623,10 @@ function buildSystemFlow() {
     const partitionLinks = (fromId, fromV) => {
       if (!fromV) return [];
       return [
-        { source: fromId, target: 'l_grant', value: Math.round(fromV * lGrant / shareTotal) },
-        { source: fromId, target: 'l_ref',   value: Math.round(fromV * lRef   / shareTotal) },
-        { source: fromId, target: 'l_wdr',   value: Math.round(fromV * lWdr   / shareTotal) },
-        ...(lPend > 0 ? [{ source: fromId, target: 'l_pend', value: Math.round(fromV * lPend / shareTotal) }] : []),
+        { source: fromId, target: 'l_grant', value: Math.round(fromV * lGrant / shareTotal), dashed: true },
+        { source: fromId, target: 'l_ref',   value: Math.round(fromV * lRef   / shareTotal), dashed: true },
+        { source: fromId, target: 'l_wdr',   value: Math.round(fromV * lWdr   / shareTotal), dashed: true },
+        ...(lPend > 0 ? [{ source: fromId, target: 'l_pend', value: Math.round(fromV * lPend / shareTotal), dashed: true }] : []),
       ].filter(lk => lk.value > 0);
     };
     latestLinks = [
@@ -6782,6 +6785,11 @@ function FlowView({ setRoute }) {
             : 'Entry → Application → Initial decision'}
         </h2>
       </div>
+      {system.hasLatest && (
+        <div style={{marginBottom:10,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent-warn)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:940}}>
+          <strong style={{fontWeight:500}}>The fourth column is an indicative proxy using cohort outcome changes; it is not an appeals dataset.</strong> The Home Office has not republished appeals statistics since their case-working system migration. Hatched ribbons and dashed nodes mark it as modelled, not measured.
+        </div>
+      )}
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
         {system.nodes.length ? (
           <SankeyChart nodes={system.nodes} links={system.links} width={1120} height={480}/>
@@ -6795,7 +6803,7 @@ function FlowView({ setRoute }) {
       <div style={{marginTop:12,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:900}}>
         {system.hasLatest ? (
           <>
-            <strong style={{fontWeight:500}}>Latest outcome is the initial-vs-latest delta from ASY_D04</strong>, pooled across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The Home Office has not yet republished pure appeals data since migrating case-working systems (ASY_D04 Cover_sheet, Note 5); the cohort-level initial-vs-latest delta is the defensible proxy until that lands.
+            <strong style={{fontWeight:500}}>About the fourth column.</strong> "Latest outcome" pools the initial-vs-latest delta from ASY_D04 across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The beige "Still pending" band holds claims that have not yet reached a final outcome — many are still awaiting an initial decision or an appeal hearing. Hatching and dashed outlines remind the reader that this column is modelled from cohort movement, not direct appeals data, which the Home Office has not republished since its case-working system migration (ASY_D04 Cover_sheet, Note 5).
           </>
         ) : (
           <>
