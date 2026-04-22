@@ -48,12 +48,30 @@ function pathCentroid(d) {
   return [pts.reduce((s,p)=>s+p[0],0)/pts.length, pts.reduce((s,p)=>s+p[1],0)/pts.length];
 }
 
+// Bounding box of a path's M/L commands. Returns [xMin, yMin, w, h] or null.
+// Used by flyToBox so large countries (Russia, Canada) fit fully inside the
+// zoomed viewport — a fixed centroid zoom left them clipped.
+function pathBBox(d) {
+  const re = /[ML]\s*([-\d.]+)[,\s]([-\d.]+)/g;
+  let xMin = Infinity, yMin = Infinity, xMax = -Infinity, yMax = -Infinity, m, any = false;
+  while ((m = re.exec(d))) {
+    const x = +m[1], y = +m[2];
+    if (x < xMin) xMin = x; if (y < yMin) yMin = y;
+    if (x > xMax) xMax = x; if (y > yMax) yMax = y;
+    any = true;
+  }
+  if (!any) return null;
+  return [xMin, yMin, Math.max(1e-6, xMax - xMin), Math.max(1e-6, yMax - yMin)];
+}
+
 const ATLAS_METRIC_OPTIONS = [
   { id: 'applicants',   label: 'Applicants' },
   { id: 'grant_rate',   label: 'Grant rate' },
   { id: 'bivariate',    label: 'Applicants × grant rate' },
   { id: 'per_capita',   label: 'Per 100k displaced',
     needsData: () => (typeof UNHCR_POC_ANNUAL !== 'undefined' && UNHCR_POC_ANNUAL.length > 0) },
+  { id: 'small_boats',  label: 'Small-boat arrivals',
+    needsData: () => (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && IRR_BOATS_BY_NATIONALITY.length > 0) },
   { id: 'returns',      label: 'Returns' },
   { id: 'age_disputes', label: 'Age disputes' },
 ];
@@ -417,8 +435,8 @@ function AtlasView({ setRoute }) {
     const wm = typeof WORLD_MAP !== 'undefined' ? WORLD_MAP : [];
     const entry = wm.find(c => resolveNat(c.name) === nat);
     if (entry) {
-      const ct = pathCentroid(entry.d);
-      if (ct) zoom.flyTo(ct[0], ct[1]);
+      const bb = pathBBox(entry.d);
+      if (bb) zoom.flyToBox(bb[0], bb[1], bb[2], bb[3]);
     }
   };
 
@@ -449,6 +467,18 @@ function AtlasView({ setRoute }) {
     if (metric === 'age_disputes') {
       const ad = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
       return Object.fromEntries(ad.map(r => [r.name, r.raised]));
+    }
+    if (metric === 'small_boats') {
+      const rows = typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' ? IRR_BOATS_BY_NATIONALITY : [];
+      if (!rows.length) return {};
+      const latestYear = Math.max(...rows.map(r => r.year));
+      const out = {};
+      for (const r of rows) {
+        if (r.year !== latestYear) continue;
+        if (!(r.count > 0)) continue;
+        out[r.nationality] = (out[r.nationality] || 0) + r.count;
+      }
+      return out;
     }
     if (metric === 'per_capita') {
       // Join NAT_FULL (name) → WORLD_MAP (iso) → UNHCR_POC_ANNUAL (latest

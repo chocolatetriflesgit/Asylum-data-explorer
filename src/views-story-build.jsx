@@ -416,36 +416,8 @@ const DATASET_OPTIONS = [
   { id: 'backlog',      label: 'Backlog (pending)',    series: BACKLOG.map(d=>({y:d.y, v:d.v})),           color: 'var(--accent-2)' },
   { id: 'preventions',  label: 'Preventions',          series: _annualFromWeekly('p'),                      color: 'var(--accent-gold)', note: 'Preventions not reported before 2023 — earlier years are absent from this series, not zero.' },
   { id: 'interceptions',label: 'Interceptions',        series: _annualFromWeekly('e'),                      color: 'var(--muted-2)' },
-  (() => {
-    // Derive an "Other nationalities" series: total applications per year − sum of named top-5.
-    const top5 = NAT_SERIES.series;
-    const other = {
-      name: 'Other nationalities',
-      data: NAT_SERIES.years.map((y, idx) => {
-        const total = ASYLUM_ANNUAL.find(d => d.y === y)?.v ?? 0;
-        const named = top5.reduce((s, row) => s + row.data[idx], 0);
-        return Math.max(0, total - named);
-      }),
-    };
-    const seriesWithOther = [...top5, other];
-    // Palette: five named nationalities use distinct accents; "Other" is muted so the named rows lead.
-    const colors = [
-      'var(--accent)', 'var(--accent-warn)', 'var(--accent-2)',
-      'var(--accent-gold)', 'var(--ink-2)', 'var(--muted-2)',
-    ];
-    return {
-      id: 'nationalities',
-      label: 'Top 5 nationalities + other',
-      render: 'multi',
-      multi: { years: NAT_SERIES.years, series: seriesWithOther, colors },
-      // flat series — year totals (all nationalities) — used when this option is a compare
-      series: NAT_SERIES.years.map((y, idx) => ({
-        y,
-        v: seriesWithOther.reduce((s, row) => s + row.data[idx], 0),
-      })),
-      color: 'var(--accent-2)',
-    };
-  })(),
+  // "Top 5 nationalities + other" option removed from Build per B5 —
+  // broken-y handling stays in charts.jsx for future reuse.
   {
     // Render-time series: the user picks any subset of the 187 nationalities
     // in NAT_FULL, and the chart pulls its data from there (annual snapshot)
@@ -981,7 +953,11 @@ function BuildView({ setRoute }) {
                   {overlayOpts.length > 0 && (
                     <span style={{color:'var(--muted)',fontWeight:400}}> {overlayOn?'+':'&'} {overlayOpts.map(o=>o.label).join(', ')}</span>
                   )}
-                  <span style={{color:'var(--muted)',fontWeight:400,fontSize:16}} className="tnum"> · {isAnnual ? `${range[0]}–${range[1]}` : `${effGran}`}</span>
+                  <span style={{color:'var(--muted)',fontWeight:400,fontSize:16}} className="tnum"> · {prim.snapshot
+                    ? (prim.id === 'age_disputes' && typeof AGE_DISPUTES_META !== 'undefined' ? `${AGE_DISPUTES_META.year} only`
+                       : prim.id === 'returns' && typeof RETURNS_META !== 'undefined' ? `${RETURNS_META.year} only`
+                       : 'Latest snapshot')
+                    : (isAnnual ? `${range[0]}–${range[1]}` : `${effGran}`)}</span>
                 </div>
               </div>
               <div className="uc" style={{color:'var(--muted)'}}>UK · {effGran.charAt(0).toUpperCase()+effGran.slice(1)}</div>

@@ -1160,7 +1160,11 @@ function StackedColumns({ data, series=['A','B'], colors=['var(--accent)','var(-
 // ─────────────────────────────────────────────────────────────
 function StackedColumnsMulti({ years, series, colors, width=800, height=360, showLabels=false }) {
   const { show, hide, node } = useTooltip();
-  const pad = { t: 16, r: 160, b: 36, l: 56 };
+  // Rotate x-axis labels and expand bottom padding when there are many
+  // categories (e.g. returns-by-nationality with 20 labels) so they don't
+  // collide. Threshold matches B3 in the pre-copy polish plan.
+  const rotateX = years.length > 10;
+  const pad = { t: 16, r: 160, b: rotateX ? 72 : 36, l: 56 };
   const W=width, H=height, iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
   const palette = colors || [
     'var(--accent)', 'var(--accent-warn)', 'var(--accent-2)',
@@ -1206,7 +1210,11 @@ function StackedColumnsMulti({ years, series, colors, width=800, height=360, sho
               {segs.map((s, si) => (
                 s.segH > 0 ? <rect key={si} x={cx-bw/2} y={s.segY} width={bw} height={s.segH} fill={s.color}/> : null
               ))}
-              <text x={cx} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+              {rotateX ? (
+                <text x={cx} y={H-pad.b+14} textAnchor="end" transform={`rotate(-35 ${cx} ${H-pad.b+14})`} fontSize="11" fill="var(--muted)" style={{fontFamily:'var(--serif)'}}>{yr}</text>
+              ) : (
+                <text x={cx} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+              )}
               {showLabels && total > 0 && (
                 <text x={cx} y={yPx(total)-6} textAnchor="middle" fontSize="10.5" fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(total)}</text>
               )}
@@ -1621,6 +1629,22 @@ function useMapZoom(baseW, baseH, { maxZoom = 8 } = {}) {
     const w = baseW / 4, h = baseH / 4;
     setView(clamp({ x: cx - w / 2, y: cy - h / 2, w, h }));
   };
+  // Fit the view to a bounding box (in base-SVG coords), padded by `padFrac`
+  // on each side. Preferred for country zooms because it keeps the whole
+  // country in view regardless of size — Russia, Canada, etc. otherwise
+  // overflow a fixed 4× centroid zoom.
+  const flyToBox = (bx, by, bw, bh, padFrac = 0.1) => {
+    const padX = bw * padFrac, padY = bh * padFrac;
+    const targetW = bw + 2 * padX;
+    const targetH = bh + 2 * padY;
+    // Keep the chart's aspect ratio. Whichever dimension is constraining
+    // determines the zoom level.
+    const aspect = baseH / baseW;
+    let w = targetW, h = w * aspect;
+    if (h < targetH) { h = targetH; w = h / aspect; }
+    const cx = bx + bw / 2, cy = by + bh / 2;
+    setView(clamp({ x: cx - w / 2, y: cy - h / 2, w, h }));
+  };
 
   const onMouseDown = e => {
     if (e.button !== 0) return;
@@ -1654,7 +1678,7 @@ function useMapZoom(baseW, baseH, { maxZoom = 8 } = {}) {
         touchAction: 'none',
       },
     },
-    zoomIn, zoomOut, reset, flyTo,
+    zoomIn, zoomOut, reset, flyTo, flyToBox,
     canZoomIn, canZoomOut, zoomed,
     didDrag,
   };
