@@ -539,10 +539,11 @@ function DashboardView({ setRoute }) {
             <DashFrame number="01" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}
               setRoute={setRoute} forkPreset={{ d:'applications', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
               <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={720} height={280}
+                yLabel="Applications" xLabel="Year"
                 annotations={[
                   range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
                 ].filter(Boolean)}
-                source="Home Office · ASY_D01"
+                source="Home Office · Asy_D01"
                 asOf={srcAsOf.ASY_D01} nextUpdate={srcAsOf.ASY_D01_next}/>
             </DashFrame>
             <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals · year-to-date comparison" sub="Cumulative crossings by day of year"
@@ -551,7 +552,8 @@ function DashboardView({ setRoute }) {
                 if (typeof BOATS_YOY !== 'undefined' && BOATS_YOY && Object.keys(BOATS_YOY).length) {
                   return (
                     <YoYCumulative series={BOATS_YOY} width={520} height={280}
-                      caption="Each line traces cumulative small-boat arrivals through the year. The current-year line stops at the most recent published week — no interpolation past that point."
+                      yLabel="Cumulative migrants" xLabel="Day of year"
+                      caption="Each line traces cumulative small-boat arrivals through the year. The current-year line stops at the most recent published week — no interpolation past that point. Hover a line to bring it forward."
                       source="Home Office · SB_01"
                       asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
                   );
@@ -576,6 +578,7 @@ function DashboardView({ setRoute }) {
               <DashFrame number="02b" kickerColor="var(--accent-warn)" title="Arrivals by week · seasonal pattern" sub="Weekly crossings, 2018–latest · darker = more arrivals"
                 setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'weekly' }}>
                 <SeasonalHeatMap data={BOATS_WEEKLY} width={1100} height={260}
+                  yLabel="Year" xLabel="Month"
                   caption="Each cell is one ISO week × year. Darker cells are weeks with more crossings. Seasonality is unmistakable: very low from January to March, rising from April, peaking late summer."
                   source="Home Office · SB_01"
                   asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
@@ -600,6 +603,7 @@ function DashboardView({ setRoute }) {
                 <DashFrame number="04" kickerColor="var(--accent)" title="Monthly interceptions" sub={`Border Force events · ${_fmtMonth(interceptionsFirstMonth)}–${_fmtMonth(interceptionsLastMonth)}`}>
                   <LineChart data={interceptionsMonthly} width={540} height={220}
                     stroke="var(--accent)" area={true} showLine={true}
+                    yLabel="Events" xLabel="Month"
                     xLabelFmt={(_, i, p) => _fmtMonth(p?.label)}
                     caption="Events in which Border Force prevented a crossing in progress. Weekly figures aggregated to calendar months."
                     source="Home Office · SB_02"
@@ -610,6 +614,7 @@ function DashboardView({ setRoute }) {
                 <DashFrame number="04a" kickerColor="var(--accent-warn)" title="Monthly preventions" sub={`Migrants prevented · ${_fmtMonth(preventionsFirstMonth)}–${_fmtMonth(preventionsLastMonth)}`}>
                   <LineChart data={preventionsMonthly} width={540} height={220}
                     stroke="var(--accent-warn)" area={true} showLine={true}
+                    yLabel="Migrants" xLabel="Month"
                     xLabelFmt={(_, i, p) => _fmtMonth(p?.label)}
                     caption="Migrants prevented from crossing, aggregated by month. Reporting of preventions began in May 2024."
                     source="Home Office · SB_02"
@@ -641,6 +646,7 @@ function DashboardView({ setRoute }) {
               setRoute={setRoute} forkPreset={{ d:'backlog', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
               <LineChart data={filteredBacklog} yearRange={range} width={560} height={260}
                 stroke="var(--accent-gold)"
+                yLabel="Pending cases" xLabel="Year"
                 annotations={[
                   range[0] <= 2022 && range[1] >= 2022 && { y:2022, label:'Peak 132k', dx:-80, dy:-10 },
                 ].filter(Boolean)}
@@ -658,7 +664,7 @@ function DashboardView({ setRoute }) {
                 <GrantRateSmallMultiples series={NAT_GRANT_ANNUAL} width={1100} height={380} cols={4}
                   highlight={['Afghanistan','Syria','Iran','Eritrea']}
                   caption="Each cell is one nationality. Y-axis is 0–100% grant rate; x-axis runs across the full window. Dashed grid line marks 50%. Most nationalities move independently — no single macro driver explains all of them."
-                  source="Home Office · ASY_D02 (derived)"
+                  source="Home Office · Asy_D02 (derived)"
                   asOf={srcAsOf.GRANT} nextUpdate={srcAsOf.GRANT_next}/>
               </DashFrame>
             </div>

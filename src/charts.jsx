@@ -35,21 +35,76 @@ function fmtShortDate(value) {
   return `${String(d.getUTCDate()).padStart(2,'0')} ${M[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
+// Registry of Home Office / other publication codes → gov.uk landing page.
+// Used by SourceStrip to turn the "Source: …" text into a hyperlink when the
+// source string mentions a known code. Mirrors scripts/_sources.py so updating
+// a landing URL in one place covers both the pipeline and the rendered UI.
+const SOURCE_URLS = {
+  // Small boats — Home Office weekly ODS (SB_01 arrivals, SB_02 arrivals + preventions).
+  'SB_01':   'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
+  'SB_02':   'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
+  'SB_D01':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
+  'SB_D02':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days',
+  // Immigration system statistics — one landing page, many sub-sheets.
+  'Asy_D01': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
+  'Asy_D02': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
+  'Asy_D03': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
+  'Asy_D04': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
+  'Asy_D05': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
+  'Asy_D07': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
+  'Asy_D09': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
+  'Asy_D11': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
+  'Res_D02': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
+  // Irregular migration — separate landing page, quarterly ODS.
+  'Irr_02b': 'https://www.gov.uk/government/statistical-data-sets/irregular-migration-detailed-dataset-and-summary-tables',
+  'Irr_D01': 'https://www.gov.uk/government/statistical-data-sets/irregular-migration-detailed-dataset-and-summary-tables',
+  // UNHCR Refugee Data Finder — public REST API, no filename stem.
+  'UNHCR':   'https://www.unhcr.org/refugee-statistics/',
+};
+
+// Resolve a publication URL from a source string like "Home Office · SB_01".
+// Returns the first matching URL from SOURCE_URLS, or null. Explicit sourceUrl
+// props always win — this is the fallback when a view hasn't set one yet.
+function resolveSourceUrl(source) {
+  if (!source || typeof source !== 'string') return null;
+  const codes = Object.keys(SOURCE_URLS).sort((a, b) => b.length - a.length);
+  for (const code of codes) {
+    // Word-boundary match against the code — tolerant to surrounding text and
+    // parenthetical notes like "ASY_D02 (derived)".
+    const re = new RegExp(`(^|[^A-Za-z0-9_])${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Za-z0-9_]|$)`, 'i');
+    if (re.test(source)) return SOURCE_URLS[code];
+  }
+  return null;
+}
+
 // Shared source-strip footer for every chart. Renders:
 //   Source: <source> · as of <date> · next update <date>
 // omitting any segment whose prop is missing. Also prints raw strings
 // (e.g. "Q4 2025") when asOf / nextUpdate aren't parseable as dates.
-function SourceStrip({ source, asOf, nextUpdate, style }) {
+// When `sourceUrl` is provided (or can be inferred from the source code),
+// the "Source: <source>" segment renders as a hyperlink to the publication.
+function SourceStrip({ source, asOf, nextUpdate, sourceUrl, style }) {
   if (!source && !asOf && !nextUpdate) return null;
   const asOfStr = asOf ? (fmtShortDate(asOf) || String(asOf)) : null;
   const nextStr = nextUpdate ? (fmtShortDate(nextUpdate) || String(nextUpdate)) : null;
-  const parts = [];
-  if (source) parts.push('Source: ' + source);
-  if (asOfStr) parts.push('as of ' + asOfStr);
-  if (nextStr) parts.push('next update ' + nextStr);
+  const url = sourceUrl || resolveSourceUrl(source);
+  const sourceEl = source
+    ? (url
+        ? <a href={url} target="_blank" rel="noopener noreferrer"
+            style={{color:'inherit',textDecoration:'underline',textDecorationStyle:'dotted',textUnderlineOffset:2}}>
+            Source: {source}
+          </a>
+        : <span>Source: {source}</span>)
+    : null;
+  const bits = [];
+  if (sourceEl) bits.push(<span key="src">{sourceEl}</span>);
+  if (asOfStr)  bits.push(<span key="asOf">as of {asOfStr}</span>);
+  if (nextStr)  bits.push(<span key="next">next update {nextStr}</span>);
   return (
     <div className="uc" style={{marginTop:12,color:'var(--muted-2)',...(style||{})}}>
-      {parts.join(' · ')}
+      {bits.map((b, i) => (
+        <React.Fragment key={i}>{i > 0 ? ' \u00B7 ' : ''}{b}</React.Fragment>
+      ))}
     </div>
   );
 }
@@ -63,13 +118,15 @@ function SourceStrip({ source, asOf, nextUpdate, style }) {
 function LineChart({
   data, width=720, height=320, annotations=[],
   stroke='var(--accent)', area=true, title='', subtitle='', source='',
-  asOf=null, nextUpdate=null,
+  asOf=null, nextUpdate=null, sourceUrl=null,
   yearRange=null,
   caption=null,
   showLabels=false,
   showLine=true,
   xLabelFmt=null,
   breakY=null,
+  yLabel=null,            // axis title, drawn vertically immediately left of the y-axis
+  xLabel=null,            // axis title, drawn horizontally immediately below the x-axis
   overlay=null,           // optional secondary series: [{y, v, label?}] — drawn dashed
   overlayStroke='var(--accent-warn)',
   overlayLabel='',        // short label for the overlay series (rendered at end of line)
@@ -89,7 +146,14 @@ function LineChart({
   const effectiveBreak = breakY && d.some(p => p.v < breakY[0]) && d.some(p => p.v > breakY[1]) ? breakY : null;
 
   const BAND_H = 28;
-  const pad = { t: 16, r: effectiveBreak ? 92 : 24, b: 32, l: 48 };
+  // Reserve extra gutter space when axis titles are present so the y-title sits
+  // clear of the tick values, and the x-title clears the tick row below.
+  const pad = {
+    t: 16,
+    r: effectiveBreak ? 92 : 24,
+    b: xLabel ? 48 : 32,
+    l: yLabel ? 64 : 48,
+  };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
 
   // Break band pixel positions — resolved once, reused in y() and render.
@@ -185,6 +249,24 @@ function LineChart({
             </text>
           ))}
         <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="var(--rule-2)"/>
+        {/* Axis titles — placed immediately adjacent to each axis */}
+        {yLabel && (
+          <text
+            x={14} y={pad.t + ih / 2}
+            transform={`rotate(-90 14 ${pad.t + ih / 2})`}
+            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
+            {yLabel}
+          </text>
+        )}
+        {xLabel && (
+          <text
+            x={pad.l + iw / 2} y={H - 6}
+            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
+            {xLabel}
+          </text>
+        )}
         {/* Break band — over area fill, under data line */}
         {effectiveBreak && (
           <>
@@ -261,13 +343,20 @@ function YoYCumulative({
   series,
   width=720, height=300,
   title='', subtitle='', source='',
-  asOf=null, nextUpdate=null,
+  asOf=null, nextUpdate=null, sourceUrl=null,
   caption=null,
   highlightYear=null,
+  yLabel=null, xLabel=null,
 }) {
   const { show, hide, node } = useTooltip();
+  const [hoverYr, setHoverYr] = React.useState(null);
   const W = width, H = height;
-  const pad = { t: 16, r: 80, b: 32, l: 56 };
+  const pad = {
+    t: 16,
+    r: 80,
+    b: xLabel ? 48 : 32,
+    l: yLabel ? 72 : 56,
+  };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
 
   if (!series || typeof series !== 'object') {
@@ -313,7 +402,8 @@ function YoYCumulative({
     }
     const isLatest = yr === latest;
     const ageIdx = years.length - 1 - idx;       // 0 = most-recent, N = oldest
-    const opacity = isLatest ? 1 : Math.max(0.22, 1 - ageIdx * 0.14);
+    // Baseline opacity raised so past years remain readable; hover/highlight win.
+    const opacity = isLatest ? 1 : Math.max(0.45, 1 - ageIdx * 0.07);
     return { yr, pts: pts.join(' '), isLatest, opacity, lastI: arr.findIndex(v => v == null) - 1 };
   });
 
@@ -340,12 +430,35 @@ function YoYCumulative({
             style={{fontFamily:'var(--serif)'}}>{MONTHS[mi]}</text>
         ))}
         <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="var(--rule-2)"/>
-        {/* Prior-year lines */}
-        {lines.filter(l => !l.isLatest).map(l => (
-          <polyline key={l.yr} points={l.pts} fill="none"
-            stroke="var(--muted-2)" strokeOpacity={l.opacity}
-            strokeWidth="1.1" strokeLinejoin="round"/>
-        ))}
+        {/* Axis titles */}
+        {yLabel && (
+          <text x={18} y={pad.t + ih / 2}
+            transform={`rotate(-90 18 ${pad.t + ih / 2})`}
+            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabel}</text>
+        )}
+        {xLabel && (
+          <text x={pad.l + iw / 2} y={H - 6}
+            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
+        )}
+        {/* Prior-year lines — hover raises opacity + stroke width */}
+        {lines.filter(l => !l.isLatest).map(l => {
+          const isHover = hoverYr === l.yr;
+          const op = isHover ? 1 : (hoverYr ? Math.max(0.2, l.opacity * 0.55) : l.opacity);
+          return (
+            <g key={l.yr}>
+              <polyline points={l.pts} fill="none"
+                stroke="var(--muted-2)" strokeOpacity={op}
+                strokeWidth={isHover ? 2.1 : 1.2} strokeLinejoin="round"/>
+              {/* Wide, invisible hit line for easier hovering */}
+              <polyline points={l.pts} fill="none" stroke="transparent" strokeWidth="10"
+                onMouseEnter={() => setHoverYr(l.yr)}
+                onMouseLeave={() => setHoverYr(null)}
+                style={{cursor:'crosshair'}}/>
+            </g>
+          );
+        })}
         {/* Latest-year line (on top) */}
         {lines.filter(l => l.isLatest).map(l => (
           <polyline key={l.yr} points={l.pts} fill="none"
@@ -375,7 +488,7 @@ function YoYCumulative({
           {caption}
         </div>
       )}
-      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate}/>
+      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate} sourceUrl={sourceUrl}/>
       {node}
     </figure>
   );
@@ -392,7 +505,7 @@ function YoYCumulative({
 function GrantRateSmallMultiples({
   series, width=900, height=380,
   title='', subtitle='', source='',
-  asOf=null, nextUpdate=null,
+  asOf=null, nextUpdate=null, sourceUrl=null,
   countries=null,        // subset to display; default = top 12 most recent-year rates
   cols=4,
   highlight=[],
@@ -483,7 +596,7 @@ function GrantRateSmallMultiples({
           {caption}
         </div>
       )}
-      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate}/>
+      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate} sourceUrl={sourceUrl}/>
     </figure>
   );
 }
@@ -498,13 +611,19 @@ function SeasonalHeatMap({
   data,
   width=720, height=300,
   title='', subtitle='', source='',
-  asOf=null, nextUpdate=null,
+  asOf=null, nextUpdate=null, sourceUrl=null,
   caption=null,
+  yLabel=null, xLabel=null,
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
   // Layout
-  const pad = { t: 18, r: 14, b: 36, l: 60 };
+  const pad = {
+    t: 18,
+    r: 14,
+    b: xLabel ? 52 : 36,
+    l: yLabel ? 76 : 60,
+  };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
 
   if (!Array.isArray(data) || !data.length) {
@@ -575,6 +694,18 @@ function SeasonalHeatMap({
             textAnchor="middle" fontSize="11" fill="var(--muted)"
             style={{fontFamily:'var(--serif)'}}>{MONTHS[i]}</text>
         ))}
+        {/* Axis titles */}
+        {yLabel && (
+          <text x={18} y={pad.t + ih / 2}
+            transform={`rotate(-90 18 ${pad.t + ih / 2})`}
+            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabel}</text>
+        )}
+        {xLabel && (
+          <text x={pad.l + iw / 2} y={H - 6}
+            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
+        )}
         {/* Heat cells */}
         {years.map((yr, yi) => {
           const row = cells[yr];
@@ -616,7 +747,7 @@ function SeasonalHeatMap({
           {caption}
         </div>
       )}
-      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate}/>
+      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate} sourceUrl={sourceUrl}/>
       {node}
     </figure>
   );
@@ -737,6 +868,149 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
           );
         })}
       </svg>
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// DualAxisChart — two series sharing an x-axis, each on its own y-axis.
+// Designed for comparable-but-differently-scaled metrics (e.g. monthly
+// interceptions vs monthly preventions). Each series takes the shape
+//   [{y, v, label?}]
+// Axis titles are colour-keyed to their series so it's obvious which
+// axis belongs to which line. A single point with null `v` is skipped
+// rather than plotted as zero.
+// ─────────────────────────────────────────────────────────────
+function DualAxisChart({
+  left, right,                // series arrays [{y, v, label?}]
+  width=720, height=320,
+  leftStroke='var(--accent)', rightStroke='var(--accent-warn)',
+  leftLabel='', rightLabel='',
+  yLabelLeft=null, yLabelRight=null, xLabel=null,
+  title='', subtitle='', source='',
+  asOf=null, nextUpdate=null, sourceUrl=null,
+  caption=null,
+  xLabelFmt=null,
+}) {
+  const { show, hide, node } = useTooltip();
+  const W = width, H = height;
+  const L = Array.isArray(left)  ? left.filter(p => p && p.v != null)  : [];
+  const R = Array.isArray(right) ? right.filter(p => p && p.v != null) : [];
+  if (!L.length && !R.length) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data.</div>;
+  }
+  const pad = { t: 16, r: yLabelRight ? 76 : 56, b: xLabel ? 48 : 32, l: yLabelLeft ? 72 : 56 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+
+  const xsAll = [...L.map(p=>p.y), ...R.map(p=>p.y)];
+  const xMin = Math.min(...xsAll), xMax = Math.max(...xsAll);
+  const lMax = L.length ? Math.max(...L.map(p=>p.v)) * 1.1 : 1;
+  const rMax = R.length ? Math.max(...R.map(p=>p.v)) * 1.1 : 1;
+
+  const x  = v => pad.l + (xMax===xMin ? iw/2 : ((v-xMin)/(xMax-xMin))*iw);
+  const yL = v => pad.t + (1 - v / lMax) * ih;
+  const yR = v => pad.t + (1 - v / rMax) * ih;
+
+  const step4 = (m) => Math.max(1, m/4);
+  const lTicks = [0,1,2,3,4].map(i => Math.round(i * step4(lMax) / 1000) * 1000).filter((v,i,a)=>a.indexOf(v)===i);
+  const rTicks = [0,1,2,3,4].map(i => Math.round(i * step4(rMax) / 1000) * 1000).filter((v,i,a)=>a.indexOf(v)===i);
+
+  const lPts = L.map(p => `${x(p.y)},${yL(p.v)}`).join(' ');
+  const rPts = R.map(p => `${x(p.y)},${yR(p.v)}`).join(' ');
+
+  // x-tick source: pick whichever series is denser so labels don't crowd.
+  const xSrc = L.length >= R.length ? L : R;
+
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      {title && (
+        <figcaption style={{marginBottom:14}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>{subtitle}</div>
+          <div style={{fontSize:19,fontWeight:500,letterSpacing:-0.1,color:'var(--ink)'}}>{title}</div>
+        </figcaption>
+      )}
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        {/* Left y-grid + left tick labels */}
+        {lTicks.map(t => (
+          <g key={`lt-${t}`}>
+            <line x1={pad.l} x2={W-pad.r} y1={yL(t)} y2={yL(t)} stroke="var(--rule)"/>
+            <text x={pad.l-10} y={yL(t)+4} textAnchor="end" fontSize="11" fill={leftStroke}
+              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
+          </g>
+        ))}
+        {/* Right tick labels (no grid — avoids double-ruled background) */}
+        {rTicks.map(t => (
+          <text key={`rt-${t}`} x={W-pad.r+10} y={yR(t)+4} textAnchor="start" fontSize="11" fill={rightStroke}
+            style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
+        ))}
+        {/* X-axis labels */}
+        {xSrc.map((p,i) => ({p,i}))
+          .filter(({i}) => i % Math.max(1, Math.ceil(xSrc.length/8)) === 0 || i === xSrc.length-1)
+          .map(({p,i}) => (
+            <text key={`xt-${i}`} x={x(p.y)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)"
+              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+              {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
+            </text>
+          ))}
+        <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
+        {/* Axis titles — colour-keyed to the series they describe */}
+        {yLabelLeft && (
+          <text x={14} y={pad.t + ih/2}
+            transform={`rotate(-90 14 ${pad.t + ih/2})`}
+            textAnchor="middle" fontSize="11" fill={leftStroke}
+            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabelLeft}</text>
+        )}
+        {yLabelRight && (
+          <text x={W-14} y={pad.t + ih/2}
+            transform={`rotate(90 ${W-14} ${pad.t + ih/2})`}
+            textAnchor="middle" fontSize="11" fill={rightStroke}
+            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabelRight}</text>
+        )}
+        {xLabel && (
+          <text x={pad.l + iw/2} y={H-6}
+            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
+        )}
+        {/* Left series — solid */}
+        {lPts && <polyline points={lPts} fill="none" stroke={leftStroke} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"/>}
+        {L.map((p,i) => (
+          <g key={`lp-${i}`}>
+            <circle cx={x(p.y)} cy={yL(p.v)} r="2.6" fill={leftStroke}/>
+            <circle cx={x(p.y)} cy={yL(p.v)} r="12" fill="transparent"
+              onMouseMove={e => show(e, <span><b>{p.label ?? p.y}</b> · {leftLabel || 'left'} <span className="tnum">{fmtN(p.v)}</span></span>)}
+              onMouseLeave={hide} style={{cursor:'crosshair'}}/>
+          </g>
+        ))}
+        {/* Right series — dashed to differentiate */}
+        {rPts && <polyline points={rPts} fill="none" stroke={rightStroke} strokeWidth="1.6"
+          strokeDasharray="5 3" strokeLinejoin="round" strokeLinecap="round"/>}
+        {R.map((p,i) => (
+          <g key={`rp-${i}`}>
+            <circle cx={x(p.y)} cy={yR(p.v)} r="2.6" fill={rightStroke}/>
+            <circle cx={x(p.y)} cy={yR(p.v)} r="12" fill="transparent"
+              onMouseMove={e => show(e, <span><b>{p.label ?? p.y}</b> · {rightLabel || 'right'} <span className="tnum">{fmtN(p.v)}</span></span>)}
+              onMouseLeave={hide} style={{cursor:'crosshair'}}/>
+          </g>
+        ))}
+        {/* End-of-line labels */}
+        {L.length > 0 && leftLabel && (
+          <text x={x(L[L.length-1].y) + 6} y={yL(L[L.length-1].v) + 4}
+            fontSize="11" fill={leftStroke}
+            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{leftLabel}</text>
+        )}
+        {R.length > 0 && rightLabel && (
+          <text x={x(R[R.length-1].y) + 6} y={yR(R[R.length-1].v) + 4}
+            fontSize="11" fill={rightStroke}
+            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{rightLabel}</text>
+        )}
+      </svg>
+      {caption && (
+        <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5,maxWidth:640}}>
+          {caption}
+        </div>
+      )}
+      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate} sourceUrl={sourceUrl}/>
       {node}
     </figure>
   );
