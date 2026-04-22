@@ -550,27 +550,79 @@ function metaDate(meta) {
 }
 const W = (typeof window !== 'undefined') ? window : {};
 
+// Next scheduled release for each publication. Quarterly ISS tables land on
+// the second Thursday of Feb/May/Aug/Nov; small-boats ODS is weekly (each
+// Tuesday); last-7-days is updated daily. Irregular migration follows the
+// same quarterly cadence as ISS. Monthly / unknown cadences fall back to '—'.
+function secondThursday(year, monthIdx /* 0-based */) {
+  const d = new Date(Date.UTC(year, monthIdx, 1));
+  const day = d.getUTCDay(); // 0=Sun..6=Sat
+  const firstThu = 1 + ((4 - day + 7) % 7);
+  return new Date(Date.UTC(year, monthIdx, firstThu + 7));
+}
+function nextQuarterlyISS() {
+  const now = new Date();
+  const months = [1, 4, 7, 10]; // Feb, May, Aug, Nov
+  for (let add = 0; add < 12; add++) {
+    const y = now.getUTCFullYear() + Math.floor((now.getUTCMonth() + add) / 12);
+    const m = (now.getUTCMonth() + add) % 12;
+    if (!months.includes(m)) continue;
+    const t = secondThursday(y, m);
+    if (t > now) return t;
+  }
+  return null;
+}
+function nextTuesday() {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const off = (2 - d.getUTCDay() + 7) % 7 || 7;
+  return new Date(d.getTime() + off * 86400000);
+}
+function fmtUTC(d) {
+  if (!d) return '—';
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+const NEXT_RELEASE = {
+  quarterlyISS: () => fmtUTC(nextQuarterlyISS()),
+  weeklyBoats:  () => fmtUTC(nextTuesday()),
+  daily:        () => 'Daily',
+  unknown:      () => '—',
+};
+
+// Backlog of pipeline + editorial work that hasn't shipped yet. Surfaced on
+// the Updates page as a "Coming soon" block. Keep entries short — one line
+// of plain English the reader can understand without the code context.
+const PLANNED_UPDATES = [
+  { area: 'Pipeline', text: 'Channel deaths card — daily ingest from IOM Missing Migrants Project, cited as IOM (not Home Office).' },
+  { area: 'Pipeline', text: 'Section 95 / 98 / 4 support tiers — split the existing regional totals into the three support categories.' },
+  { area: 'Pipeline', text: 'Ukraine and BN(O) resettlement schemes — separate fetchers for the two publications outside the main ISS set.' },
+  { area: 'Pipeline', text: 'Appeal outcomes — will replace the cohort-delta proxy in the Flow Sankey once the Home Office republishes the data.' },
+  { area: 'Atlas',    text: 'Child applicants by nationality — new Atlas layer once the Home Office publishes Under-18 applicants by origin country.' },
+  { area: 'Atlas',    text: 'Resettlement by origin country — new Atlas layer once Res_D02 gains a nationality breakdown.' },
+];
+
 const DATASETS = [
   // Asylum claims
-  { code: 'ASY_D01', name: 'Asylum applications, by nationality',        rows: '1,248,220', updated: metaDate(W.NAT_FULL_META),         freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D02', name: 'Initial decisions on asylum applications',    rows: '884,014',   updated: metaDate(W.DECISIONS_META),        freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D03', name: 'Age and sex of asylum applicants',            rows: '492,100',   updated: metaDate(W.SEX_AGE_META),          freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D04', name: 'Outcome analysis of asylum claims (cohort)',  rows: '~18,700',   updated: metaDate(W.OUTCOME_COHORT_META),   freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D07', name: 'Asylum seekers awaiting a decision (backlog)',rows: '~186,400',  updated: metaDate(W.BACKLOG_META),          freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D01', name: 'Asylum applications, by nationality',        rows: '1,248,220', updated: metaDate(W.NAT_FULL_META),         nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D02', name: 'Initial decisions on asylum applications',    rows: '884,014',   updated: metaDate(W.DECISIONS_META),        nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D03', name: 'Age and sex of asylum applicants',            rows: '492,100',   updated: metaDate(W.SEX_AGE_META),          nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D04', name: 'Outcome analysis of asylum claims (cohort)',  rows: '~18,700',   updated: metaDate(W.OUTCOME_COHORT_META),   nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D07', name: 'Asylum seekers awaiting a decision (backlog)',rows: '~186,400',  updated: metaDate(W.BACKLOG_META),          nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
   // Support & accommodation
-  { code: 'ASY_D05', name: 'Support provided to asylum seekers',          rows: '412,200',   updated: metaDate(W.SUPPORT_REGIONS_META),  freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D09', name: 'Asylum seekers in receipt of support (hotels)',rows: '~88,200',  updated: metaDate(W.HOTELS_META),           freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D11', name: 'Asylum support by local authority',           rows: '~39,600',   updated: metaDate(W.SUPPORT_REGIONS_META),  freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D05', name: 'Support provided to asylum seekers',          rows: '412,200',   updated: metaDate(W.SUPPORT_REGIONS_META),  nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D09', name: 'Asylum seekers in receipt of support (hotels)',rows: '~88,200',  updated: metaDate(W.HOTELS_META),           nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D11', name: 'Asylum support by local authority',           rows: '~39,600',   updated: metaDate(W.SUPPORT_REGIONS_META),  nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
   // Age disputes
-  { code: 'AGE_D01', name: 'Age disputes by nationality',                 rows: '~4,700',    updated: metaDate(W.AGE_DISPUTES_META),     freq: 'Annual',    landingUrl: URL_ISS_TABLES },
+  { code: 'Age_D01', name: 'Age disputes by nationality',                 rows: '~4,700',    updated: metaDate(W.AGE_DISPUTES_META),     nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Annual',    landingUrl: URL_ISS_TABLES },
   // Small boats crossings
-  { code: 'SB_D01',  name: 'Small boats: daily crossings (2018–present)', rows: '~2,920',    updated: metaDate(W.BOATS_META),            freq: 'Weekly',    landingUrl: URL_SMALL_BOATS },
-  { code: 'SB_D02',  name: 'Small boats: last 7 days (provisional)',      rows: '7',          updated: metaDate(W.BOATS_PROVISIONAL_META),freq: 'Daily',     landingUrl: URL_SMALL_BOATS_7 },
-  // Irregular migration — small-boat arrivals by nationality (Irr_02b / Irr_D01).
-  { code: 'IRR_D01', name: 'Irregular migration — small-boat arrivals by nationality', rows: '~200',      updated: metaDate(W.IRR_BOATS_META),        freq: 'Quarterly', landingUrl: URL_IRR_MIGRATION },
+  { code: 'SB_01',  name: 'Small boats: daily crossings (2018–present)', rows: '~2,920',    updated: metaDate(W.BOATS_META),            nextRelease: NEXT_RELEASE.weeklyBoats(),  freq: 'Weekly',    landingUrl: URL_SMALL_BOATS },
+  { code: 'SB_02',  name: 'Small boats: last 7 days (provisional)',      rows: '7',          updated: metaDate(W.BOATS_PROVISIONAL_META),nextRelease: NEXT_RELEASE.daily(),        freq: 'Daily',     landingUrl: URL_SMALL_BOATS_7 },
+  // Irregular migration — small-boat arrivals by nationality (Irr_02b).
+  { code: 'Irr_02b', name: 'Irregular migration — small-boat arrivals by nationality', rows: '~200',      updated: metaDate(W.IRR_BOATS_META),        nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_IRR_MIGRATION },
   // Resettlement
-  { code: 'RES_D01', name: 'Refugee resettlement and family schemes',     rows: '94,820',    updated: metaDate(W.RESETTLEMENT_META),     freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'RES_D02', name: 'Ukraine schemes visa statistics',             rows: '318,400',   updated: metaDate(null),                    freq: 'Monthly',   landingUrl: URL_UKRAINE },
+  { code: 'Res_D01', name: 'Refugee resettlement and family schemes',     rows: '94,820',    updated: metaDate(W.RESETTLEMENT_META),     nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Res_D02', name: 'Ukraine schemes visa statistics',             rows: '318,400',   updated: metaDate(null),                    nextRelease: NEXT_RELEASE.unknown(),      freq: 'Monthly',   landingUrl: URL_UKRAINE },
 ];
 
 // Inverted provenance index — which charts in the product consume each
@@ -580,7 +632,7 @@ const DATASETS = [
 // breaks, what breaks with it?" at a glance. When a new chart is added,
 // append its (view, chart) row under the matching code.
 const DATASET_CONSUMERS = {
-  ASY_D01: [
+  Asy_D01: [
     { view: 'Dashboard', chart: 'Fig. 01 · Asylum applications' },
     { view: 'Dashboard', chart: 'Fig. 03 · Top five nationalities' },
     { view: 'Dashboard', chart: 'Fig. 03a · All nationalities' },
@@ -590,61 +642,61 @@ const DATASET_CONSUMERS = {
     { view: 'Stories',   chart: 'Hero line · applications vs small-boat arrivals' },
     { view: 'Build',     chart: 'Applications · Top-5 nationalities · Nationalities (pick any)' },
   ],
-  ASY_D02: [
+  Asy_D02: [
     { view: 'Dashboard', chart: 'Fig. 04 · Initial decisions + Grant-rate ring' },
     { view: 'Dashboard', chart: 'Fig. 05a · Grant rate by nationality · small multiples' },
     { view: 'Atlas',     chart: 'Country panel · Grant-rate trend' },
     { view: 'Flow',      chart: 'Initial decision split (sankey col 2)' },
     { view: 'Build',     chart: 'Grant rate by nationality' },
   ],
-  ASY_D03: [
+  Asy_D03: [
     { view: 'Dashboard', chart: 'Age / sex statistics block' },
     // Not yet surfaced on the Build view.
   ],
-  ASY_D04: [
+  Asy_D04: [
     { view: 'Flow', chart: 'Cohort outcome ribbon' },
     { view: 'Flow', chart: 'Backlog waterfall (annual)' },
     { view: 'Flow', chart: 'Three-column sankey (cohort split)' },
     // Charts render a pending-data fallback until OUTCOME_COHORT_ANNUAL is populated (see BACKLOG.md).
   ],
-  ASY_D07: [
+  Asy_D07: [
     { view: 'Dashboard', chart: 'Fig. 05 · Pending cases (backlog)' },
     { view: 'Dashboard', chart: 'Hero statistic · Backlog' },
     { view: 'Build',     chart: 'Backlog (pending)' },
   ],
-  ASY_D05: [
+  Asy_D05: [
     { view: 'Dashboard', chart: 'Support regions statistics' },
   ],
-  ASY_D09: [
+  Asy_D09: [
     { view: 'Dashboard', chart: 'Hotels statistics' },
     { view: 'Build',     chart: 'People in hotels (asylum accommodation)' },
   ],
-  ASY_D11: [
+  Asy_D11: [
     { view: 'Dashboard', chart: 'Support regions map' },
   ],
-  AGE_D01: [
+  Age_D01: [
     { view: 'Atlas', chart: 'Country panel · Age disputes raised' },
     { view: 'Atlas', chart: 'Choropleth · Age disputes' },
   ],
-  SB_D01: [
+  SB_01: [
     { view: 'Dashboard', chart: 'Fig. 02 · YoY cumulative arrivals' },
     { view: 'Dashboard', chart: 'Fig. 02b · Seasonal heat-map' },
     { view: 'Dashboard', chart: 'Hero statistic · This week arrivals, YTD arrivals' },
     { view: 'Stories',   chart: 'This-week dateline strip' },
     { view: 'Build',     chart: 'Small-boat arrivals (daily / weekly / monthly / annual)' },
   ],
-  SB_D02: [
+  SB_02: [
     { view: 'Dashboard', chart: 'Provisional last-7-days strip' },
     { view: 'Dashboard', chart: 'Fig. 04/04a · Monthly interceptions / preventions' },
     { view: 'Build',     chart: 'Interceptions · Preventions' },
   ],
-  IRR_D01: [
+  Irr_02b: [
     { view: 'Flow', chart: 'Boats by nationality palette (top-5 + Other)' },
   ],
-  RES_D01: [
+  Res_D01: [
     { view: 'Build', chart: 'Resettlement arrivals by scheme' },
   ],
-  RES_D02: [
+  Res_D02: [
     // Ukraine schemes not yet surfaced in any chart.
   ],
 };
@@ -735,7 +787,7 @@ function groupNatByRegion(rows) {
 Object.assign(window, {
   ASYLUM_ANNUAL, DATA_MAX_YEAR, TOP_NATIONALITIES, NAT_SERIES, DECISIONS_2024,
   BACKLOG, RESETTLEMENT, REGIONS, STORIES, DATASETS, DATASET_CONSUMERS,
-  REGION_MAP, groupNatByRegion,
+  PLANNED_UPDATES, REGION_MAP, groupNatByRegion,
 });
 
 
@@ -785,8 +837,8 @@ const SOURCE_URLS = {
   // Small boats — Home Office weekly ODS (SB_01 arrivals, SB_02 arrivals + preventions).
   'SB_01':   'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
   'SB_02':   'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
-  'SB_D01':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
-  'SB_D02':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days',
+  'SB_01':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
+  'SB_02':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days',
   // Immigration system statistics — one landing page, many sub-sheets.
   'Asy_D01': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
   'Asy_D02': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
@@ -799,7 +851,6 @@ const SOURCE_URLS = {
   'Res_D02': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
   // Irregular migration — separate landing page, quarterly ODS.
   'Irr_02b': 'https://www.gov.uk/government/statistical-data-sets/irregular-migration-detailed-dataset-and-summary-tables',
-  'Irr_D01': 'https://www.gov.uk/government/statistical-data-sets/irregular-migration-detailed-dataset-and-summary-tables',
   // UNHCR Refugee Data Finder — public REST API, no filename stem.
   'UNHCR':   'https://www.unhcr.org/refugee-statistics/',
 };
@@ -812,7 +863,7 @@ function resolveSourceUrl(source) {
   const codes = Object.keys(SOURCE_URLS).sort((a, b) => b.length - a.length);
   for (const code of codes) {
     // Word-boundary match against the code — tolerant to surrounding text and
-    // parenthetical notes like "ASY_D02 (derived)".
+    // parenthetical notes like "Asy_D02 (derived)".
     const re = new RegExp(`(^|[^A-Za-z0-9_])${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Za-z0-9_]|$)`, 'i');
     if (re.test(source)) return SOURCE_URLS[code];
   }
@@ -2702,7 +2753,7 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
         <div style={{fontSize:13,lineHeight:1.5}}>
           <b style={{color:'var(--ink-2)'}}>Cohort ribbon · pending data.</b> This chart reads from
           <code style={{margin:'0 4px',fontFamily:'var(--mono)',fontSize:12}}>OUTCOME_COHORT_ANNUAL</code>,
-          which will populate once the outcome-analysis xlsx (ASY_D04) is ingested.
+          which will populate once the outcome-analysis xlsx (Asy_D04) is ingested.
           See <code style={{fontFamily:'var(--mono)',fontSize:12}}>scripts/build_outcome_analysis.py</code>.
         </div>
       </figure>
@@ -2985,7 +3036,7 @@ function SearchModal({ open, onClose, onPick }) {
       <div onClick={e=>e.stopPropagation()} style={{background:'var(--bg)',border:'1px solid var(--rule-2)',boxShadow:'0 20px 60px rgba(0,0,0,.15)',width:'min(620px,92vw)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'18px 22px',borderBottom:'1px solid var(--rule)'}}>
           <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/></svg>
-          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search stories and datasets (e.g. ‘grant rate’, ASY_D01)…"
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search stories and datasets (e.g. ‘grant rate’, Asy_D01)…"
             style={{flex:1,border:'none',outline:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:17,color:'var(--ink)'}}/>
           <span className="mono" style={{fontSize:11,color:'var(--muted-2)',border:'1px solid var(--rule-2)',padding:'2px 5px'}}>esc</span>
         </div>
@@ -3191,7 +3242,7 @@ function IndexView({ setRoute }) {
                 overlayLabel="Small-boat arrivals"
                 title="Asylum applications, UK"
                 subtitle="Applications annual · dashed line = small-boat arrivals · UK, 2014–2025"
-                source="Home Office Immigration Statistics · ASY_D01 + SB_D01"
+                source="Home Office Immigration Statistics · Asy_D01 + SB_01"
                 annotations={[
                   { y: 2023, label: 'Peak: 84,425', dx: -140, dy: -12 },
                   { y: 2022, label: 'Boats peak · ~55% of applications', dx: -170, dy: 40 },
@@ -3391,9 +3442,9 @@ function DashboardView({ setRoute }) {
   const srcAsOf = {
     SB_01: metaAsOf(_boatsMeta),  SB_01_next: metaNext(_boatsMeta),
     SB_02: _boatsMeta ? metaAsOf(_boatsMeta) : null, SB_02_next: metaNext(_boatsMeta),
-    ASY_D01: metaAsOf(_natMeta),  ASY_D01_next: metaNext(_natMeta),
-    ASY_D02: metaAsOf(_decMeta ?? _natMeta), ASY_D02_next: metaNext(_decMeta ?? _natMeta),
-    ASY_D03: metaAsOf(_blgMeta),  ASY_D03_next: metaNext(_blgMeta),
+    Asy_D01: metaAsOf(_natMeta),  Asy_D01_next: metaNext(_natMeta),
+    Asy_D02: metaAsOf(_decMeta ?? _natMeta), Asy_D02_next: metaNext(_decMeta ?? _natMeta),
+    Asy_D03: metaAsOf(_blgMeta),  Asy_D03_next: metaNext(_blgMeta),
     GRANT: metaAsOf(_grantMeta ?? _natMeta), GRANT_next: metaNext(_grantMeta ?? _natMeta),
   };
 
@@ -3912,7 +3963,7 @@ function DashboardView({ setRoute }) {
                   range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
                 ].filter(Boolean)}
                 source="Home Office · Asy_D01"
-                asOf={srcAsOf.ASY_D01} nextUpdate={srcAsOf.ASY_D01_next}/>
+                asOf={srcAsOf.Asy_D01} nextUpdate={srcAsOf.Asy_D01_next}/>
             </DashFrame>
             <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals · year-to-date comparison" sub="Cumulative crossings by day of year"
               setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'daily' }}>
@@ -4032,7 +4083,7 @@ function DashboardView({ setRoute }) {
                   range[0] <= 2022 && range[1] >= 2022 && { y:2022, label:'Peak 132k', dx:-80, dy:-10 },
                 ].filter(Boolean)}
                 source="Home Office · Asy_D03"
-                asOf={srcAsOf.ASY_D03} nextUpdate={srcAsOf.ASY_D03_next}/>
+                asOf={srcAsOf.Asy_D03} nextUpdate={srcAsOf.Asy_D03_next}/>
             </DashFrame>
           </div>
           {/* Grant-rate small multiples — 12 nationalities, one cell each. */}
@@ -4148,7 +4199,7 @@ function DashboardView({ setRoute }) {
                   </tbody>
                 </table>
               )}
-              <div className="uc" style={{color:'var(--muted-2)',marginTop:14}}>Source: Home Office · RES_D01</div>
+              <div className="uc" style={{color:'var(--muted-2)',marginTop:14}}>Source: Home Office · Res_D01</div>
             </div>
             <div style={{background:'var(--bg-3)',borderLeft:'2px solid var(--accent)',padding:'24px 26px'}}>
               <div style={{fontFamily:'var(--serif)',fontSize:17,fontWeight:500,color:'var(--ink)',marginBottom:14}}>
@@ -4696,7 +4747,7 @@ function StoryView({ id, setRoute, onMethod }) {
                 yearRange={range}
                 title="Asylum applications, UK"
                 subtitle={`Applications annual · main applicants only · UK, ${range[0]}–${range[1]}`}
-                source="Home Office · ASY_D01"
+                source="Home Office · Asy_D01"
                 asOf={(typeof NAT_FULL_META !== 'undefined' && NAT_FULL_META) ? (NAT_FULL_META.latestDataPoint || NAT_FULL_META.asOf || NAT_FULL_META.generatedAt) : null}
                 nextUpdate={(typeof NAT_FULL_META !== 'undefined' && NAT_FULL_META) ? NAT_FULL_META.nextUpdate : null}
                 annotations={[
@@ -4722,7 +4773,7 @@ function StoryView({ id, setRoute, onMethod }) {
                 title="Small-boat arrivals, UK"
                 subtitle={`Small-boat arrivals annual · English Channel · UK, ${range[0]}–${range[1]}`}
                 stroke="var(--accent-warn)"
-                source="Home Office · IRR_D01"
+                source="Home Office · Irr_02b"
                 asOf={(typeof IRR_BOATS_META !== 'undefined' && IRR_BOATS_META) ? (IRR_BOATS_META.asOf || IRR_BOATS_META.generatedAt) : (typeof BOATS_META !== 'undefined' ? BOATS_META.latestDataPoint : null)}
                 nextUpdate={(typeof IRR_BOATS_META !== 'undefined' && IRR_BOATS_META) ? IRR_BOATS_META.nextUpdate : null}
                 caption="Border Force-recorded arrivals by small boat across the Channel. Series begins 2018; figures for earlier years are zero by definition."
@@ -4738,7 +4789,7 @@ function StoryView({ id, setRoute, onMethod }) {
               <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top five nationalities</div>
             </div>
             <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={720} height={280}/>
-            <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · ASY_D01</div>
+            <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D01</div>
           </div>
         </div>
       </article>
@@ -4774,20 +4825,20 @@ function _previewFor(code) {
   const W = typeof window !== 'undefined' ? window : {};
   const pick = (arr) => Array.isArray(arr) && arr.length ? arr.slice(0, 3) : null;
   switch (code) {
-    case 'ASY_D01':  return { global: 'NAT_FULL',            rows: pick(W.NAT_FULL) };
-    case 'ASY_D02':  return { global: 'DECISIONS_LATEST',    rows: pick(W.DECISIONS_LATEST) };
-    case 'ASY_D03':  return { global: 'SEX_AGE_ANNUAL',      rows: pick(W.SEX_AGE_ANNUAL) };
-    case 'ASY_D04':  return { global: 'OUTCOME_COHORT_ANNUAL', rows: pick(W.OUTCOME_COHORT_ANNUAL) };
-    case 'ASY_D07':  return { global: 'BACKLOG_LATEST',      rows: pick(W.BACKLOG_LATEST) };
-    case 'ASY_D05':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
-    case 'ASY_D09':  return { global: 'HOTELS',              rows: pick(W.HOTELS) };
-    case 'ASY_D11':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
-    case 'AGE_D01':  return { global: 'AGE_DISPUTES_BY_NATIONALITY', rows: pick(W.AGE_DISPUTES_BY_NATIONALITY) };
-    case 'SB_D01':   return { global: 'BOATS_WEEKLY',        rows: pick(W.BOATS_WEEKLY) };
-    case 'SB_D02':   return { global: 'BOATS_PROVISIONAL',   rows: pick(W.BOATS_PROVISIONAL) };
-    case 'IRR_D01':  return { global: 'IRR_BOATS_BY_NATIONALITY', rows: null };
-    case 'RES_D01':  return { global: 'RESETTLEMENT_SERIES', rows: pick(W.RESETTLEMENT_SERIES) };
-    case 'RES_D02':  return { global: 'UKRAINE_VISAS',       rows: null };
+    case 'Asy_D01':  return { global: 'NAT_FULL',            rows: pick(W.NAT_FULL) };
+    case 'Asy_D02':  return { global: 'DECISIONS_LATEST',    rows: pick(W.DECISIONS_LATEST) };
+    case 'Asy_D03':  return { global: 'SEX_AGE_ANNUAL',      rows: pick(W.SEX_AGE_ANNUAL) };
+    case 'Asy_D04':  return { global: 'OUTCOME_COHORT_ANNUAL', rows: pick(W.OUTCOME_COHORT_ANNUAL) };
+    case 'Asy_D07':  return { global: 'BACKLOG_LATEST',      rows: pick(W.BACKLOG_LATEST) };
+    case 'Asy_D05':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
+    case 'Asy_D09':  return { global: 'HOTELS',              rows: pick(W.HOTELS) };
+    case 'Asy_D11':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
+    case 'Age_D01':  return { global: 'AGE_DISPUTES_BY_NATIONALITY', rows: pick(W.AGE_DISPUTES_BY_NATIONALITY) };
+    case 'SB_01':   return { global: 'BOATS_WEEKLY',        rows: pick(W.BOATS_WEEKLY) };
+    case 'SB_02':   return { global: 'BOATS_PROVISIONAL',   rows: pick(W.BOATS_PROVISIONAL) };
+    case 'Irr_02b':  return { global: 'IRR_BOATS_BY_NATIONALITY', rows: null };
+    case 'Res_D01':  return { global: 'RESETTLEMENT_SERIES', rows: pick(W.RESETTLEMENT_SERIES) };
+    case 'Res_D02':  return { global: 'UKRAINE_VISAS',       rows: null };
     default:         return { global: null, rows: null };
   }
 }
@@ -4821,7 +4872,7 @@ function DatasetsView({ setRoute }) {
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}>
         <thead>
           <tr style={{textAlign:'left'}}>
-            {['Code','Name','Rows','Updated','Frequency',''].map(h=>(
+            {['Code','Name','Rows','Updated','Next release','Frequency',''].map(h=>(
               <th key={h} className="uc" style={{fontWeight:500,color:'var(--muted)',padding:'12px 14px',borderBottom:'1px solid var(--rule)',textAlign:h==='Rows'?'right':'left'}}>{h}</th>
             ))}
           </tr>
@@ -4843,6 +4894,7 @@ function DatasetsView({ setRoute }) {
                   </td>
                   <td className="tnum" style={{padding:'14px 14px',textAlign:'right',color:'var(--ink-2)'}}>{d.rows}</td>
                   <td style={{padding:'14px 14px',color:'var(--muted)'}}>{d.updated}</td>
+                  <td style={{padding:'14px 14px',color:'var(--muted)'}}>{d.nextRelease ?? '—'}</td>
                   <td style={{padding:'14px 14px',color:'var(--muted)',fontStyle:'italic'}}>{d.freq}</td>
                   <td style={{padding:'14px 14px',textAlign:'right'}}>
                     {d.landingUrl ? (
@@ -4859,7 +4911,7 @@ function DatasetsView({ setRoute }) {
                 </tr>
                 {open && (
                   <tr style={{background:'var(--bg-2)'}}>
-                    <td colSpan={6} style={{padding:'4px 14px 20px 14px'}}>
+                    <td colSpan={7} style={{padding:'4px 14px 20px 14px'}}>
                       <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1.3fr)',gap:28}}>
                         {/* Used-in panel */}
                         <div>
@@ -5548,7 +5600,7 @@ function BuildView({ setRoute }) {
                       />
                     )}
                     <div style={{fontSize:12,color:'var(--muted-2)',marginTop:8,fontStyle:'italic'}}>
-                      Y-axis: % of initial decisions resulting in refugee status or humanitarian protection. Source: Home Office · ASY_D02.
+                      Y-axis: % of initial decisions resulting in refugee status or humanitarian protection. Source: Home Office · Asy_D02.
                     </div>
                   </>
                 );
@@ -5786,9 +5838,9 @@ function BuildView({ setRoute }) {
 // is purely a timeline so readers can see "what changed when".
 // ─────────────────────────────────────────────────────────────
 const REVISION_LOG = [
-  { date: '22 April 2026', kind: 'Feature',   text: 'Cohort outcome ribbon, merged three-column sankey, and annual backlog waterfall launched from ASY_D04.' },
+  { date: '22 April 2026', kind: 'Feature',   text: 'Cohort outcome ribbon, merged three-column sankey, and annual backlog waterfall launched from Asy_D04.' },
   { date: '22 April 2026', kind: 'Feature',   text: 'Per-capita Atlas mode (apps per 100k of origin-country displaced population) uses UNHCR population data.' },
-  { date: '22 April 2026', kind: 'Feature',   text: 'Boats-by-nationality chart on the Flow view now reads from IRR_D01.' },
+  { date: '22 April 2026', kind: 'Feature',   text: 'Boats-by-nationality chart on the Flow view now reads from Irr_02b.' },
   { date: '21 April 2026', kind: 'Editorial', text: 'Story pages restructured with a standard anatomy: 80-word digest, "what this measures / doesn\u2019t" card, Further reading footer.' },
   { date: '21 April 2026', kind: 'Editorial', text: 'Every chart footer now shows "Source \u00b7 as-of \u00b7 next update", read directly from the source metadata.' },
   { date: '20 April 2026', kind: 'Editorial', text: 'Dashboard statistics rebuilt with a four-up hero strip and sparklines; 11 supporting statistics moved under "Detail".' },
@@ -5798,18 +5850,18 @@ const REVISION_LOG = [
 function _updatesSourceRows() {
   const W = (typeof window !== 'undefined') ? window : {};
   const entries = [
-    ['SB_D01',  'Small-boats crossings',                  W.BOATS_META],
-    ['SB_D02',  'Small-boats last 7 days',                W.BOATS_PROVISIONAL_META],
-    ['ASY_D01', 'Asylum applications by nationality',     W.NAT_FULL_META],
-    ['ASY_D02', 'Initial decisions on asylum claims',     W.DECISIONS_META],
-    ['ASY_D03', 'Age and sex of applicants',              W.SEX_AGE_META],
-    ['ASY_D04', 'Outcome analysis (cohort)',              W.OUTCOME_COHORT_META],
-    ['ASY_D05', 'Asylum support',                          W.SUPPORT_REGIONS_META],
-    ['ASY_D07', 'Backlog \u2014 cases awaiting decision',  W.BACKLOG_META],
-    ['ASY_D09', 'Asylum seekers in hotels',                W.HOTELS_META],
-    ['AGE_D01', 'Age disputes',                            W.AGE_DISPUTES_META],
-    ['IRR_D01', 'Irregular migration by nationality',     W.IRR_BOATS_META],
-    ['RES_D01', 'Resettlement schemes',                    W.RESETTLEMENT_META],
+    ['SB_01',  'Small-boats crossings',                  W.BOATS_META],
+    ['SB_02',  'Small-boats last 7 days',                W.BOATS_PROVISIONAL_META],
+    ['Asy_D01', 'Asylum applications by nationality',     W.NAT_FULL_META],
+    ['Asy_D02', 'Initial decisions on asylum claims',     W.DECISIONS_META],
+    ['Asy_D03', 'Age and sex of applicants',              W.SEX_AGE_META],
+    ['Asy_D04', 'Outcome analysis (cohort)',              W.OUTCOME_COHORT_META],
+    ['Asy_D05', 'Asylum support',                          W.SUPPORT_REGIONS_META],
+    ['Asy_D07', 'Backlog \u2014 cases awaiting decision',  W.BACKLOG_META],
+    ['Asy_D09', 'Asylum seekers in hotels',                W.HOTELS_META],
+    ['Age_D01', 'Age disputes',                            W.AGE_DISPUTES_META],
+    ['Irr_02b', 'Irregular migration by nationality',     W.IRR_BOATS_META],
+    ['Res_D01', 'Resettlement schemes',                    W.RESETTLEMENT_META],
   ];
   const rows = [];
   for (const [code, name, meta] of entries) {
@@ -5870,6 +5922,19 @@ function UpdatesView({ setRoute }) {
       <p style={{fontSize:16.5,lineHeight:1.55,color:'var(--ink-2)',margin:'0 0 36px',maxWidth:640}}>
         Every source refresh and every notable change to this explorer, newest first. Source rows come from the pipeline metadata; editorial rows are curated by hand.
       </p>
+      {Array.isArray(typeof PLANNED_UPDATES !== 'undefined' ? PLANNED_UPDATES : null) && PLANNED_UPDATES.length > 0 && (
+        <section style={{marginBottom:40,border:'1px solid var(--rule)',background:'var(--bg-2)',padding:'20px 24px'}}>
+          <div className="uc" style={{color:'var(--muted)',fontSize:11,letterSpacing:0.4,marginBottom:10}}>Coming soon</div>
+          <ul style={{listStyle:'none',padding:0,margin:0,display:'grid',gap:10}}>
+            {PLANNED_UPDATES.map((p, i) => (
+              <li key={i} style={{display:'grid',gridTemplateColumns:'100px 1fr',gap:18,alignItems:'baseline',fontSize:13.5,lineHeight:1.5,color:'var(--ink-2)'}}>
+                <span className="uc" style={{fontSize:10.5,color:'var(--accent)',letterSpacing:0.5}}>{p.area}</span>
+                <span>{p.text}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <ol style={{listStyle:'none',padding:0,margin:0,borderTop:'1px solid var(--rule)'}}>
         {rows.map((r, i) => (
           <li key={i} style={{display:'grid',gridTemplateColumns:'180px 110px 1fr',gap:24,padding:'18px 0',borderBottom:'1px solid var(--rule)',alignItems:'baseline'}}>
@@ -6502,7 +6567,7 @@ Object.assign(window, { AtlasView });
 
 // Finding 28 — palette capped at top-5 + Other. The five-colour set mirrors
 // the stable top-five irregular-arrivals nationality pool (Afghan, Eritrean,
-// Iranian, Syrian, Sudanese) per Irr_D01; the actual five names are still
+// Iranian, Syrian, Sudanese) per Irr_02b; the actual five names are still
 // pulled from NAT_FULL at runtime so the chart tracks data, not copy.
 const FLOW_NAT_PALETTE = [
   '#1c5c3d', '#c44a2a', '#2a5c8b', '#8b6c1c', '#6b2a8b',
@@ -6537,7 +6602,7 @@ const ROUTE_OF_ENTRY_NODES = [
 ];
 
 // Build the four-column system flow. Only col-3 appeal outcomes remain mocked
-// (closes when R6 / ASY_D04 pipeline lands).
+// (closes when R6 / Asy_D04 pipeline lands).
 function buildSystemFlow() {
   const route = typeof ROUTE_OF_ENTRY_QUARTERLY !== 'undefined' ? ROUTE_OF_ENTRY_QUARTERLY : [];
   const routeMeta = typeof ROUTE_OF_ENTRY_META !== 'undefined' ? ROUTE_OF_ENTRY_META : null;
@@ -6776,7 +6841,7 @@ function FlowView({ setRoute }) {
         </div>
       </aside>
 
-      {/* System flow — three or four column view depending on ASY_D04 availability. */}
+      {/* System flow — three or four column view depending on Asy_D04 availability. */}
       <div style={{marginTop:4,marginBottom:8}}>
         <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>System flow · {systemYear ?? year}</div>
         <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>
@@ -6803,11 +6868,11 @@ function FlowView({ setRoute }) {
       <div style={{marginTop:12,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:900}}>
         {system.hasLatest ? (
           <>
-            <strong style={{fontWeight:500}}>About the fourth column.</strong> "Latest outcome" pools the initial-vs-latest delta from ASY_D04 across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The beige "Still pending" band holds claims that have not yet reached a final outcome — many are still awaiting an initial decision or an appeal hearing. Hatching and dashed outlines remind the reader that this column is modelled from cohort movement, not direct appeals data, which the Home Office has not republished since its case-working system migration (ASY_D04 Cover_sheet, Note 5).
+            <strong style={{fontWeight:500}}>About the fourth column.</strong> "Latest outcome" pools the initial-vs-latest delta from Asy_D04 across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The beige "Still pending" band holds claims that have not yet reached a final outcome — many are still awaiting an initial decision or an appeal hearing. Hatching and dashed outlines remind the reader that this column is modelled from cohort movement, not direct appeals data, which the Home Office has not republished since its case-working system migration (Asy_D04 Cover_sheet, Note 5).
           </>
         ) : (
           <>
-            <strong style={{fontWeight:500}}>Appeal outcomes not shown.</strong> The Home Office has not yet republished appeal-specific data since migrating case-working systems (ASY_D04 Cover_sheet, Note 5). The closest defensible proxy is the <em>initial vs latest</em> outcome delta in the cohort file — which will land as a real fourth column here when the cohort-outcome ingest is wired in. Entry routes come from ASY_D01a (date of asylum claim) and the Application → Initial decision split uses shares from ASY_D02.
+            <strong style={{fontWeight:500}}>Appeal outcomes not shown.</strong> The Home Office has not yet republished appeal-specific data since migrating case-working systems (Asy_D04 Cover_sheet, Note 5). The closest defensible proxy is the <em>initial vs latest</em> outcome delta in the cohort file — which will land as a real fourth column here when the cohort-outcome ingest is wired in. Entry routes come from Asy_D01a (date of asylum claim) and the Application → Initial decision split uses shares from Asy_D02.
           </>
         )}
       </div>
@@ -6828,15 +6893,15 @@ function FlowView({ setRoute }) {
       </div>
 
       <div style={{marginTop:8,fontSize:11.5,color:'var(--muted-2)',lineHeight:1.5,maxWidth:780}}>
-        Decision outcomes are estimated by applying each nationality's initial-decision grant rate to its applicant volume. The refused/withdrawn split uses the overall ratio from <em>Initial decisions on asylum applications</em> (ASY_D02). Left and right totals are identical by construction. <strong style={{fontWeight:500,color:'var(--ink-2)'}}>Note:</strong> "Granted (initial)" refers to grants at initial decision only — appeal grants, which overturn a further ~15–20% of refused cases, are not included as cohort-level appeal data is not published.
+        Decision outcomes are estimated by applying each nationality's initial-decision grant rate to its applicant volume. The refused/withdrawn split uses the overall ratio from <em>Initial decisions on asylum applications</em> (Asy_D02). Left and right totals are identical by construction. <strong style={{fontWeight:500,color:'var(--ink-2)'}}>Note:</strong> "Granted (initial)" refers to grants at initial decision only — appeal grants, which overturn a further ~15–20% of refused cases, are not included as cohort-level appeal data is not published.
       </div>
 
-      {/* Boats-by-nationality strip — top-5 + Other from Irr_D01 (Finding 28). */}
+      {/* Boats-by-nationality strip — top-5 + Other from Irr_02b (Finding 28). */}
       <IrrBoatsByNationality/>
 
       {/* B5 cohort ribbon — one panel per year-of-claim. */}
       <div style={{marginTop:48,marginBottom:8}}>
-        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Cohort ribbon · ASY_D04</div>
+        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Cohort ribbon · Asy_D04</div>
         <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 10px'}}>
           Where each year's claimants ended up
         </h2>
@@ -6883,7 +6948,7 @@ function FlowView({ setRoute }) {
 }
 
 // Finding 28 · Small-boat arrivals by nationality, top-5 + Other, across
-// full years in IRR_BOATS_BY_NATIONALITY (Irr_02b / Irr_D01).
+// full years in IRR_BOATS_BY_NATIONALITY (Irr_02b / Irr_02b).
 function buildIrrTop5ByYear() {
   const rows = (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && Array.isArray(IRR_BOATS_BY_NATIONALITY))
     ? IRR_BOATS_BY_NATIONALITY : [];
@@ -6960,7 +7025,7 @@ function IrrBoatsByNationality() {
 
   return (
     <div style={{marginTop:48}}>
-      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality · Irr_D01</div>
+      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality · Irr_02b</div>
       <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>
         Top-five nationalities crossing in small boats
       </h2>

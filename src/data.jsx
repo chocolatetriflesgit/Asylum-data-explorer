@@ -285,27 +285,79 @@ function metaDate(meta) {
 }
 const W = (typeof window !== 'undefined') ? window : {};
 
+// Next scheduled release for each publication. Quarterly ISS tables land on
+// the second Thursday of Feb/May/Aug/Nov; small-boats ODS is weekly (each
+// Tuesday); last-7-days is updated daily. Irregular migration follows the
+// same quarterly cadence as ISS. Monthly / unknown cadences fall back to '—'.
+function secondThursday(year, monthIdx /* 0-based */) {
+  const d = new Date(Date.UTC(year, monthIdx, 1));
+  const day = d.getUTCDay(); // 0=Sun..6=Sat
+  const firstThu = 1 + ((4 - day + 7) % 7);
+  return new Date(Date.UTC(year, monthIdx, firstThu + 7));
+}
+function nextQuarterlyISS() {
+  const now = new Date();
+  const months = [1, 4, 7, 10]; // Feb, May, Aug, Nov
+  for (let add = 0; add < 12; add++) {
+    const y = now.getUTCFullYear() + Math.floor((now.getUTCMonth() + add) / 12);
+    const m = (now.getUTCMonth() + add) % 12;
+    if (!months.includes(m)) continue;
+    const t = secondThursday(y, m);
+    if (t > now) return t;
+  }
+  return null;
+}
+function nextTuesday() {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const off = (2 - d.getUTCDay() + 7) % 7 || 7;
+  return new Date(d.getTime() + off * 86400000);
+}
+function fmtUTC(d) {
+  if (!d) return '—';
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+const NEXT_RELEASE = {
+  quarterlyISS: () => fmtUTC(nextQuarterlyISS()),
+  weeklyBoats:  () => fmtUTC(nextTuesday()),
+  daily:        () => 'Daily',
+  unknown:      () => '—',
+};
+
+// Backlog of pipeline + editorial work that hasn't shipped yet. Surfaced on
+// the Updates page as a "Coming soon" block. Keep entries short — one line
+// of plain English the reader can understand without the code context.
+const PLANNED_UPDATES = [
+  { area: 'Pipeline', text: 'Channel deaths card — daily ingest from IOM Missing Migrants Project, cited as IOM (not Home Office).' },
+  { area: 'Pipeline', text: 'Section 95 / 98 / 4 support tiers — split the existing regional totals into the three support categories.' },
+  { area: 'Pipeline', text: 'Ukraine and BN(O) resettlement schemes — separate fetchers for the two publications outside the main ISS set.' },
+  { area: 'Pipeline', text: 'Appeal outcomes — will replace the cohort-delta proxy in the Flow Sankey once the Home Office republishes the data.' },
+  { area: 'Atlas',    text: 'Child applicants by nationality — new Atlas layer once the Home Office publishes Under-18 applicants by origin country.' },
+  { area: 'Atlas',    text: 'Resettlement by origin country — new Atlas layer once Res_D02 gains a nationality breakdown.' },
+];
+
 const DATASETS = [
   // Asylum claims
-  { code: 'ASY_D01', name: 'Asylum applications, by nationality',        rows: '1,248,220', updated: metaDate(W.NAT_FULL_META),         freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D02', name: 'Initial decisions on asylum applications',    rows: '884,014',   updated: metaDate(W.DECISIONS_META),        freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D03', name: 'Age and sex of asylum applicants',            rows: '492,100',   updated: metaDate(W.SEX_AGE_META),          freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D04', name: 'Outcome analysis of asylum claims (cohort)',  rows: '~18,700',   updated: metaDate(W.OUTCOME_COHORT_META),   freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D07', name: 'Asylum seekers awaiting a decision (backlog)',rows: '~186,400',  updated: metaDate(W.BACKLOG_META),          freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D01', name: 'Asylum applications, by nationality',        rows: '1,248,220', updated: metaDate(W.NAT_FULL_META),         nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D02', name: 'Initial decisions on asylum applications',    rows: '884,014',   updated: metaDate(W.DECISIONS_META),        nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D03', name: 'Age and sex of asylum applicants',            rows: '492,100',   updated: metaDate(W.SEX_AGE_META),          nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D04', name: 'Outcome analysis of asylum claims (cohort)',  rows: '~18,700',   updated: metaDate(W.OUTCOME_COHORT_META),   nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D07', name: 'Asylum seekers awaiting a decision (backlog)',rows: '~186,400',  updated: metaDate(W.BACKLOG_META),          nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
   // Support & accommodation
-  { code: 'ASY_D05', name: 'Support provided to asylum seekers',          rows: '412,200',   updated: metaDate(W.SUPPORT_REGIONS_META),  freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D09', name: 'Asylum seekers in receipt of support (hotels)',rows: '~88,200',  updated: metaDate(W.HOTELS_META),           freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D11', name: 'Asylum support by local authority',           rows: '~39,600',   updated: metaDate(W.SUPPORT_REGIONS_META),  freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D05', name: 'Support provided to asylum seekers',          rows: '412,200',   updated: metaDate(W.SUPPORT_REGIONS_META),  nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D09', name: 'Asylum seekers in receipt of support (hotels)',rows: '~88,200',  updated: metaDate(W.HOTELS_META),           nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Asy_D11', name: 'Asylum support by local authority',           rows: '~39,600',   updated: metaDate(W.SUPPORT_REGIONS_META),  nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
   // Age disputes
-  { code: 'AGE_D01', name: 'Age disputes by nationality',                 rows: '~4,700',    updated: metaDate(W.AGE_DISPUTES_META),     freq: 'Annual',    landingUrl: URL_ISS_TABLES },
+  { code: 'Age_D01', name: 'Age disputes by nationality',                 rows: '~4,700',    updated: metaDate(W.AGE_DISPUTES_META),     nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Annual',    landingUrl: URL_ISS_TABLES },
   // Small boats crossings
-  { code: 'SB_D01',  name: 'Small boats: daily crossings (2018–present)', rows: '~2,920',    updated: metaDate(W.BOATS_META),            freq: 'Weekly',    landingUrl: URL_SMALL_BOATS },
-  { code: 'SB_D02',  name: 'Small boats: last 7 days (provisional)',      rows: '7',          updated: metaDate(W.BOATS_PROVISIONAL_META),freq: 'Daily',     landingUrl: URL_SMALL_BOATS_7 },
-  // Irregular migration — small-boat arrivals by nationality (Irr_02b / Irr_D01).
-  { code: 'IRR_D01', name: 'Irregular migration — small-boat arrivals by nationality', rows: '~200',      updated: metaDate(W.IRR_BOATS_META),        freq: 'Quarterly', landingUrl: URL_IRR_MIGRATION },
+  { code: 'SB_01',  name: 'Small boats: daily crossings (2018–present)', rows: '~2,920',    updated: metaDate(W.BOATS_META),            nextRelease: NEXT_RELEASE.weeklyBoats(),  freq: 'Weekly',    landingUrl: URL_SMALL_BOATS },
+  { code: 'SB_02',  name: 'Small boats: last 7 days (provisional)',      rows: '7',          updated: metaDate(W.BOATS_PROVISIONAL_META),nextRelease: NEXT_RELEASE.daily(),        freq: 'Daily',     landingUrl: URL_SMALL_BOATS_7 },
+  // Irregular migration — small-boat arrivals by nationality (Irr_02b).
+  { code: 'Irr_02b', name: 'Irregular migration — small-boat arrivals by nationality', rows: '~200',      updated: metaDate(W.IRR_BOATS_META),        nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_IRR_MIGRATION },
   // Resettlement
-  { code: 'RES_D01', name: 'Refugee resettlement and family schemes',     rows: '94,820',    updated: metaDate(W.RESETTLEMENT_META),     freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'RES_D02', name: 'Ukraine schemes visa statistics',             rows: '318,400',   updated: metaDate(null),                    freq: 'Monthly',   landingUrl: URL_UKRAINE },
+  { code: 'Res_D01', name: 'Refugee resettlement and family schemes',     rows: '94,820',    updated: metaDate(W.RESETTLEMENT_META),     nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'Res_D02', name: 'Ukraine schemes visa statistics',             rows: '318,400',   updated: metaDate(null),                    nextRelease: NEXT_RELEASE.unknown(),      freq: 'Monthly',   landingUrl: URL_UKRAINE },
 ];
 
 // Inverted provenance index — which charts in the product consume each
@@ -315,7 +367,7 @@ const DATASETS = [
 // breaks, what breaks with it?" at a glance. When a new chart is added,
 // append its (view, chart) row under the matching code.
 const DATASET_CONSUMERS = {
-  ASY_D01: [
+  Asy_D01: [
     { view: 'Dashboard', chart: 'Fig. 01 · Asylum applications' },
     { view: 'Dashboard', chart: 'Fig. 03 · Top five nationalities' },
     { view: 'Dashboard', chart: 'Fig. 03a · All nationalities' },
@@ -325,61 +377,61 @@ const DATASET_CONSUMERS = {
     { view: 'Stories',   chart: 'Hero line · applications vs small-boat arrivals' },
     { view: 'Build',     chart: 'Applications · Top-5 nationalities · Nationalities (pick any)' },
   ],
-  ASY_D02: [
+  Asy_D02: [
     { view: 'Dashboard', chart: 'Fig. 04 · Initial decisions + Grant-rate ring' },
     { view: 'Dashboard', chart: 'Fig. 05a · Grant rate by nationality · small multiples' },
     { view: 'Atlas',     chart: 'Country panel · Grant-rate trend' },
     { view: 'Flow',      chart: 'Initial decision split (sankey col 2)' },
     { view: 'Build',     chart: 'Grant rate by nationality' },
   ],
-  ASY_D03: [
+  Asy_D03: [
     { view: 'Dashboard', chart: 'Age / sex statistics block' },
     // Not yet surfaced on the Build view.
   ],
-  ASY_D04: [
+  Asy_D04: [
     { view: 'Flow', chart: 'Cohort outcome ribbon' },
     { view: 'Flow', chart: 'Backlog waterfall (annual)' },
     { view: 'Flow', chart: 'Three-column sankey (cohort split)' },
     // Charts render a pending-data fallback until OUTCOME_COHORT_ANNUAL is populated (see BACKLOG.md).
   ],
-  ASY_D07: [
+  Asy_D07: [
     { view: 'Dashboard', chart: 'Fig. 05 · Pending cases (backlog)' },
     { view: 'Dashboard', chart: 'Hero statistic · Backlog' },
     { view: 'Build',     chart: 'Backlog (pending)' },
   ],
-  ASY_D05: [
+  Asy_D05: [
     { view: 'Dashboard', chart: 'Support regions statistics' },
   ],
-  ASY_D09: [
+  Asy_D09: [
     { view: 'Dashboard', chart: 'Hotels statistics' },
     { view: 'Build',     chart: 'People in hotels (asylum accommodation)' },
   ],
-  ASY_D11: [
+  Asy_D11: [
     { view: 'Dashboard', chart: 'Support regions map' },
   ],
-  AGE_D01: [
+  Age_D01: [
     { view: 'Atlas', chart: 'Country panel · Age disputes raised' },
     { view: 'Atlas', chart: 'Choropleth · Age disputes' },
   ],
-  SB_D01: [
+  SB_01: [
     { view: 'Dashboard', chart: 'Fig. 02 · YoY cumulative arrivals' },
     { view: 'Dashboard', chart: 'Fig. 02b · Seasonal heat-map' },
     { view: 'Dashboard', chart: 'Hero statistic · This week arrivals, YTD arrivals' },
     { view: 'Stories',   chart: 'This-week dateline strip' },
     { view: 'Build',     chart: 'Small-boat arrivals (daily / weekly / monthly / annual)' },
   ],
-  SB_D02: [
+  SB_02: [
     { view: 'Dashboard', chart: 'Provisional last-7-days strip' },
     { view: 'Dashboard', chart: 'Fig. 04/04a · Monthly interceptions / preventions' },
     { view: 'Build',     chart: 'Interceptions · Preventions' },
   ],
-  IRR_D01: [
+  Irr_02b: [
     { view: 'Flow', chart: 'Boats by nationality palette (top-5 + Other)' },
   ],
-  RES_D01: [
+  Res_D01: [
     { view: 'Build', chart: 'Resettlement arrivals by scheme' },
   ],
-  RES_D02: [
+  Res_D02: [
     // Ukraine schemes not yet surfaced in any chart.
   ],
 };
@@ -470,5 +522,5 @@ function groupNatByRegion(rows) {
 Object.assign(window, {
   ASYLUM_ANNUAL, DATA_MAX_YEAR, TOP_NATIONALITIES, NAT_SERIES, DECISIONS_2024,
   BACKLOG, RESETTLEMENT, REGIONS, STORIES, DATASETS, DATASET_CONSUMERS,
-  REGION_MAP, groupNatByRegion,
+  PLANNED_UPDATES, REGION_MAP, groupNatByRegion,
 });

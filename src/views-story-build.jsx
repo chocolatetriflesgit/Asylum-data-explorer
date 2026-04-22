@@ -163,7 +163,7 @@ function StoryView({ id, setRoute, onMethod }) {
                 yearRange={range}
                 title="Asylum applications, UK"
                 subtitle={`Applications annual · main applicants only · UK, ${range[0]}–${range[1]}`}
-                source="Home Office · ASY_D01"
+                source="Home Office · Asy_D01"
                 asOf={(typeof NAT_FULL_META !== 'undefined' && NAT_FULL_META) ? (NAT_FULL_META.latestDataPoint || NAT_FULL_META.asOf || NAT_FULL_META.generatedAt) : null}
                 nextUpdate={(typeof NAT_FULL_META !== 'undefined' && NAT_FULL_META) ? NAT_FULL_META.nextUpdate : null}
                 annotations={[
@@ -189,7 +189,7 @@ function StoryView({ id, setRoute, onMethod }) {
                 title="Small-boat arrivals, UK"
                 subtitle={`Small-boat arrivals annual · English Channel · UK, ${range[0]}–${range[1]}`}
                 stroke="var(--accent-warn)"
-                source="Home Office · IRR_D01"
+                source="Home Office · Irr_02b"
                 asOf={(typeof IRR_BOATS_META !== 'undefined' && IRR_BOATS_META) ? (IRR_BOATS_META.asOf || IRR_BOATS_META.generatedAt) : (typeof BOATS_META !== 'undefined' ? BOATS_META.latestDataPoint : null)}
                 nextUpdate={(typeof IRR_BOATS_META !== 'undefined' && IRR_BOATS_META) ? IRR_BOATS_META.nextUpdate : null}
                 caption="Border Force-recorded arrivals by small boat across the Channel. Series begins 2018; figures for earlier years are zero by definition."
@@ -205,7 +205,7 @@ function StoryView({ id, setRoute, onMethod }) {
               <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top five nationalities</div>
             </div>
             <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={720} height={280}/>
-            <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · ASY_D01</div>
+            <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D01</div>
           </div>
         </div>
       </article>
@@ -241,20 +241,20 @@ function _previewFor(code) {
   const W = typeof window !== 'undefined' ? window : {};
   const pick = (arr) => Array.isArray(arr) && arr.length ? arr.slice(0, 3) : null;
   switch (code) {
-    case 'ASY_D01':  return { global: 'NAT_FULL',            rows: pick(W.NAT_FULL) };
-    case 'ASY_D02':  return { global: 'DECISIONS_LATEST',    rows: pick(W.DECISIONS_LATEST) };
-    case 'ASY_D03':  return { global: 'SEX_AGE_ANNUAL',      rows: pick(W.SEX_AGE_ANNUAL) };
-    case 'ASY_D04':  return { global: 'OUTCOME_COHORT_ANNUAL', rows: pick(W.OUTCOME_COHORT_ANNUAL) };
-    case 'ASY_D07':  return { global: 'BACKLOG_LATEST',      rows: pick(W.BACKLOG_LATEST) };
-    case 'ASY_D05':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
-    case 'ASY_D09':  return { global: 'HOTELS',              rows: pick(W.HOTELS) };
-    case 'ASY_D11':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
-    case 'AGE_D01':  return { global: 'AGE_DISPUTES_BY_NATIONALITY', rows: pick(W.AGE_DISPUTES_BY_NATIONALITY) };
-    case 'SB_D01':   return { global: 'BOATS_WEEKLY',        rows: pick(W.BOATS_WEEKLY) };
-    case 'SB_D02':   return { global: 'BOATS_PROVISIONAL',   rows: pick(W.BOATS_PROVISIONAL) };
-    case 'IRR_D01':  return { global: 'IRR_BOATS_BY_NATIONALITY', rows: null };
-    case 'RES_D01':  return { global: 'RESETTLEMENT_SERIES', rows: pick(W.RESETTLEMENT_SERIES) };
-    case 'RES_D02':  return { global: 'UKRAINE_VISAS',       rows: null };
+    case 'Asy_D01':  return { global: 'NAT_FULL',            rows: pick(W.NAT_FULL) };
+    case 'Asy_D02':  return { global: 'DECISIONS_LATEST',    rows: pick(W.DECISIONS_LATEST) };
+    case 'Asy_D03':  return { global: 'SEX_AGE_ANNUAL',      rows: pick(W.SEX_AGE_ANNUAL) };
+    case 'Asy_D04':  return { global: 'OUTCOME_COHORT_ANNUAL', rows: pick(W.OUTCOME_COHORT_ANNUAL) };
+    case 'Asy_D07':  return { global: 'BACKLOG_LATEST',      rows: pick(W.BACKLOG_LATEST) };
+    case 'Asy_D05':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
+    case 'Asy_D09':  return { global: 'HOTELS',              rows: pick(W.HOTELS) };
+    case 'Asy_D11':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
+    case 'Age_D01':  return { global: 'AGE_DISPUTES_BY_NATIONALITY', rows: pick(W.AGE_DISPUTES_BY_NATIONALITY) };
+    case 'SB_01':   return { global: 'BOATS_WEEKLY',        rows: pick(W.BOATS_WEEKLY) };
+    case 'SB_02':   return { global: 'BOATS_PROVISIONAL',   rows: pick(W.BOATS_PROVISIONAL) };
+    case 'Irr_02b':  return { global: 'IRR_BOATS_BY_NATIONALITY', rows: null };
+    case 'Res_D01':  return { global: 'RESETTLEMENT_SERIES', rows: pick(W.RESETTLEMENT_SERIES) };
+    case 'Res_D02':  return { global: 'UKRAINE_VISAS',       rows: null };
     default:         return { global: null, rows: null };
   }
 }
@@ -288,7 +288,7 @@ function DatasetsView({ setRoute }) {
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}>
         <thead>
           <tr style={{textAlign:'left'}}>
-            {['Code','Name','Rows','Updated','Frequency',''].map(h=>(
+            {['Code','Name','Rows','Updated','Next release','Frequency',''].map(h=>(
               <th key={h} className="uc" style={{fontWeight:500,color:'var(--muted)',padding:'12px 14px',borderBottom:'1px solid var(--rule)',textAlign:h==='Rows'?'right':'left'}}>{h}</th>
             ))}
           </tr>
@@ -310,6 +310,7 @@ function DatasetsView({ setRoute }) {
                   </td>
                   <td className="tnum" style={{padding:'14px 14px',textAlign:'right',color:'var(--ink-2)'}}>{d.rows}</td>
                   <td style={{padding:'14px 14px',color:'var(--muted)'}}>{d.updated}</td>
+                  <td style={{padding:'14px 14px',color:'var(--muted)'}}>{d.nextRelease ?? '—'}</td>
                   <td style={{padding:'14px 14px',color:'var(--muted)',fontStyle:'italic'}}>{d.freq}</td>
                   <td style={{padding:'14px 14px',textAlign:'right'}}>
                     {d.landingUrl ? (
@@ -326,7 +327,7 @@ function DatasetsView({ setRoute }) {
                 </tr>
                 {open && (
                   <tr style={{background:'var(--bg-2)'}}>
-                    <td colSpan={6} style={{padding:'4px 14px 20px 14px'}}>
+                    <td colSpan={7} style={{padding:'4px 14px 20px 14px'}}>
                       <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1.3fr)',gap:28}}>
                         {/* Used-in panel */}
                         <div>
@@ -1015,7 +1016,7 @@ function BuildView({ setRoute }) {
                       />
                     )}
                     <div style={{fontSize:12,color:'var(--muted-2)',marginTop:8,fontStyle:'italic'}}>
-                      Y-axis: % of initial decisions resulting in refugee status or humanitarian protection. Source: Home Office · ASY_D02.
+                      Y-axis: % of initial decisions resulting in refugee status or humanitarian protection. Source: Home Office · Asy_D02.
                     </div>
                   </>
                 );
@@ -1253,9 +1254,9 @@ function BuildView({ setRoute }) {
 // is purely a timeline so readers can see "what changed when".
 // ─────────────────────────────────────────────────────────────
 const REVISION_LOG = [
-  { date: '22 April 2026', kind: 'Feature',   text: 'Cohort outcome ribbon, merged three-column sankey, and annual backlog waterfall launched from ASY_D04.' },
+  { date: '22 April 2026', kind: 'Feature',   text: 'Cohort outcome ribbon, merged three-column sankey, and annual backlog waterfall launched from Asy_D04.' },
   { date: '22 April 2026', kind: 'Feature',   text: 'Per-capita Atlas mode (apps per 100k of origin-country displaced population) uses UNHCR population data.' },
-  { date: '22 April 2026', kind: 'Feature',   text: 'Boats-by-nationality chart on the Flow view now reads from IRR_D01.' },
+  { date: '22 April 2026', kind: 'Feature',   text: 'Boats-by-nationality chart on the Flow view now reads from Irr_02b.' },
   { date: '21 April 2026', kind: 'Editorial', text: 'Story pages restructured with a standard anatomy: 80-word digest, "what this measures / doesn\u2019t" card, Further reading footer.' },
   { date: '21 April 2026', kind: 'Editorial', text: 'Every chart footer now shows "Source \u00b7 as-of \u00b7 next update", read directly from the source metadata.' },
   { date: '20 April 2026', kind: 'Editorial', text: 'Dashboard statistics rebuilt with a four-up hero strip and sparklines; 11 supporting statistics moved under "Detail".' },
@@ -1265,18 +1266,18 @@ const REVISION_LOG = [
 function _updatesSourceRows() {
   const W = (typeof window !== 'undefined') ? window : {};
   const entries = [
-    ['SB_D01',  'Small-boats crossings',                  W.BOATS_META],
-    ['SB_D02',  'Small-boats last 7 days',                W.BOATS_PROVISIONAL_META],
-    ['ASY_D01', 'Asylum applications by nationality',     W.NAT_FULL_META],
-    ['ASY_D02', 'Initial decisions on asylum claims',     W.DECISIONS_META],
-    ['ASY_D03', 'Age and sex of applicants',              W.SEX_AGE_META],
-    ['ASY_D04', 'Outcome analysis (cohort)',              W.OUTCOME_COHORT_META],
-    ['ASY_D05', 'Asylum support',                          W.SUPPORT_REGIONS_META],
-    ['ASY_D07', 'Backlog \u2014 cases awaiting decision',  W.BACKLOG_META],
-    ['ASY_D09', 'Asylum seekers in hotels',                W.HOTELS_META],
-    ['AGE_D01', 'Age disputes',                            W.AGE_DISPUTES_META],
-    ['IRR_D01', 'Irregular migration by nationality',     W.IRR_BOATS_META],
-    ['RES_D01', 'Resettlement schemes',                    W.RESETTLEMENT_META],
+    ['SB_01',  'Small-boats crossings',                  W.BOATS_META],
+    ['SB_02',  'Small-boats last 7 days',                W.BOATS_PROVISIONAL_META],
+    ['Asy_D01', 'Asylum applications by nationality',     W.NAT_FULL_META],
+    ['Asy_D02', 'Initial decisions on asylum claims',     W.DECISIONS_META],
+    ['Asy_D03', 'Age and sex of applicants',              W.SEX_AGE_META],
+    ['Asy_D04', 'Outcome analysis (cohort)',              W.OUTCOME_COHORT_META],
+    ['Asy_D05', 'Asylum support',                          W.SUPPORT_REGIONS_META],
+    ['Asy_D07', 'Backlog \u2014 cases awaiting decision',  W.BACKLOG_META],
+    ['Asy_D09', 'Asylum seekers in hotels',                W.HOTELS_META],
+    ['Age_D01', 'Age disputes',                            W.AGE_DISPUTES_META],
+    ['Irr_02b', 'Irregular migration by nationality',     W.IRR_BOATS_META],
+    ['Res_D01', 'Resettlement schemes',                    W.RESETTLEMENT_META],
   ];
   const rows = [];
   for (const [code, name, meta] of entries) {
@@ -1337,6 +1338,19 @@ function UpdatesView({ setRoute }) {
       <p style={{fontSize:16.5,lineHeight:1.55,color:'var(--ink-2)',margin:'0 0 36px',maxWidth:640}}>
         Every source refresh and every notable change to this explorer, newest first. Source rows come from the pipeline metadata; editorial rows are curated by hand.
       </p>
+      {Array.isArray(typeof PLANNED_UPDATES !== 'undefined' ? PLANNED_UPDATES : null) && PLANNED_UPDATES.length > 0 && (
+        <section style={{marginBottom:40,border:'1px solid var(--rule)',background:'var(--bg-2)',padding:'20px 24px'}}>
+          <div className="uc" style={{color:'var(--muted)',fontSize:11,letterSpacing:0.4,marginBottom:10}}>Coming soon</div>
+          <ul style={{listStyle:'none',padding:0,margin:0,display:'grid',gap:10}}>
+            {PLANNED_UPDATES.map((p, i) => (
+              <li key={i} style={{display:'grid',gridTemplateColumns:'100px 1fr',gap:18,alignItems:'baseline',fontSize:13.5,lineHeight:1.5,color:'var(--ink-2)'}}>
+                <span className="uc" style={{fontSize:10.5,color:'var(--accent)',letterSpacing:0.5}}>{p.area}</span>
+                <span>{p.text}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <ol style={{listStyle:'none',padding:0,margin:0,borderTop:'1px solid var(--rule)'}}>
         {rows.map((r, i) => (
           <li key={i} style={{display:'grid',gridTemplateColumns:'180px 110px 1fr',gap:24,padding:'18px 0',borderBottom:'1px solid var(--rule)',alignItems:'baseline'}}>

@@ -5,7 +5,7 @@
 
 // Finding 28 — palette capped at top-5 + Other. The five-colour set mirrors
 // the stable top-five irregular-arrivals nationality pool (Afghan, Eritrean,
-// Iranian, Syrian, Sudanese) per Irr_D01; the actual five names are still
+// Iranian, Syrian, Sudanese) per Irr_02b; the actual five names are still
 // pulled from NAT_FULL at runtime so the chart tracks data, not copy.
 const FLOW_NAT_PALETTE = [
   '#1c5c3d', '#c44a2a', '#2a5c8b', '#8b6c1c', '#6b2a8b',
@@ -40,7 +40,7 @@ const ROUTE_OF_ENTRY_NODES = [
 ];
 
 // Build the four-column system flow. Only col-3 appeal outcomes remain mocked
-// (closes when R6 / ASY_D04 pipeline lands).
+// (closes when R6 / Asy_D04 pipeline lands).
 function buildSystemFlow() {
   const route = typeof ROUTE_OF_ENTRY_QUARTERLY !== 'undefined' ? ROUTE_OF_ENTRY_QUARTERLY : [];
   const routeMeta = typeof ROUTE_OF_ENTRY_META !== 'undefined' ? ROUTE_OF_ENTRY_META : null;
@@ -279,7 +279,7 @@ function FlowView({ setRoute }) {
         </div>
       </aside>
 
-      {/* System flow — three or four column view depending on ASY_D04 availability. */}
+      {/* System flow — three or four column view depending on Asy_D04 availability. */}
       <div style={{marginTop:4,marginBottom:8}}>
         <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>System flow · {systemYear ?? year}</div>
         <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>
@@ -306,11 +306,11 @@ function FlowView({ setRoute }) {
       <div style={{marginTop:12,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:900}}>
         {system.hasLatest ? (
           <>
-            <strong style={{fontWeight:500}}>About the fourth column.</strong> "Latest outcome" pools the initial-vs-latest delta from ASY_D04 across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The beige "Still pending" band holds claims that have not yet reached a final outcome — many are still awaiting an initial decision or an appeal hearing. Hatching and dashed outlines remind the reader that this column is modelled from cohort movement, not direct appeals data, which the Home Office has not republished since its case-working system migration (ASY_D04 Cover_sheet, Note 5).
+            <strong style={{fontWeight:500}}>About the fourth column.</strong> "Latest outcome" pools the initial-vs-latest delta from Asy_D04 across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The beige "Still pending" band holds claims that have not yet reached a final outcome — many are still awaiting an initial decision or an appeal hearing. Hatching and dashed outlines remind the reader that this column is modelled from cohort movement, not direct appeals data, which the Home Office has not republished since its case-working system migration (Asy_D04 Cover_sheet, Note 5).
           </>
         ) : (
           <>
-            <strong style={{fontWeight:500}}>Appeal outcomes not shown.</strong> The Home Office has not yet republished appeal-specific data since migrating case-working systems (ASY_D04 Cover_sheet, Note 5). The closest defensible proxy is the <em>initial vs latest</em> outcome delta in the cohort file — which will land as a real fourth column here when the cohort-outcome ingest is wired in. Entry routes come from ASY_D01a (date of asylum claim) and the Application → Initial decision split uses shares from ASY_D02.
+            <strong style={{fontWeight:500}}>Appeal outcomes not shown.</strong> The Home Office has not yet republished appeal-specific data since migrating case-working systems (Asy_D04 Cover_sheet, Note 5). The closest defensible proxy is the <em>initial vs latest</em> outcome delta in the cohort file — which will land as a real fourth column here when the cohort-outcome ingest is wired in. Entry routes come from Asy_D01a (date of asylum claim) and the Application → Initial decision split uses shares from Asy_D02.
           </>
         )}
       </div>
@@ -331,15 +331,15 @@ function FlowView({ setRoute }) {
       </div>
 
       <div style={{marginTop:8,fontSize:11.5,color:'var(--muted-2)',lineHeight:1.5,maxWidth:780}}>
-        Decision outcomes are estimated by applying each nationality's initial-decision grant rate to its applicant volume. The refused/withdrawn split uses the overall ratio from <em>Initial decisions on asylum applications</em> (ASY_D02). Left and right totals are identical by construction. <strong style={{fontWeight:500,color:'var(--ink-2)'}}>Note:</strong> "Granted (initial)" refers to grants at initial decision only — appeal grants, which overturn a further ~15–20% of refused cases, are not included as cohort-level appeal data is not published.
+        Decision outcomes are estimated by applying each nationality's initial-decision grant rate to its applicant volume. The refused/withdrawn split uses the overall ratio from <em>Initial decisions on asylum applications</em> (Asy_D02). Left and right totals are identical by construction. <strong style={{fontWeight:500,color:'var(--ink-2)'}}>Note:</strong> "Granted (initial)" refers to grants at initial decision only — appeal grants, which overturn a further ~15–20% of refused cases, are not included as cohort-level appeal data is not published.
       </div>
 
-      {/* Boats-by-nationality strip — top-5 + Other from Irr_D01 (Finding 28). */}
+      {/* Boats-by-nationality strip — top-5 + Other from Irr_02b (Finding 28). */}
       <IrrBoatsByNationality/>
 
       {/* B5 cohort ribbon — one panel per year-of-claim. */}
       <div style={{marginTop:48,marginBottom:8}}>
-        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Cohort ribbon · ASY_D04</div>
+        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Cohort ribbon · Asy_D04</div>
         <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 10px'}}>
           Where each year's claimants ended up
         </h2>
@@ -386,7 +386,7 @@ function FlowView({ setRoute }) {
 }
 
 // Finding 28 · Small-boat arrivals by nationality, top-5 + Other, across
-// full years in IRR_BOATS_BY_NATIONALITY (Irr_02b / Irr_D01).
+// full years in IRR_BOATS_BY_NATIONALITY (Irr_02b / Irr_02b).
 function buildIrrTop5ByYear() {
   const rows = (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && Array.isArray(IRR_BOATS_BY_NATIONALITY))
     ? IRR_BOATS_BY_NATIONALITY : [];
@@ -463,7 +463,7 @@ function IrrBoatsByNationality() {
 
   return (
     <div style={{marginTop:48}}>
-      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality · Irr_D01</div>
+      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality · Irr_02b</div>
       <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>
         Top-five nationalities crossing in small boats
       </h2>

@@ -43,8 +43,8 @@ const SOURCE_URLS = {
   // Small boats — Home Office weekly ODS (SB_01 arrivals, SB_02 arrivals + preventions).
   'SB_01':   'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
   'SB_02':   'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
-  'SB_D01':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
-  'SB_D02':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days',
+  'SB_01':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
+  'SB_02':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days',
   // Immigration system statistics — one landing page, many sub-sheets.
   'Asy_D01': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
   'Asy_D02': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
@@ -57,7 +57,6 @@ const SOURCE_URLS = {
   'Res_D02': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
   // Irregular migration — separate landing page, quarterly ODS.
   'Irr_02b': 'https://www.gov.uk/government/statistical-data-sets/irregular-migration-detailed-dataset-and-summary-tables',
-  'Irr_D01': 'https://www.gov.uk/government/statistical-data-sets/irregular-migration-detailed-dataset-and-summary-tables',
   // UNHCR Refugee Data Finder — public REST API, no filename stem.
   'UNHCR':   'https://www.unhcr.org/refugee-statistics/',
 };
@@ -70,7 +69,7 @@ function resolveSourceUrl(source) {
   const codes = Object.keys(SOURCE_URLS).sort((a, b) => b.length - a.length);
   for (const code of codes) {
     // Word-boundary match against the code — tolerant to surrounding text and
-    // parenthetical notes like "ASY_D02 (derived)".
+    // parenthetical notes like "Asy_D02 (derived)".
     const re = new RegExp(`(^|[^A-Za-z0-9_])${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Za-z0-9_]|$)`, 'i');
     if (re.test(source)) return SOURCE_URLS[code];
   }
@@ -1960,7 +1959,7 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
         <div style={{fontSize:13,lineHeight:1.5}}>
           <b style={{color:'var(--ink-2)'}}>Cohort ribbon · pending data.</b> This chart reads from
           <code style={{margin:'0 4px',fontFamily:'var(--mono)',fontSize:12}}>OUTCOME_COHORT_ANNUAL</code>,
-          which will populate once the outcome-analysis xlsx (ASY_D04) is ingested.
+          which will populate once the outcome-analysis xlsx (Asy_D04) is ingested.
           See <code style={{fontFamily:'var(--mono)',fontSize:12}}>scripts/build_outcome_analysis.py</code>.
         </div>
       </figure>

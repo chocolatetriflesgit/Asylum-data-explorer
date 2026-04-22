@@ -49,9 +49,9 @@ function DashboardView({ setRoute }) {
   const srcAsOf = {
     SB_01: metaAsOf(_boatsMeta),  SB_01_next: metaNext(_boatsMeta),
     SB_02: _boatsMeta ? metaAsOf(_boatsMeta) : null, SB_02_next: metaNext(_boatsMeta),
-    ASY_D01: metaAsOf(_natMeta),  ASY_D01_next: metaNext(_natMeta),
-    ASY_D02: metaAsOf(_decMeta ?? _natMeta), ASY_D02_next: metaNext(_decMeta ?? _natMeta),
-    ASY_D03: metaAsOf(_blgMeta),  ASY_D03_next: metaNext(_blgMeta),
+    Asy_D01: metaAsOf(_natMeta),  Asy_D01_next: metaNext(_natMeta),
+    Asy_D02: metaAsOf(_decMeta ?? _natMeta), Asy_D02_next: metaNext(_decMeta ?? _natMeta),
+    Asy_D03: metaAsOf(_blgMeta),  Asy_D03_next: metaNext(_blgMeta),
     GRANT: metaAsOf(_grantMeta ?? _natMeta), GRANT_next: metaNext(_grantMeta ?? _natMeta),
   };
 
@@ -570,7 +570,7 @@ function DashboardView({ setRoute }) {
                   range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
                 ].filter(Boolean)}
                 source="Home Office · Asy_D01"
-                asOf={srcAsOf.ASY_D01} nextUpdate={srcAsOf.ASY_D01_next}/>
+                asOf={srcAsOf.Asy_D01} nextUpdate={srcAsOf.Asy_D01_next}/>
             </DashFrame>
             <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals · year-to-date comparison" sub="Cumulative crossings by day of year"
               setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'daily' }}>
@@ -690,7 +690,7 @@ function DashboardView({ setRoute }) {
                   range[0] <= 2022 && range[1] >= 2022 && { y:2022, label:'Peak 132k', dx:-80, dy:-10 },
                 ].filter(Boolean)}
                 source="Home Office · Asy_D03"
-                asOf={srcAsOf.ASY_D03} nextUpdate={srcAsOf.ASY_D03_next}/>
+                asOf={srcAsOf.Asy_D03} nextUpdate={srcAsOf.Asy_D03_next}/>
             </DashFrame>
           </div>
           {/* Grant-rate small multiples — 12 nationalities, one cell each. */}
@@ -806,7 +806,7 @@ function DashboardView({ setRoute }) {
                   </tbody>
                 </table>
               )}
-              <div className="uc" style={{color:'var(--muted-2)',marginTop:14}}>Source: Home Office · RES_D01</div>
+              <div className="uc" style={{color:'var(--muted-2)',marginTop:14}}>Source: Home Office · Res_D01</div>
             </div>
             <div style={{background:'var(--bg-3)',borderLeft:'2px solid var(--accent)',padding:'24px 26px'}}>
               <div style={{fontFamily:'var(--serif)',fontSize:17,fontWeight:500,color:'var(--ink)',marginBottom:14}}>

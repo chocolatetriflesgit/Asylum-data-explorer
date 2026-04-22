@@ -122,7 +122,7 @@ function SearchModal({ open, onClose, onPick }) {
       <div onClick={e=>e.stopPropagation()} style={{background:'var(--bg)',border:'1px solid var(--rule-2)',boxShadow:'0 20px 60px rgba(0,0,0,.15)',width:'min(620px,92vw)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'18px 22px',borderBottom:'1px solid var(--rule)'}}>
           <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/></svg>
-          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search stories and datasets (e.g. ‘grant rate’, ASY_D01)…"
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search stories and datasets (e.g. ‘grant rate’, Asy_D01)…"
             style={{flex:1,border:'none',outline:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:17,color:'var(--ink)'}}/>
           <span className="mono" style={{fontSize:11,color:'var(--muted-2)',border:'1px solid var(--rule-2)',padding:'2px 5px'}}>esc</span>
         </div>
@@ -328,7 +328,7 @@ function IndexView({ setRoute }) {
                 overlayLabel="Small-boat arrivals"
                 title="Asylum applications, UK"
                 subtitle="Applications annual · dashed line = small-boat arrivals · UK, 2014–2025"
-                source="Home Office Immigration Statistics · ASY_D01 + SB_D01"
+                source="Home Office Immigration Statistics · Asy_D01 + SB_01"
                 annotations={[
                   { y: 2023, label: 'Peak: 84,425', dx: -140, dy: -12 },
                   { y: 2022, label: 'Boats peak · ~55% of applications', dx: -170, dy: 40 },
