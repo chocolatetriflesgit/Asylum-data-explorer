@@ -15,14 +15,23 @@ function TweakPanel({ tweaks, setTweaks, open, onClose }) {
     setTweaks({ ...tweaks, accent: k });
     window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { accent: k } }, '*');
   };
+  const toggleMode = key => {
+    const next = { ...tweaks, [key]: !tweaks[key] };
+    setTweaks(next);
+  };
   uER(()=>{
     document.documentElement.style.setProperty('--accent', tweaks.accent);
   }, [tweaks.accent]);
+  uER(()=>{
+    const body = document.body;
+    body.classList.toggle('mode-high-contrast', !!tweaks.highContrast);
+    body.classList.toggle('mode-print', !!tweaks.printFriendly);
+  }, [tweaks.highContrast, tweaks.printFriendly]);
   if (!open) return null;
   return (
     <div className="tweak-panel open" style={{display:'block'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <div className="uc" style={{color:'var(--muted)'}}>Tweaks</div>
+        <div className="uc" style={{color:'var(--muted)'}}>Display</div>
         <button onClick={onClose} className="pressable" style={{fontSize:18,color:'var(--muted)'}}>×</button>
       </div>
       <div style={{fontSize:12,color:'var(--muted)',marginBottom:8}}>Accent colour</div>
@@ -33,8 +42,19 @@ function TweakPanel({ tweaks, setTweaks, open, onClose }) {
             style={{background:a.key}}/>
         ))}
       </div>
+      <div style={{fontSize:12,color:'var(--muted)',margin:'16px 0 8px'}}>Reading mode</div>
+      <div style={{display:'flex',flexDirection:'column',gap:6,fontSize:12.5}}>
+        <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}}>
+          <input type="checkbox" checked={!!tweaks.highContrast} onChange={()=>toggleMode('highContrast')}/>
+          <span>High contrast</span>
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}}>
+          <input type="checkbox" checked={!!tweaks.printFriendly} onChange={()=>toggleMode('printFriendly')}/>
+          <span>Print-friendly (no backgrounds)</span>
+        </label>
+      </div>
       <div style={{fontSize:11,color:'var(--muted-2)',marginTop:12,fontStyle:'italic',lineHeight:1.45}}>
-        Changes apply live across every chart and piece of UI.
+        Display-only — no data changes.
       </div>
     </div>
   );
@@ -83,6 +103,7 @@ function App() {
       {route.name === 'datasets' && <DatasetsView setRoute={setRoute}/>}
       {route.name === 'build' && <BuildView setRoute={setRoute}/>}
       {route.name === 'flow' && <FlowView setRoute={setRoute}/>}
+      {route.name === 'updates' && <UpdatesView setRoute={setRoute}/>}
 
       <footer style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
         <div>

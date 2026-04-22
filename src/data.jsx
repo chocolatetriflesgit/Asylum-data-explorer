@@ -1,23 +1,51 @@
 // data.jsx — shared data for the Home Office Data Explorer
+//
+// Most of the constants below are *shims* over pipeline-generated globals
+// (BOATS_ANNUAL, NAT_FULL, NAT_SERIES_LATEST, DECISIONS_LATEST, BACKLOG_LATEST,
+// RESETTLEMENT_SERIES, SUPPORT_REGIONS). The hand-maintained fallbacks below
+// only take effect if a global is missing at load time — so edits to pipeline
+// output propagate automatically, and the hardcoded numbers stop drifting.
+
+const _W = (typeof window !== 'undefined') ? window : {};
 
 // UK asylum applications 2014–latest (main applicants, annual).
-// 2025 total is sum(NAT_FULL.v) for NAT_FULL_META.year=2025; 2025 boats
-// is BOATS_ANNUAL where y=2025. Extend by hand when the next complete
-// year lands in both globals.
-const ASYLUM_ANNUAL = [
-  { y: 2014, v: 24914, boats: 0 },
-  { y: 2015, v: 32414, boats: 0 },
-  { y: 2016, v: 30747, boats: 0 },
-  { y: 2017, v: 26547, boats: 0 },
-  { y: 2018, v: 29504, boats: 299 },
-  { y: 2019, v: 35737, boats: 1843 },
-  { y: 2020, v: 29815, boats: 8462 },
-  { y: 2021, v: 48540, boats: 28526 },
-  { y: 2022, v: 74751, boats: 45755 },
-  { y: 2023, v: 84425, boats: 29437 },
-  { y: 2024, v: 80782, boats: 36816 },
-  { y: 2025, v: 82140, boats: 41472 },
+//
+// `.v` is hand-maintained for 2014–(latest-1) because no pipeline global
+//   carries a per-year UK-wide applications time series (NAT_QUARTERLY only
+//   covers recent years; NAT_FULL is a single-year snapshot). When the next
+//   complete year lands, append one row here.
+// `.v` for the latest year is re-derived from sum(NAT_FULL) at load time so
+//   it matches the nationality dataset exactly — no risk of disagreeing totals.
+// `.boats` is re-derived from BOATS_ANNUAL at load time for every year
+//   present in that global (i.e. 2018+). Pre-2018 rows stay at 0.
+const _ASYLUM_V_MANUAL = [
+  { y: 2014, v: 24914 }, { y: 2015, v: 32414 }, { y: 2016, v: 30747 },
+  { y: 2017, v: 26547 }, { y: 2018, v: 29504 }, { y: 2019, v: 35737 },
+  { y: 2020, v: 29815 }, { y: 2021, v: 48540 }, { y: 2022, v: 74751 },
+  { y: 2023, v: 84425 }, { y: 2024, v: 80782 },
 ];
+
+const ASYLUM_ANNUAL = (() => {
+  const boatsByYear = {};
+  if (Array.isArray(_W.BOATS_ANNUAL)) {
+    for (const r of _W.BOATS_ANNUAL) boatsByYear[r.y] = r.m;
+  }
+  // Latest-year applications total comes from NAT_FULL if available.
+  const natYear = _W.NAT_FULL_META?.year ?? null;
+  const natTotal = Array.isArray(_W.NAT_FULL)
+    ? _W.NAT_FULL.reduce((s, r) => s + (r.v || 0), 0) : null;
+  const rows = _ASYLUM_V_MANUAL.map(r => ({
+    y: r.y, v: r.v, boats: boatsByYear[r.y] ?? 0,
+  }));
+  if (natYear && natTotal != null && !rows.some(r => r.y === natYear)) {
+    rows.push({ y: natYear, v: natTotal, boats: boatsByYear[natYear] ?? 0 });
+  } else if (natYear && natTotal != null) {
+    // Overwrite if pipeline now disagrees with the hand-maintained row.
+    const idx = rows.findIndex(r => r.y === natYear);
+    if (idx >= 0) rows[idx] = { y: natYear, v: natTotal, boats: boatsByYear[natYear] ?? 0 };
+  }
+  return rows.sort((a, b) => a.y - b.y);
+})();
 
 // Max year reachable from the data globals: max of ASYLUM_ANNUAL and
 // BOATS_ANNUAL. Drives the slider upper bound and default range end so
@@ -28,83 +56,117 @@ const DATA_MAX_YEAR = (() => {
   return Math.max(...ASYLUM_ANNUAL.map(r => r.y), ...boats);
 })();
 
-// Top nationalities 2024 (applications, main applicants)
-const TOP_NATIONALITIES = [
-  { name: 'Pakistan',    v: 7850, grant: 0.56 },
-  { name: 'Afghanistan', v: 5928, grant: 0.98 },
-  { name: 'Iran',        v: 4310, grant: 0.85 },
-  { name: 'Eritrea',     v: 3512, grant: 0.92 },
-  { name: 'Bangladesh',  v: 3180, grant: 0.11 },
-  { name: 'Sudan',       v: 3074, grant: 0.99 },
-  { name: 'Syria',       v: 2184, grant: 0.99 },
-  { name: 'Vietnam',     v: 2050, grant: 0.18 },
-  { name: 'Turkey',      v: 1960, grant: 0.44 },
-  { name: 'India',       v: 1820, grant: 0.04 },
-];
+// Top nationalities (applications, main applicants, latest year).
+// Shims over NAT_FULL when present; hardcoded fallback below is only used
+// if the pipeline global is missing at load time.
+const TOP_NATIONALITIES = Array.isArray(_W.NAT_FULL) && _W.NAT_FULL.length
+  ? _W.NAT_FULL.slice(0, 10).map(r => ({ name: r.name, v: r.v, grant: r.grant }))
+  : [
+      { name: 'Pakistan',    v: 7850, grant: 0.56 },
+      { name: 'Afghanistan', v: 5928, grant: 0.98 },
+      { name: 'Iran',        v: 4310, grant: 0.85 },
+      { name: 'Eritrea',     v: 3512, grant: 0.92 },
+      { name: 'Bangladesh',  v: 3180, grant: 0.11 },
+      { name: 'Sudan',       v: 3074, grant: 0.99 },
+      { name: 'Syria',       v: 2184, grant: 0.99 },
+      { name: 'Vietnam',     v: 2050, grant: 0.18 },
+      { name: 'Turkey',      v: 1960, grant: 0.44 },
+      { name: 'India',       v: 1820, grant: 0.04 },
+    ];
 
-// Top 5 nationality series 2020–2024
-const NAT_SERIES = {
-  years: [2020, 2021, 2022, 2023, 2024],
-  series: [
-    { name: 'Pakistan',    data: [1569, 2337, 4922, 7521, 7850] },
-    { name: 'Afghanistan', data: [2772, 8633, 9577, 6625, 5928] },
-    { name: 'Iran',        data: [4339, 5974, 8586, 5820, 4310] },
-    { name: 'Eritrea',     data: [2183, 2834, 5000, 4462, 3512] },
-    { name: 'Syria',       data: [1270, 2219, 3107, 2505, 2184] },
-  ],
-};
+// Top 5 nationality series. Shim over NAT_SERIES_LATEST.
+const NAT_SERIES = (_W.NAT_SERIES_LATEST && Array.isArray(_W.NAT_SERIES_LATEST.series))
+  ? _W.NAT_SERIES_LATEST
+  : {
+      years: [2020, 2021, 2022, 2023, 2024],
+      series: [
+        { name: 'Pakistan',    data: [1569, 2337, 4922, 7521, 7850] },
+        { name: 'Afghanistan', data: [2772, 8633, 9577, 6625, 5928] },
+        { name: 'Iran',        data: [4339, 5974, 8586, 5820, 4310] },
+        { name: 'Eritrea',     data: [2183, 2834, 5000, 4462, 3512] },
+        { name: 'Syria',       data: [1270, 2219, 3107, 2505, 2184] },
+      ],
+    };
 
-// Initial decisions 2024
-const DECISIONS_2024 = [
-  { label: 'Granted asylum', v: 34200, color: 'var(--accent-2)' },
-  { label: 'Granted humanitarian / other', v: 4800, color: 'var(--accent-gold)' },
-  { label: 'Refused',        v: 27800, color: 'var(--accent-warn)' },
-  { label: 'Withdrawn',      v: 5600, color: 'var(--muted-2)' },
-];
+// Initial decisions snapshot (latest year). Shim over DECISIONS_LATEST.
+const DECISIONS_2024 = Array.isArray(_W.DECISIONS_LATEST) && _W.DECISIONS_LATEST.length
+  ? _W.DECISIONS_LATEST
+  : [
+      { label: 'Granted asylum', v: 34200, color: 'var(--accent-2)' },
+      { label: 'Granted humanitarian / other', v: 4800, color: 'var(--accent-gold)' },
+      { label: 'Refused',        v: 27800, color: 'var(--accent-warn)' },
+      { label: 'Withdrawn',      v: 5600, color: 'var(--muted-2)' },
+    ];
 
-// Backlog 2018–2024 (pending initial decision)
-const BACKLOG = [
-  { y: 2018, v: 27800 },
-  { y: 2019, v: 39100 },
-  { y: 2020, v: 52700 },
-  { y: 2021, v: 76800 },
-  { y: 2022, v: 109600 },
-  { y: 2023, v: 132200 },
-  { y: 2024, v: 91200 },
-];
+// Backlog (pending initial decision) annual series. Shim over BACKLOG_LATEST.
+const BACKLOG = Array.isArray(_W.BACKLOG_LATEST) && _W.BACKLOG_LATEST.length
+  ? _W.BACKLOG_LATEST.map(r => ({ y: r.y, v: r.v }))
+  : [
+      { y: 2018, v: 27800 }, { y: 2019, v: 39100 }, { y: 2020, v: 52700 },
+      { y: 2021, v: 76800 }, { y: 2022, v: 109600 }, { y: 2023, v: 132200 },
+      { y: 2024, v: 91200 },
+    ];
 
-// Resettlement schemes 2024
-const RESETTLEMENT = [
-  { name: 'ACRS (Afghan)',      v: 4820 },
-  { name: 'ARAP (Afghan)',       v: 3140 },
-  { name: 'Ukraine family',      v: 2260 },
-  { name: 'UKRS (UNHCR)',        v: 1680 },
-  { name: 'Community sponsorship', v: 510 },
-];
+// Resettlement schemes (latest year). RESETTLEMENT_SERIES is the canonical
+// wide-format pipeline output ({name, 2023:…, 2024:…, 2025:…}); collapse it
+// to the latest year for the current shell chart. When a new year lands,
+// propagates automatically.
+const RESETTLEMENT = (() => {
+  const src = _W.RESETTLEMENT_SERIES;
+  if (Array.isArray(src) && src.length) {
+    const years = Object.keys(src[0] || {}).filter(k => /^\d{4}$/.test(k)).sort();
+    const latest = years[years.length - 1];
+    if (latest) {
+      return src
+        .map(r => ({ name: r.name, v: r[latest] || 0 }))
+        .filter(r => r.v > 0)
+        .sort((a, b) => b.v - a.v);
+    }
+  }
+  return [
+    { name: 'ACRS (Afghan)',        v: 4820 },
+    { name: 'ARAP (Afghan)',        v: 3140 },
+    { name: 'Ukraine family',       v: 2260 },
+    { name: 'UKRS (UNHCR)',         v: 1680 },
+    { name: 'Community sponsorship', v: 510 },
+  ];
+})();
 
-// UK regions — applications 2024
-const REGIONS = [
-  { name: 'London',              v: 14200 },
-  { name: 'North West',          v: 11400 },
-  { name: 'Yorkshire & Humber',  v: 9600 },
-  { name: 'West Midlands',        v: 9100 },
-  { name: 'South East',           v: 8200 },
-  { name: 'East of England',      v: 6800 },
-  { name: 'North East',           v: 6100 },
-  { name: 'East Midlands',        v: 5700 },
-  { name: 'South West',           v: 4400 },
-  { name: 'Scotland',             v: 3100 },
-  { name: 'Wales',                v: 1500 },
-  { name: 'Northern Ireland',     v: 680  },
-];
+// UK regions — supported asylum seekers by region (latest snapshot).
+// Shim over SUPPORT_REGIONS.
+const REGIONS = Array.isArray(_W.SUPPORT_REGIONS) && _W.SUPPORT_REGIONS.length
+  ? _W.SUPPORT_REGIONS.map(r => ({ name: r.name, v: r.v }))
+  : [
+      { name: 'London',             v: 14200 }, { name: 'North West',        v: 11400 },
+      { name: 'Yorkshire & Humber', v: 9600 },  { name: 'West Midlands',     v: 9100 },
+      { name: 'South East',         v: 8200 },  { name: 'East of England',   v: 6800 },
+      { name: 'North East',         v: 6100 },  { name: 'East Midlands',     v: 5700 },
+      { name: 'South West',         v: 4400 },  { name: 'Scotland',          v: 3100 },
+      { name: 'Wales',              v: 1500 },  { name: 'Northern Ireland',  v: 680  },
+    ];
 
 // Stories on the index page
+// Story anatomy (Tranche 6.2): every story carries a compressed ~80-word digest
+// plus a standard "measures / doesn't" pair so the StoryView renders a consistent
+// digest block at the top. Each story also carries `reading_links` for the
+// "Further reading" footer (Tranche 6.4) — two or three outbound links each.
 const STORIES = [
   {
     id: 'long-tail',
     kicker: 'Applications',
-    title: 'The long tail of the 2022 surge',
-    dek: 'UK asylum applications peaked at 84,425 in 2023 — the highest since the modern series began — before easing marginally in 2024.',
+    title: 'After the 2022 surge',
+    dek: 'Applications peaked at 84,425 in 2023, eased in 2024, ticked back up in 2025. The new plateau is roughly three times 2018.',
+    digest: 'UK asylum applications tripled between 2020 and 2023, peaking at 84,425 main applicants. The climb was sharper than the early-2000s spike — the plateau that followed sits at roughly three times the 2018 level. 2024 dipped 4%, mostly on faster handling of inadmissible claims; 2025 edged back up. The composition of who is applying has shifted faster than the total.',
+    measures: 'Main applicants lodging an asylum claim in the UK, counted once per year.',
+    excludes: 'Dependants, appeals reopened in a later year, and inadmissibility declarations that never become full claims.',
+    reading_links: [
+      { label: 'Migration Observatory — Asylum and refugees',
+        url: 'https://migrationobservatory.ox.ac.uk/resources/briefings/migration-to-the-uk-asylum/' },
+      { label: 'Refugee Council — asylum statistics',
+        url: 'https://www.refugeecouncil.org.uk/information/refugee-asylum-facts/' },
+      { label: 'ONS — International migration',
+        url: 'https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/internationalmigration' },
+    ],
     author: 'Data Team',
     date: '14 April 2026',
     reading: '8 min',
@@ -114,8 +176,17 @@ const STORIES = [
   {
     id: 'pakistan',
     kicker: 'Nationality',
-    title: 'Pakistan overtakes Afghanistan',
-    dek: 'For the first time in the post-2020 series, Pakistani nationals filed more applications than any other group in 2024.',
+    title: 'Pakistan leads, Afghanistan follows',
+    dek: 'Pakistani nationals filed more claims than any other group in 2024 and held the lead in 2025 — the first two-year run in the modern series.',
+    digest: 'Pakistani nationals filed more UK asylum claims than any other group in 2024 and again in 2025 — the first two-year run at the top in the modern series. Afghan claims remain second, Iranian third. Grant rates for the three groups diverge sharply: Afghan claims are overwhelmingly granted, Pakistani claims much less so. The headline ranking by volume is not the same story as the ranking by outcome.',
+    measures: 'Main-applicant count by claimed nationality at the point of application.',
+    excludes: 'Dual nationality is resolved to a single recorded nationality; stateless applicants sit in their own row.',
+    reading_links: [
+      { label: 'Migration Observatory — Who claims asylum in the UK?',
+        url: 'https://migrationobservatory.ox.ac.uk/resources/briefings/people-seeking-asylum-understanding-asylum-statistics/' },
+      { label: 'UNHCR — asylum applications by origin (UK)',
+        url: 'https://www.unhcr.org/refugee-statistics/' },
+    ],
     date: '02 April 2026',
     reading: '5 min',
     hero: 'bars',
@@ -123,8 +194,17 @@ const STORIES = [
   {
     id: 'backlog',
     kicker: 'Decisions',
-    title: 'The backlog, unwound',
-    dek: 'The queue of undecided cases has fallen from 132,000 to 91,200 in a year — but average wait times remain historically high.',
+    title: 'The backlog, halved',
+    dek: 'The queue of undecided cases fell from 132,000 at the end of 2022 to 48,700 at the end of 2025 — below the 2020 level.',
+    digest: 'The queue of asylum cases awaiting an initial decision fell from 132,000 at the end of 2022 to 48,700 at the end of 2025 — below where it sat before the 2021–23 surge. Clearing the tail pushed overall grant rates up and then down, as the remaining cases concentrated in harder-to-decide nationalities. The queue’s shape, not just its size, now drives the headline rate.',
+    measures: 'Cases awaiting an initial decision at 31 December each year (main applicants).',
+    excludes: 'Appeals pending, administrative-review cases, inadmissibility reviews, and cases at a later stage of the system.',
+    reading_links: [
+      { label: 'Home Office — Asylum claims awaiting decision',
+        url: 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables' },
+      { label: 'Migration Observatory — asylum backlog explainer',
+        url: 'https://migrationobservatory.ox.ac.uk/resources/commentaries/the-asylum-backlog-what-is-it-and-why-does-it-matter/' },
+    ],
     date: '28 March 2026',
     reading: '6 min',
     hero: 'backlog',
@@ -132,8 +212,17 @@ const STORIES = [
   {
     id: 'boats',
     kicker: 'Arrivals',
-    title: 'Small boats, seven years on',
-    dek: 'Channel crossings by small boat have passed 200,000 since 2018. How the composition of arrivals has changed.',
+    title: 'Eight seasons on the Channel',
+    dek: 'Small-boat crossings passed 200,000 in early 2026. Weekly cadence, yearly totals, and the widening gap between arrivals and prevented events.',
+    digest: 'Small-boat arrivals have passed 200,000 since records began in 2018. Weekly cadence is strongly seasonal — low January to March, rising through spring, peaking late summer — and that seasonality is stable across eight years. Annual totals swing on weather and interception, not on the shape of the season. Preventions, reported since 2023, close some of the gap but not all of it.',
+    measures: 'Migrants detected arriving in small boats across the English Channel, by date of arrival.',
+    excludes: 'Clandestine entries by other routes, inadequately-documented air arrivals, and migrants turned back at the French coast.',
+    reading_links: [
+      { label: 'Home Office — small-boats publication',
+        url: 'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats' },
+      { label: 'Migration Observatory — small-boat crossings explainer',
+        url: 'https://migrationobservatory.ox.ac.uk/resources/briefings/people-crossing-the-english-channel-in-small-boats/' },
+    ],
     date: '21 March 2026',
     reading: '7 min',
     hero: 'area',
@@ -141,8 +230,17 @@ const STORIES = [
   {
     id: 'grant-rate',
     kicker: 'Outcomes',
-    title: 'Why the grant rate doubled',
-    dek: 'The share of claims granted at initial decision rose from 24% in 2019 to 47% in 2024. A closer look at what changed.',
+    title: 'Grant rate, doubled and drifting',
+    dek: 'Initial grants rose from 24% in 2019 to near 50% by 2024, then eased as the backlog unwound. What changed — and what is changing again.',
+    digest: 'The UK initial grant rate climbed from 24% in 2019 to near 50% by 2024, then eased as backlog-clearance shifted the case mix. Afghan and Syrian claims consistently grant above 95%; Albanian and Indian claims very rarely. The "UK grant rate" is a weighted mix of those extremes, not a meaningful property of the system on its own. Appeal overturns — unpublished since 2023 — would reshape the top line further.',
+    measures: 'Share of substantive initial decisions that granted protection or other leave.',
+    excludes: 'Appeal outcomes, withdrawals, and administrative decisions. Appeal overturns typically raise the final grant rate by 15–20 percentage points.',
+    reading_links: [
+      { label: 'Migration Observatory — asylum decisions',
+        url: 'https://migrationobservatory.ox.ac.uk/resources/briefings/people-seeking-asylum-understanding-asylum-statistics/' },
+      { label: 'UNHCR — asylum decisions by country',
+        url: 'https://www.unhcr.org/refugee-statistics/' },
+    ],
     date: '12 March 2026',
     reading: '4 min',
     hero: 'ring',
@@ -150,8 +248,17 @@ const STORIES = [
   {
     id: 'regions',
     kicker: 'Geography',
-    title: 'Where claimants are housed',
-    dek: 'Dispersal accommodation is concentrated in just eleven local authorities — together hosting nearly a third of all asylum seekers.',
+    title: 'Where the wait happens',
+    dek: 'Dispersal accommodation sits in eleven local authorities. They host roughly a third of all supported asylum seekers.',
+    digest: 'Home Office dispersal accommodation concentrates in a small number of local authorities. Eleven councils host roughly a third of all supported asylum seekers; hotels account for a declining but significant share. The geography of the wait is quite different from the geography of claim-making — claims are heard nationally, but people live wherever the accommodation contract routes them.',
+    measures: 'Asylum seekers in receipt of Section 95 and Section 4 support, by the local authority where they are housed.',
+    excludes: 'Self-supporting asylum seekers, those in detention, and resettled refugees outside the asylum process.',
+    reading_links: [
+      { label: 'Home Office — asylum support statistics',
+        url: 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables' },
+      { label: 'Refugee Council — asylum accommodation',
+        url: 'https://www.refugeecouncil.org.uk/' },
+    ],
     date: '04 March 2026',
     reading: '5 min',
     hero: 'map',
@@ -163,31 +270,121 @@ const STORIES = [
 const URL_ISS_TABLES = 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables';
 const URL_SMALL_BOATS = 'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats';
 const URL_SMALL_BOATS_7 = 'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days';
-const URL_IRR_MIGRATION = 'https://www.gov.uk/government/statistics/irregular-migration-to-the-uk-statistics';
+const URL_IRR_MIGRATION = 'https://www.gov.uk/government/statistical-data-sets/irregular-migration-detailed-dataset-and-summary-tables';
 const URL_UKRAINE = 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables';
+
+// Pick a freshness date from a data-global's *_META. Prefers the upstream-
+// publication date the source actually advertises (`latest_date`,
+// `latestDataPoint`, `updatedAt`), falling back to the pipeline's own run
+// timestamp (`generatedAt`). Rows whose builder does not yet exist pass
+// null and show an em-dash.
+function metaDate(meta) {
+  if (!meta) return '—';
+  const raw = meta.latest_date || meta.latestDataPoint || meta.asOf || meta.updatedAt || meta.generatedAt;
+  if (!raw) return '—';
+  const d = new Date(raw);
+  if (isNaN(d)) return String(raw);
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${dd} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+const W = (typeof window !== 'undefined') ? window : {};
 
 const DATASETS = [
   // Asylum claims
-  { code: 'ASY_D01', name: 'Asylum applications, by nationality',        rows: '1,248,220', updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D02', name: 'Initial decisions on asylum applications',    rows: '884,014',   updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D03', name: 'Age and sex of asylum applicants',            rows: '492,100',   updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D04', name: 'Appeals outcomes',                            rows: '221,400',   updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D07', name: 'Asylum seekers awaiting a decision (backlog)',rows: '~186,400',  updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D01', name: 'Asylum applications, by nationality',        rows: '1,248,220', updated: metaDate(W.NAT_FULL_META),         freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D02', name: 'Initial decisions on asylum applications',    rows: '884,014',   updated: metaDate(W.DECISIONS_META),        freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D03', name: 'Age and sex of asylum applicants',            rows: '492,100',   updated: metaDate(W.SEX_AGE_META),          freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D04', name: 'Outcome analysis of asylum claims (cohort)',  rows: '~18,700',   updated: metaDate(W.OUTCOME_COHORT_META),   freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D07', name: 'Asylum seekers awaiting a decision (backlog)',rows: '~186,400',  updated: metaDate(W.BACKLOG_META),          freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
   // Support & accommodation
-  { code: 'ASY_D05', name: 'Support provided to asylum seekers',          rows: '412,200',   updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D09', name: 'Asylum seekers in receipt of support (hotels)',rows: '~88,200',  updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'ASY_D11', name: 'Asylum support by local authority',           rows: '~39,600',   updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D05', name: 'Support provided to asylum seekers',          rows: '412,200',   updated: metaDate(W.SUPPORT_REGIONS_META),  freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D09', name: 'Asylum seekers in receipt of support (hotels)',rows: '~88,200',  updated: metaDate(W.HOTELS_META),           freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'ASY_D11', name: 'Asylum support by local authority',           rows: '~39,600',   updated: metaDate(W.SUPPORT_REGIONS_META),  freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
   // Age disputes
-  { code: 'AGE_D01', name: 'Age disputes by nationality',                 rows: '~4,700',    updated: '12 Apr 2026', freq: 'Annual',    landingUrl: URL_ISS_TABLES },
+  { code: 'AGE_D01', name: 'Age disputes by nationality',                 rows: '~4,700',    updated: metaDate(W.AGE_DISPUTES_META),     freq: 'Annual',    landingUrl: URL_ISS_TABLES },
   // Small boats crossings
-  { code: 'SB_D01',  name: 'Small boats: daily crossings (2018–present)', rows: '~2,920',    updated: '17 Apr 2026', freq: 'Weekly',    landingUrl: URL_SMALL_BOATS },
-  { code: 'SB_D02',  name: 'Small boats: last 7 days (provisional)',      rows: '7',          updated: '20 Apr 2026', freq: 'Daily',     landingUrl: URL_SMALL_BOATS_7 },
-  // Irregular migration (non-boat)
-  { code: 'IRR_D01', name: 'Irregular migration to the UK',               rows: '618,900',   updated: '05 Apr 2026', freq: 'Monthly',   landingUrl: URL_IRR_MIGRATION },
+  { code: 'SB_D01',  name: 'Small boats: daily crossings (2018–present)', rows: '~2,920',    updated: metaDate(W.BOATS_META),            freq: 'Weekly',    landingUrl: URL_SMALL_BOATS },
+  { code: 'SB_D02',  name: 'Small boats: last 7 days (provisional)',      rows: '7',          updated: metaDate(W.BOATS_PROVISIONAL_META),freq: 'Daily',     landingUrl: URL_SMALL_BOATS_7 },
+  // Irregular migration — small-boat arrivals by nationality (Irr_02b / Irr_D01).
+  { code: 'IRR_D01', name: 'Irregular migration — small-boat arrivals by nationality', rows: '~200',      updated: metaDate(W.IRR_BOATS_META),        freq: 'Quarterly', landingUrl: URL_IRR_MIGRATION },
   // Resettlement
-  { code: 'RES_D01', name: 'Refugee resettlement and family schemes',     rows: '94,820',    updated: '12 Apr 2026', freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  { code: 'RES_D02', name: 'Ukraine schemes visa statistics',             rows: '318,400',   updated: '12 Apr 2026', freq: 'Monthly',   landingUrl: URL_UKRAINE },
+  { code: 'RES_D01', name: 'Refugee resettlement and family schemes',     rows: '94,820',    updated: metaDate(W.RESETTLEMENT_META),     freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
+  { code: 'RES_D02', name: 'Ukraine schemes visa statistics',             rows: '318,400',   updated: metaDate(null),                    freq: 'Monthly',   landingUrl: URL_UKRAINE },
 ];
+
+// Inverted provenance index — which charts in the product consume each
+// dataset. Maintained manually because the `source="Home Office · CODE"`
+// prop on each chart is free text; keeping the list here keeps it
+// authoritative and lets the Datasets page answer "if this source
+// breaks, what breaks with it?" at a glance. When a new chart is added,
+// append its (view, chart) row under the matching code.
+const DATASET_CONSUMERS = {
+  ASY_D01: [
+    { view: 'Dashboard', chart: 'Fig. 01 · Asylum applications' },
+    { view: 'Dashboard', chart: 'Fig. 03 · Top five nationalities' },
+    { view: 'Dashboard', chart: 'Fig. 03a · All nationalities' },
+    { view: 'Atlas',     chart: 'Choropleth · Applicants' },
+    { view: 'Atlas',     chart: 'Country panel · Applicants + quarterly trend' },
+    { view: 'Flow',      chart: 'Nationality → Initial decision (sankey)' },
+    { view: 'Stories',   chart: 'Hero line · applications vs small-boat arrivals' },
+    { view: 'Build',     chart: 'Applications · Top-5 nationalities · Nationalities (pick any)' },
+  ],
+  ASY_D02: [
+    { view: 'Dashboard', chart: 'Fig. 04 · Initial decisions + Grant-rate ring' },
+    { view: 'Dashboard', chart: 'Fig. 05a · Grant rate by nationality · small multiples' },
+    { view: 'Atlas',     chart: 'Country panel · Grant-rate trend' },
+    { view: 'Flow',      chart: 'Initial decision split (sankey col 2)' },
+    { view: 'Build',     chart: 'Grant rate by nationality' },
+  ],
+  ASY_D03: [
+    { view: 'Dashboard', chart: 'Age / sex statistics block' },
+    { view: 'Build',     chart: '(future) Age / sex datasets' },
+  ],
+  ASY_D04: [
+    // All consumers pending Tranche 3 cohort-outcome ingest.
+  ],
+  ASY_D07: [
+    { view: 'Dashboard', chart: 'Fig. 05 · Pending cases (backlog)' },
+    { view: 'Dashboard', chart: 'Hero statistic · Backlog' },
+    { view: 'Build',     chart: 'Backlog (pending)' },
+  ],
+  ASY_D05: [
+    { view: 'Dashboard', chart: 'Support regions statistics' },
+  ],
+  ASY_D09: [
+    { view: 'Dashboard', chart: 'Hotels statistics' },
+    { view: 'Build',     chart: 'People in hotels (asylum accommodation)' },
+  ],
+  ASY_D11: [
+    { view: 'Dashboard', chart: 'Support regions map' },
+  ],
+  AGE_D01: [
+    { view: 'Atlas', chart: 'Country panel · Age disputes raised' },
+    { view: 'Atlas', chart: 'Choropleth · Age disputes' },
+  ],
+  SB_D01: [
+    { view: 'Dashboard', chart: 'Fig. 02 · YoY cumulative arrivals' },
+    { view: 'Dashboard', chart: 'Fig. 02b · Seasonal heat-map' },
+    { view: 'Dashboard', chart: 'Hero statistic · This week arrivals, YTD arrivals' },
+    { view: 'Stories',   chart: 'This-week dateline strip' },
+    { view: 'Build',     chart: 'Small-boat arrivals (daily / weekly / monthly / annual)' },
+  ],
+  SB_D02: [
+    { view: 'Dashboard', chart: 'Provisional last-7-days strip' },
+    { view: 'Dashboard', chart: 'Fig. 04/04a · Monthly interceptions / preventions' },
+    { view: 'Build',     chart: 'Interceptions · Preventions' },
+  ],
+  IRR_D01: [
+    { view: 'Flow', chart: 'Boats by nationality palette (top-5 + Other)' },
+  ],
+  RES_D01: [
+    { view: 'Build', chart: 'Resettlement arrivals by scheme' },
+  ],
+  RES_D02: [
+    // Ukraine schemes not yet surfaced in any chart.
+  ],
+};
 
 // Region-of-origin lookup for NAT_FULL. Egypt counted as Middle East per editorial call;
 // Afghanistan counted as Central Asia to match the Home Office's own regional
@@ -274,6 +471,6 @@ function groupNatByRegion(rows) {
 
 Object.assign(window, {
   ASYLUM_ANNUAL, DATA_MAX_YEAR, TOP_NATIONALITIES, NAT_SERIES, DECISIONS_2024,
-  BACKLOG, RESETTLEMENT, REGIONS, STORIES, DATASETS,
+  BACKLOG, RESETTLEMENT, REGIONS, STORIES, DATASETS, DATASET_CONSUMERS,
   REGION_MAP, groupNatByRegion,
 });

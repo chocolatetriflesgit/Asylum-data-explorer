@@ -3,11 +3,15 @@
 // DECISIONS_2024) for the refused/withdrawn split ratio; HOTELS /
 // RETURNS_BY_NATIONALITY / BACKLOG_LATEST for the KPI callout row.
 
+// Finding 28 — palette capped at top-5 + Other. The five-colour set mirrors
+// the stable top-five irregular-arrivals nationality pool (Afghan, Eritrean,
+// Iranian, Syrian, Sudanese) per Irr_D01; the actual five names are still
+// pulled from NAT_FULL at runtime so the chart tracks data, not copy.
 const FLOW_NAT_PALETTE = [
   '#1c5c3d', '#c44a2a', '#2a5c8b', '#8b6c1c', '#6b2a8b',
-  '#2a8b6c', '#8b2a4a', '#4a6b1c', '#1c3d6b', '#6b4a1c',
   '#888888',
 ];
+const FLOW_NAT_TOP_N = 5;
 
 // System-flow palette — distinct from nationalities so the two sankeys don't
 // read as the same data viewed differently.
@@ -82,12 +86,56 @@ function buildSystemFlow() {
   const refused      = Math.round(appsTotal * refusedShare);
   const withdrawn    = appsTotal - granted - humanitarian - refused;
 
-  // Col 3 — appeal outcomes PLACEHOLDER until ASY_D04 is wired in (R6).
-  // Published commentary says appeals overturn ~15–20% of refused cases; use
-  // 25% at the upper end as an illustrative split.
-  const APPEAL_ALLOWED_RATIO = 0.25;
-  const appealAllowedMock   = Math.round(refused * APPEAL_ALLOWED_RATIO);
-  const appealDismissedMock = refused - appealAllowedMock;
+  // Col 3 — "Latest outcome" (real, when OUTCOME_COHORT_ANNUAL has data).
+  // Aggregate the initial-vs-latest deltas across cohorts that overlap the
+  // display year. For each initial bucket we compute what share of that
+  // bucket landed in each latest bucket; col-2 → col-3 links are sized
+  // accordingly so column totals match initial totals.
+  const cohortRows = (typeof OUTCOME_COHORT_ANNUAL !== 'undefined' && Array.isArray(OUTCOME_COHORT_ANNUAL))
+    ? OUTCOME_COHORT_ANNUAL : [];
+  let latestNodes = [], latestLinks = [];
+  if (cohortRows.length) {
+    // Aggregate initial + latest buckets across all cohort rows (defensible:
+    // the share of initial→latest transitions is approximately stable across
+    // cohort years, so pooling them gives a stronger signal than one year).
+    const init = { protection:0, otherLeave:0, refusals:0, withdrawals:0, admin:0, notYet:0 };
+    const latest = { protection:0, otherLeave:0, refusals:0, withdrawals:0, admin:0, notYet:0 };
+    for (const r of cohortRows) {
+      for (const k in init) { init[k] += r.initial?.[k] || 0; latest[k] += r.latest?.[k] || 0; }
+    }
+    const initTotal = Object.values(init).reduce((s,v)=>s+v,0) || 1;
+    const scale = appsTotal / initTotal;
+    const L = k => Math.round((latest[k] || 0) * scale);
+    const lGrant = L('protection') + L('otherLeave');
+    const lRef   = L('refusals');
+    const lWdr   = L('withdrawals') + L('admin');
+    const lPend  = Math.max(0, appsTotal - lGrant - lRef - lWdr);
+    latestNodes = [
+      { id: 'l_grant', label: 'Granted (latest)',   col: 3, value: lGrant, color: FLOW_SYSTEM_COLORS.granted },
+      { id: 'l_ref',   label: 'Refused (latest)',   col: 3, value: lRef,   color: FLOW_SYSTEM_COLORS.refused },
+      { id: 'l_wdr',   label: 'Withdrawn (latest)', col: 3, value: lWdr,   color: FLOW_SYSTEM_COLORS.withdrawn },
+      ...(lPend > 0 ? [{ id: 'l_pend', label: 'Still pending', col: 3, value: lPend, color: 'var(--bg-3)' }] : []),
+    ];
+    // Naive routing: each initial bucket sends its mass proportionally to
+    // the four latest buckets based on global shares. Good enough for an
+    // overview — the cohort ribbon (B5) is where per-cohort precision lives.
+    const shareTotal = lGrant + lRef + lWdr + lPend || 1;
+    const partitionLinks = (fromId, fromV) => {
+      if (!fromV) return [];
+      return [
+        { source: fromId, target: 'l_grant', value: Math.round(fromV * lGrant / shareTotal) },
+        { source: fromId, target: 'l_ref',   value: Math.round(fromV * lRef   / shareTotal) },
+        { source: fromId, target: 'l_wdr',   value: Math.round(fromV * lWdr   / shareTotal) },
+        ...(lPend > 0 ? [{ source: fromId, target: 'l_pend', value: Math.round(fromV * lPend / shareTotal) }] : []),
+      ].filter(lk => lk.value > 0);
+    };
+    latestLinks = [
+      ...partitionLinks('d_grant', granted),
+      ...partitionLinks('d_human', humanitarian),
+      ...partitionLinks('d_ref',   refused),
+      ...partitionLinks('d_wdr',   withdrawn),
+    ];
+  }
 
   const nodes = [
     ...col0,
@@ -96,8 +144,7 @@ function buildSystemFlow() {
     { id: 'd_human', label: 'Humanitarian', col: 2, value: humanitarian, color: FLOW_SYSTEM_COLORS.humanitarian },
     { id: 'd_ref',   label: 'Refused',      col: 2, value: refused,      color: FLOW_SYSTEM_COLORS.refused },
     { id: 'd_wdr',   label: 'Withdrawn',    col: 2, value: withdrawn,    color: FLOW_SYSTEM_COLORS.withdrawn },
-    { id: 'a_allow', label: 'Appeal allowed (placeholder)',   col: 3, value: appealAllowedMock,   color: FLOW_SYSTEM_COLORS.appealAllowed,   mocked: true },
-    { id: 'a_dism',  label: 'Appeal dismissed (placeholder)', col: 3, value: appealDismissedMock, color: FLOW_SYSTEM_COLORS.appealDismissed, mocked: true },
+    ...latestNodes,
   ];
 
   const links = [
@@ -106,11 +153,10 @@ function buildSystemFlow() {
     { source: 'app',   target: 'd_human', value: humanitarian },
     { source: 'app',   target: 'd_ref',   value: refused },
     { source: 'app',   target: 'd_wdr',   value: withdrawn },
-    { source: 'd_ref', target: 'a_allow', value: appealAllowedMock,   dashed: true },
-    { source: 'd_ref', target: 'a_dism',  value: appealDismissedMock, dashed: true },
+    ...latestLinks,
   ];
 
-  return { nodes, links, year };
+  return { nodes, links, year, hasLatest: latestNodes.length > 0 };
 }
 
 function buildSankeyData() {
@@ -121,8 +167,8 @@ function buildSankeyData() {
   if (!natFull.length) return { nodes: [], links: [] };
 
   const sorted = [...natFull].sort((a, b) => b.v - a.v);
-  const top10  = sorted.slice(0, 10);
-  const rest   = sorted.slice(10);
+  const topN   = sorted.slice(0, FLOW_NAT_TOP_N);
+  const rest   = sorted.slice(FLOW_NAT_TOP_N);
 
   // Fallback grant rate: weighted average across all nationalities
   const totalV       = natFull.reduce((s, r) => s + r.v, 0);
@@ -135,17 +181,17 @@ function buildSankeyData() {
   const splitDenom  = refusedV + withdrawnV;
   const refusedRatio = splitDenom > 0 ? refusedV / splitDenom : 0.77;
 
-  // "Other" aggregate: nationalities outside the top 10
+  // "Other" aggregate: nationalities outside the top N
   const otherV       = rest.reduce((s, r) => s + r.v, 0);
   const otherGranted = rest.reduce((s, r) => s + r.v * (r.grant ?? globalGrant), 0);
   const otherGrant   = otherV > 0 ? otherGranted / otherV : globalGrant;
 
   const sources = [
-    ...top10.map((r, i) => ({
+    ...topN.map((r, i) => ({
       id: `n${i}`, label: r.name, v: r.v,
       grant: r.grant ?? globalGrant, color: FLOW_NAT_PALETTE[i],
     })),
-    { id: 'nOther', label: 'Other nationalities', v: otherV, grant: otherGrant, color: FLOW_NAT_PALETTE[10] },
+    { id: 'nOther', label: 'Other nationalities', v: otherV, grant: otherGrant, color: FLOW_NAT_PALETTE[FLOW_NAT_TOP_N] },
   ];
 
   const links = [];
@@ -221,13 +267,25 @@ function FlowView({ setRoute }) {
         </p>
       </div>
 
-      {/* System flow — four-stage view; col 3 appeal outcomes still mocked */}
+      {/* How to read this — Tranche 6.5 primer for non-expert readers. */}
+      <aside style={{marginTop:8,marginBottom:28,padding:'18px 22px',background:'var(--bg-2)',border:'1px solid var(--rule)',borderLeft:'2px solid var(--accent)',maxWidth:940}}>
+        <div className="uc" style={{color:'var(--muted)',fontSize:11,marginBottom:8,letterSpacing:0.4}}>How to read this</div>
+        <div style={{fontSize:13.5,lineHeight:1.55,color:'var(--ink-2)',fontFamily:'var(--serif)'}}>
+          Each diagram reads <em>left to right</em>. Every ribbon is a group of people, and the width of the ribbon is how many — wider means more.
+          Splits show where that group divided: granted, refused, withdrawn, or still pending.
+          Hover a ribbon or a bar to see the underlying figure.
+          The <b style={{color:'var(--ink)',fontWeight:600}}>2022 cohort</b> is highlighted below — a useful starting point because the 2022 surge produced the largest cohort in the series and its initial-vs-latest delta is the most studied.
+        </div>
+      </aside>
+
+      {/* System flow — three or four column view depending on ASY_D04 availability. */}
       <div style={{marginTop:4,marginBottom:8}}>
         <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>System flow · {systemYear ?? year}</div>
-        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>Entry → Application → Initial decision → Appeal</h2>
-      </div>
-      <div style={{padding:'10px 14px',background:'#fff7e6',border:'1px solid #e8c97a',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.5,marginBottom:12}}>
-        <strong style={{fontWeight:500}}>Placeholder data:</strong> appeal outcomes (right) are illustrative — the pipeline does not yet ingest the appeals dataset (ASY_D04). Dashed links mark the placeholder segment. Entry routes come from ASY_D01a (date of asylum claim) and the Application → Initial decision split uses shares from ASY_D02.
+        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>
+          {system.hasLatest
+            ? 'Entry → Application → Initial decision → Latest outcome'
+            : 'Entry → Application → Initial decision'}
+        </h2>
       </div>
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
         {system.nodes.length ? (
@@ -239,8 +297,16 @@ function FlowView({ setRoute }) {
         )}
       </div>
 
-      <div style={{marginTop:8,fontSize:11.5,color:'var(--muted-2)',lineHeight:1.5,maxWidth:900}}>
-        Asterisks mark placeholder values. The appeal-allowed ratio (25% of refused) is drawn from published commentary that 15–20% of refused cases are overturned on appeal — treat it as illustrative, not definitive, until ASY_D04 is wired in. Only the refused cohort is shown flowing into appeals; grants, humanitarian protection, and withdrawals terminate at initial decision.
+      <div style={{marginTop:12,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:900}}>
+        {system.hasLatest ? (
+          <>
+            <strong style={{fontWeight:500}}>Latest outcome is the initial-vs-latest delta from ASY_D04</strong>, pooled across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The Home Office has not yet republished pure appeals data since migrating case-working systems (ASY_D04 Cover_sheet, Note 5); the cohort-level initial-vs-latest delta is the defensible proxy until that lands.
+          </>
+        ) : (
+          <>
+            <strong style={{fontWeight:500}}>Appeal outcomes not shown.</strong> The Home Office has not yet republished appeal-specific data since migrating case-working systems (ASY_D04 Cover_sheet, Note 5). The closest defensible proxy is the <em>initial vs latest</em> outcome delta in the cohort file — which will land as a real fourth column here when the cohort-outcome ingest is wired in. Entry routes come from ASY_D01a (date of asylum claim) and the Application → Initial decision split uses shares from ASY_D02.
+          </>
+        )}
       </div>
 
       {/* Nationality breakdown — existing chart, now below the system view */}
@@ -262,22 +328,41 @@ function FlowView({ setRoute }) {
         Decision outcomes are estimated by applying each nationality's initial-decision grant rate to its applicant volume. The refused/withdrawn split uses the overall ratio from <em>Initial decisions on asylum applications</em> (ASY_D02). Left and right totals are identical by construction. <strong style={{fontWeight:500,color:'var(--ink-2)'}}>Note:</strong> "Granted (initial)" refers to grants at initial decision only — appeal grants, which overturn a further ~15–20% of refused cases, are not included as cohort-level appeal data is not published.
       </div>
 
-      <div style={{marginTop:32}}>
-        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:12}}>Snapshot indicators · separate datasets</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:12}}>
-          <FlowKPI
-            label="People in asylum accommodation"
-            value={hotelsLatest}
-            note="Asylum seekers in receipt of Home Office support, latest quarterly snapshot"/>
-          <FlowKPI
-            label="Returns (all nationalities)"
-            value={returnsTotal}
-            note="Enforced and voluntary returns combined, latest year"/>
-          <FlowKPI
-            label="Pending initial decision"
-            value={backlogLatest}
-            note="People awaiting a decision at latest snapshot"/>
-        </div>
+      {/* Boats-by-nationality strip — top-5 + Other from Irr_D01 (Finding 28). */}
+      <IrrBoatsByNationality/>
+
+      {/* B5 cohort ribbon — one panel per year-of-claim. */}
+      <div style={{marginTop:48,marginBottom:8}}>
+        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Cohort ribbon · ASY_D04</div>
+        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 10px'}}>
+          Where each year's claimants ended up
+        </h2>
+        <p style={{fontSize:14,color:'var(--ink-2)',maxWidth:720,margin:'0 0 16px',lineHeight:1.5}}>
+          One panel per year of claim. Top ribbon shows the initial decision; lower ribbon shows where the same cohort is now, reflecting appeals, late withdrawals, and returns.
+        </p>
+      </div>
+      <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'20px 20px 16px'}}>
+        <CohortRibbon
+          data={buildCohortAggregate()}
+          width={1120}
+          cols={4}
+          highlightYear={2022}
+          annotations={[
+            { year: 2022, phase: 'initial', text: 'most granted on first decision' },
+            { year: 2022, phase: 'latest',  text: 'still-pending tail much smaller' },
+            { year: 2019, phase: 'latest',  text: 'many refused, some overturned later' },
+          ]}/>
+      </div>
+
+      {/* B4 annual backlog waterfall */}
+      <div style={{marginTop:48,marginBottom:8}}>
+        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Backlog waterfall · annual</div>
+        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 10px'}}>
+          Pending cases, year by year
+        </h2>
+      </div>
+      <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'20px 20px 16px'}}>
+        <BacklogWaterfall data={buildAnnualWaterfall()} width={1000} height={320}/>
       </div>
 
       <div style={{marginTop:24,display:'flex',gap:14,fontSize:12}}>
@@ -292,6 +377,197 @@ function FlowView({ setRoute }) {
       </div>
     </main>
   );
+}
+
+// Finding 28 · Small-boat arrivals by nationality, top-5 + Other, across
+// full years in IRR_BOATS_BY_NATIONALITY (Irr_02b / Irr_D01).
+function buildIrrTop5ByYear() {
+  const rows = (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && Array.isArray(IRR_BOATS_BY_NATIONALITY))
+    ? IRR_BOATS_BY_NATIONALITY : [];
+  if (!rows.length) return { years: [], palette: [], matrix: [], latestPartialYear: null };
+
+  // Partition: full years for the stacked bars, flag any partial year.
+  const fullYears = [...new Set(rows.filter(r => !r.partial && !r.meta).map(r => r.year))].sort();
+  const partialYears = [...new Set(rows.filter(r => r.partial && !r.meta).map(r => r.year))].sort();
+  const latestPartialYear = partialYears.length ? partialYears[partialYears.length - 1] : null;
+
+  if (!fullYears.length) return { years: [], palette: [], matrix: [], latestPartialYear };
+
+  // Top-5 set = highest-volume nationalities summed across the full-year window,
+  // excluding the source's own "All other nationalities" aggregate and
+  // "Not currently recorded" so we don't double-count them.
+  const totals = new Map();
+  for (const r of rows) {
+    if (r.meta) continue;            // skip source's own aggregates
+    if (!fullYears.includes(r.year)) continue;
+    totals.set(r.nationality, (totals.get(r.nationality) || 0) + r.count);
+  }
+  const top5 = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
+  const palette = [...top5, 'Other'];
+
+  // Matrix of counts: rows=palette entries, cols=years (full years only).
+  const matrix = palette.map(name => fullYears.map(y => {
+    if (name === 'Other') {
+      // Everything in-year minus the top-5 — includes source-side "All other
+      // nationalities" and "Not currently recorded".
+      let yearTotal = 0, topCount = 0;
+      for (const r of rows) {
+        if (r.year !== y) continue;
+        if (r.meta === 'total') continue;
+        if (r.meta === 'other' || r.meta === 'unrecorded') { yearTotal += r.count; continue; }
+        yearTotal += r.count;
+        if (top5.includes(r.nationality)) topCount += r.count;
+      }
+      return yearTotal - topCount;
+    }
+    const row = rows.find(r => r.year === y && r.nationality === name);
+    return row ? row.count : 0;
+  }));
+
+  return { years: fullYears, palette, matrix, latestPartialYear };
+}
+
+function IrrBoatsByNationality() {
+  const { years, palette, matrix, latestPartialYear } = React.useMemo(buildIrrTop5ByYear, []);
+  const meta = typeof IRR_BOATS_META !== 'undefined' ? IRR_BOATS_META : null;
+
+  if (!years.length) {
+    return (
+      <div style={{marginTop:48}}>
+        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality</div>
+        <div style={{border:'1px dashed var(--rule)',background:'var(--bg-2)',padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:13}}>
+          Boats-by-nationality (Irr_D01) pending ingest. Run <code style={{fontFamily:'var(--mono)',fontSize:12}}>scripts/fetch_irregular.py</code> then <code style={{fontFamily:'var(--mono)',fontSize:12}}>scripts/build_irregular.py</code>.
+        </div>
+      </div>
+    );
+  }
+
+  const W = 1000, H = 240, M = { top: 16, right: 140, bottom: 28, left: 56 };
+  const innerW = W - M.left - M.right;
+  const innerH = H - M.top - M.bottom;
+  const barW = innerW / years.length * 0.7;
+  const gap = innerW / years.length * 0.3;
+
+  const totals = years.map((_, yi) => palette.reduce((s, _n, pi) => s + (matrix[pi][yi] || 0), 0));
+  const yMax = Math.max(...totals, 1);
+  // Palette tokens echo FLOW_NAT_PALETTE (5 colours) + muted for Other.
+  const colors = ['#1c5c3d','#c44a2a','#2a5c8b','#8b6c1c','#6b2a8b','#888888'];
+
+  const nf = (n) => n.toLocaleString('en-GB');
+
+  return (
+    <div style={{marginTop:48}}>
+      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality · Irr_D01</div>
+      <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>
+        Top-five nationalities crossing in small boats
+      </h2>
+      <p style={{fontSize:14,color:'var(--ink-2)',maxWidth:720,margin:'0 0 12px',lineHeight:1.5}}>
+        Full calendar years only; the top-five set is chosen by pooled volume across {years[0]}–{years[years.length-1]}. Everything else — including the Home Office's own &ldquo;All other nationalities&rdquo; and &ldquo;Not currently recorded&rdquo; rows — falls into <em>Other</em>.
+      </p>
+      <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'16px 20px 12px'}}>
+        <svg width={W} height={H} role="img" aria-label="Small-boat arrivals by nationality, stacked by year">
+          {/* y-axis */}
+          <line x1={M.left} y1={M.top} x2={M.left} y2={M.top + innerH} stroke="var(--rule-2)"/>
+          {[0, 0.5, 1].map((t, i) => {
+            const v = Math.round(yMax * (1 - t));
+            const y = M.top + innerH * t;
+            return (
+              <g key={i}>
+                <line x1={M.left} y1={y} x2={M.left + innerW} y2={y} stroke="var(--rule-2)" strokeDasharray={t === 1 ? '0' : '2 3'}/>
+                <text x={M.left - 6} y={y + 4} textAnchor="end" style={{fontFamily:'var(--mono)',fontSize:10,fill:'var(--muted)'}}>{nf(v)}</text>
+              </g>
+            );
+          })}
+          {/* bars */}
+          {years.map((y, yi) => {
+            const x = M.left + (yi + 0.5) * (innerW / years.length) - barW / 2;
+            let acc = 0;
+            return (
+              <g key={y}>
+                {palette.map((name, pi) => {
+                  const v = matrix[pi][yi] || 0;
+                  if (v <= 0) return null;
+                  const h = (v / yMax) * innerH;
+                  const y0 = M.top + innerH - acc - h;
+                  acc += h;
+                  return (
+                    <rect key={name} x={x} y={y0} width={barW} height={h}
+                          fill={colors[pi]} stroke="#fff" strokeWidth={0.5}>
+                      <title>{`${y} · ${name}: ${nf(v)}`}</title>
+                    </rect>
+                  );
+                })}
+                <text x={x + barW/2} y={M.top + innerH + 16} textAnchor="middle"
+                      style={{fontFamily:'var(--mono)',fontSize:10.5,fill:'var(--muted)'}}>{y}</text>
+              </g>
+            );
+          })}
+          {/* legend */}
+          {palette.map((name, pi) => (
+            <g key={name} transform={`translate(${M.left + innerW + 16}, ${M.top + pi * 18})`}>
+              <rect x={0} y={0} width={12} height={12} fill={colors[pi]}/>
+              <text x={18} y={10} style={{fontFamily:'var(--serif)',fontSize:12,fill:'var(--ink-2)'}}>{name}</text>
+            </g>
+          ))}
+        </svg>
+        {latestPartialYear != null ? (
+          <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:6,lineHeight:1.5}}>
+            {latestPartialYear} excluded from the chart — it is a partial year in the latest release.
+          </div>
+        ) : null}
+        {meta?.asOf ? (
+          <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:2,lineHeight:1.5}}>
+            {meta.asOf}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// Aggregate OUTCOME_COHORT_ANNUAL across nationalities so each cohort
+// year has a single {claims, initial, latest, returns} row.
+function buildCohortAggregate() {
+  const rows = (typeof OUTCOME_COHORT_ANNUAL !== 'undefined' && Array.isArray(OUTCOME_COHORT_ANNUAL))
+    ? OUTCOME_COHORT_ANNUAL : [];
+  if (!rows.length) return [];
+  const byYear = new Map();
+  const zero = () => ({ claims:0, initial:{protection:0,otherLeave:0,refusals:0,withdrawals:0,admin:0,notYet:0},
+                         latest:{protection:0,otherLeave:0,refusals:0,withdrawals:0,admin:0,notYet:0},
+                         returns:{enforced:0,voluntary:0} });
+  for (const r of rows) {
+    if (!byYear.has(r.year)) byYear.set(r.year, zero());
+    const acc = byYear.get(r.year);
+    acc.claims += r.claims || 0;
+    for (const k in acc.initial) acc.initial[k] += r.initial?.[k] || 0;
+    for (const k in acc.latest)  acc.latest[k]  += r.latest?.[k]  || 0;
+    for (const k in acc.returns) acc.returns[k] += r.returns?.[k] || 0;
+  }
+  return [...byYear.entries()]
+    .sort((a,b) => a[0] - b[0])
+    .map(([year, v]) => ({ year, ...v }));
+}
+
+// Build annual backlog waterfall: inflow from ASYLUM_ANNUAL (new claims each
+// year), pending stock from BACKLOG_LATEST (year-end snapshot), decided =
+// derived to close the balance. Returns [] when either source is missing.
+function buildAnnualWaterfall() {
+  const asy = (typeof ASYLUM_ANNUAL !== 'undefined' && Array.isArray(ASYLUM_ANNUAL)) ? ASYLUM_ANNUAL : [];
+  const bkl = (typeof BACKLOG_LATEST !== 'undefined' && Array.isArray(BACKLOG_LATEST)) ? BACKLOG_LATEST : [];
+  if (!asy.length || !bkl.length) return [];
+  const inflowByYear = {};
+  for (const r of asy) inflowByYear[r.y] = r.v;
+  const rows = [];
+  let prevPending = 0;
+  for (const r of bkl) {
+    const inflow = inflowByYear[r.y] || 0;
+    const pending = r.v || 0;
+    // Decided (+ withdrew / admin) = prior pending + inflow − current pending.
+    const decided = Math.max(0, prevPending + inflow - pending);
+    rows.push({ year: r.y, inflow, decided, pending });
+    prevPending = pending;
+  }
+  return rows;
 }
 
 Object.assign(window, { FlowView });

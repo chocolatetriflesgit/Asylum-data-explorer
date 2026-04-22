@@ -136,6 +136,49 @@ SOURCES = {
         "data_file": "data/support-regions-data.js",
         "data_globals": ("SUPPORT_REGIONS", "SUPPORT_REGIONS_META"),
     },
+    "irregular-migration": {
+        "label": "Irregular migration to the UK — summary tables",
+        # Separate landing page from the main immigration-system-statistics
+        # hub — this publication has its own release cadence (quarterly)
+        # and ships as an ODS (not the usual xlsx). Sheet Irr_02b carries
+        # the small-boat-arrivals by nationality breakdown.
+        "landing_url": (
+            "https://www.gov.uk/government/statistical-data-sets/"
+            "irregular-migration-detailed-dataset-and-summary-tables"
+        ),
+        "filename_stem": "irregular-migration-to-the-uk-summary-",
+        "fetcher": "scripts/fetch_irregular.py",
+        "builder": "scripts/build_irregular.py",
+        "data_file": "data/irregular-data.js",
+        "data_globals": ("IRR_BOATS_BY_NATIONALITY", "IRR_BOATS_META"),
+    },
+    "unhcr": {
+        "label": "UNHCR Refugee Data Finder (Population / Asylum apps / Decisions)",
+        "landing_url": "https://api.unhcr.org/population/v1/",
+        # No filename-stem — this is a REST API, not a gov.uk xlsx drop.
+        # fetch_unhcr.py pulls JSON directly from the endpoints below.
+        "filename_stem": None,
+        "fetcher": "scripts/fetch_unhcr.py",
+        "builder": "scripts/build_unhcr.py",
+        "data_file": "data/unhcr-data.js",
+        "data_globals": (
+            "UNHCR_POC_ANNUAL", "UNHCR_UK_APPS_ANNUAL",
+            "UNHCR_UK_DECISIONS_ANNUAL", "UNHCR_META",
+        ),
+    },
+    "outcome-analysis": {
+        "label": "Outcome analysis of asylum claims (cohort view)",
+        "landing_url": (
+            "https://www.gov.uk/government/statistical-data-sets/"
+            "immigration-system-statistics-data-tables"
+        ),
+        # Filename e.g. outcome-analysis-asylum-claims-datasets-dec-2025.xlsx
+        "filename_stem": "outcome-analysis-asylum-claims-datasets-",
+        "fetcher": "scripts/fetch_outcome_analysis.py",
+        "builder": "scripts/build_outcome_analysis.py",
+        "data_file": "data/outcome-cohort-data.js",
+        "data_globals": ("OUTCOME_COHORT_ANNUAL", "OUTCOME_COHORT_META"),
+    },
     "age-disputes": {
         "label": "Asylum & resettlement — age disputes",
         "landing_url": (

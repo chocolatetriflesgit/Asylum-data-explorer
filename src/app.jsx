@@ -7,19 +7,67 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 }/*EDITMODE-END*/;
 
 // ─────────────────────────────────────────────────────────────
+// Masthead — thin dated stripe above the main header nav.
+// Shows: Vol (years-since-launch) · Issue (ISO week of latest data point)
+// · "data through <date>" (latest live data point across all feeds).
+// ─────────────────────────────────────────────────────────────
+function latestDataThrough() {
+  const w = (typeof window !== 'undefined') ? window : {};
+  const candidates = [
+    w.BOATS_META?.latestDataPoint,
+    w.BOATS_PROVISIONAL_META?.latestDate || w.BOATS_PROVISIONAL_META?.updatedAt,
+    w.NAT_FULL_META?.generatedAt,
+    w.DECISIONS_META?.generatedAt,
+    w.BACKLOG_META?.latest_date || w.BACKLOG_META?.generatedAt,
+    w.HOTELS_META?.generatedAt,
+    w.SUPPORT_REGIONS_META?.date || w.SUPPORT_REGIONS_META?.generatedAt,
+  ].filter(Boolean).map(s => ({s, d: new Date(s)})).filter(x => !isNaN(x.d));
+  if (!candidates.length) return null;
+  return candidates.reduce((a,b) => a.d > b.d ? a : b);
+}
+function fmtMasthead(d) {
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+function isoWeek(d) {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil((((t - yearStart) / 86400000) + 1) / 7);
+}
+function Masthead() {
+  const latest = latestDataThrough();
+  if (!latest) return null;
+  const d = latest.d;
+  const vol = Math.max(1, d.getUTCFullYear() - 2025); // Vol I = 2026
+  const wk = isoWeek(d);
+  const toRoman = n => ['','I','II','III','IV','V','VI','VII','VIII','IX','X'][n] || String(n);
+  return (
+    <div style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
+      <div style={{maxWidth:1240,margin:'0 auto',padding:'4px 48px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:16}}>
+        <span className="uc" style={{color:'var(--muted)'}}>Vol {toRoman(vol)} · Issue {wk}</span>
+        <span className="uc" style={{color:'var(--muted)'}}>Data through {fmtMasthead(d)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Header
 // ─────────────────────────────────────────────────────────────
 function Header({ route, setRoute, onSearch, onMethod }) {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'flow',  label: 'Flow' },
     { id: 'atlas', label: 'Atlas' },
     { id: 'index', label: 'Stories' },
-    { id: 'datasets', label: 'Datasets' },
     { id: 'build', label: 'Build a chart' },
-    { id: 'flow',  label: 'Flow' },
+    { id: 'datasets', label: 'Datasets' },
+    { id: 'updates', label: 'Updates' },
   ];
   return (
     <header style={{background:'var(--bg)',borderBottom:'1px solid var(--rule)',position:'sticky',top:0,zIndex:50,backdropFilter:'blur(6px)'}}>
+      <Masthead />
       <div style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:40}}>
         <button onClick={()=>setRoute({name:'index'})} className="pressable" style={{display:'flex',alignItems:'baseline',gap:12,whiteSpace:'nowrap',flexShrink:0}}>
           <span style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:600,color:'var(--accent)',letterSpacing:-0.2}}>Migration</span>
@@ -74,7 +122,7 @@ function SearchModal({ open, onClose, onPick }) {
       <div onClick={e=>e.stopPropagation()} style={{background:'var(--bg)',border:'1px solid var(--rule-2)',boxShadow:'0 20px 60px rgba(0,0,0,.15)',width:'min(620px,92vw)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'18px 22px',borderBottom:'1px solid var(--rule)'}}>
           <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/></svg>
-          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search 1.24 million records, stories, datasets…"
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search stories and datasets (e.g. ‘grant rate’, ASY_D01)…"
             style={{flex:1,border:'none',outline:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:17,color:'var(--ink)'}}/>
           <span className="mono" style={{fontSize:11,color:'var(--muted-2)',border:'1px solid var(--rule-2)',padding:'2px 5px'}}>esc</span>
         </div>
@@ -215,8 +263,41 @@ function StoryHero({ kind }) {
 function IndexView({ setRoute }) {
   const featured = STORIES[0];
   const rest = STORIES.slice(1);
+
+  // "This week" dateline — small-boats weekly latest + YoY delta (same week prior year).
+  const weekly = (typeof window !== 'undefined' && Array.isArray(window.BOATS_WEEKLY)) ? window.BOATS_WEEKLY : [];
+  const latestWk = weekly.length ? weekly[weekly.length - 1] : null;
+  // Look back ~52 rows for the same week-ending in the prior year.
+  const priorWk = latestWk && weekly.length > 52
+    ? weekly.slice(0, -52).reverse().find(r => r && typeof r.m === 'number')
+    : null;
+  const dline = latestWk ? (() => {
+    const d = new Date(latestWk.we + 'T00:00:00Z');
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const weStr = `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+    let delta = null;
+    if (priorWk && priorWk.m > 0 && typeof latestWk.m === 'number') {
+      const diff = latestWk.m - priorWk.m;
+      const pct = Math.round((diff / priorWk.m) * 100);
+      const priorYr = priorWk.we.slice(0, 4);
+      delta = { diff, pct, priorYr };
+    }
+    return { weStr, delta, m: latestWk.m };
+  })() : null;
+
   return (
     <main className="fade-enter">
+      {dline && (
+        <section style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',borderBottom:'1px solid var(--rule)',display:'flex',gap:18,alignItems:'baseline',flexWrap:'wrap'}}>
+          <span className="uc" style={{color:'var(--accent-warn)',fontWeight:500}}>Small-boat arrivals · week ending {dline.weStr}</span>
+          <span className="tnum" style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:500,color:'var(--ink)'}}>{dline.m.toLocaleString()}</span>
+          {dline.delta && (
+            <span style={{fontSize:13,color: dline.delta.diff >= 0 ? 'var(--accent-warn)' : 'var(--accent-2)',fontStyle:'italic'}}>
+              {dline.delta.diff >= 0 ? '+' : ''}{dline.delta.pct}% vs same week {dline.delta.priorYr}
+            </span>
+          )}
+        </section>
+      )}
       {/* hero / featured story */}
       <section style={{maxWidth:1240,margin:'0 auto',padding:'56px 48px 40px',borderBottom:'1px solid var(--rule)'}}>
         <div style={{display:'grid',gridTemplateColumns:'minmax(320px,420px) 1fr',gap:72,alignItems:'start'}}>
@@ -243,14 +324,17 @@ function IndexView({ setRoute }) {
             <div style={{background:'var(--bg-2)',padding:'28px 32px',border:'1px solid var(--rule)'}}>
               <LineChart
                 data={ASYLUM_ANNUAL}
+                overlay={ASYLUM_ANNUAL.map(r => ({ y: r.y, v: r.boats }))}
+                overlayLabel="Small-boat arrivals"
                 title="Asylum applications, UK"
-                subtitle="Figure 01 · 2014–2024"
-                source="Home Office Immigration Statistics · ASY_D01"
+                subtitle="Applications annual · dashed line = small-boat arrivals · UK, 2014–2025"
+                source="Home Office Immigration Statistics · ASY_D01 + SB_D01"
                 annotations={[
                   { y: 2023, label: 'Peak: 84,425', dx: -140, dy: -12 },
-                  { y: 2020, label: 'Pandemic', dx: -70, dy: 50 },
+                  { y: 2022, label: 'Boats peak · ~55% of applications', dx: -170, dy: 40 },
+                  { y: 2020, label: 'Pandemic', dx: -70, dy: 60 },
                 ]}
-                caption="Main applicants only. Excludes dependants. The 2024 figure is provisional and may be revised in the August release."
+                caption="Main applicants only. Excludes dependants. Dashed line shows small-boat arrivals on the same axis — their share of applications crossed 50% in 2022. Latest year is provisional and may be revised in the next quarterly release."
                 width={720} height={320}
               />
             </div>
@@ -258,48 +342,100 @@ function IndexView({ setRoute }) {
         </div>
       </section>
 
-      {/* Key numbers strip */}
+      {/* Key numbers strip — computed from latest globals */}
       <section style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px',borderBottom:'1px solid var(--rule)'}}>
-        <div className="uc" style={{marginBottom:18,color:'var(--muted)'}}>At a glance · 2024</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:0,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)'}}>
-          {[
-            { l:'Applications', v:'80,782', d:'↓ 4.3% vs 2023'},
-            { l:'Grant rate', v:'47%', d:'up from 24% (2019)'},
-            { l:'Backlog', v:'91,200', d:'↓ 31% in one year'},
-            { l:'Small-boat arrivals', v:'36,816', d:'↑ 25% vs 2023'},
-            { l:'Resettled', v:'12,410', d:'across four schemes'},
-          ].map((s,i)=>(
-            <div key={i} style={{padding:'22px 24px',borderRight: i<4?'1px solid var(--rule)':'none'}}>
-              <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>{s.l}</div>
-              <div style={{fontFamily:'var(--serif)',fontSize:32,fontWeight:400,color:'var(--ink)',letterSpacing:-0.3,lineHeight:1}} className="tnum">{s.v}</div>
-              <div style={{fontSize:12.5,color:'var(--muted)',marginTop:8,fontStyle:'italic'}}>{s.d}</div>
+        {(() => {
+          const fmt = n => n == null ? '—' : Math.round(n).toLocaleString('en-GB');
+          const pct = (a,b) => (!a || !b) ? null : (a - b) / b * 100;
+          const pctLabel = p => p == null ? '' : (p >= 0 ? '↑ ' : '↓ ') + Math.abs(p).toFixed(1) + '%';
+          const aa = ASYLUM_ANNUAL;
+          const last = aa[aa.length - 1] || {};
+          const prev = aa[aa.length - 2] || {};
+          const yearNow = last.y;
+          // Applications
+          const apps = last.v, appsPrev = prev.v;
+          // Grant rate (point-in-time from DECISIONS_LATEST)
+          const W = (typeof window !== 'undefined') ? window : {};
+          const dec = W.DECISIONS_LATEST || [];
+          const decTotal = dec.reduce((s,r)=>s+(r.v||0),0);
+          const granted = dec.filter(r=>/Grant/i.test(r.label)).reduce((s,r)=>s+(r.v||0),0);
+          const grantRate = decTotal ? granted / decTotal : null;
+          // Backlog
+          const bl = W.BACKLOG_LATEST || [];
+          const blLast = bl[bl.length - 1] || {};
+          const blPrev = bl[bl.length - 2] || {};
+          const backlog = blLast.v, backlogDelta = pct(blLast.v, blPrev.v);
+          // Boats
+          const boats = last.boats, boatsPrev = prev.boats;
+          // Resettlement — sum latest-year column across schemes
+          const res = W.RESETTLEMENT_SERIES || [];
+          const resYear = String(yearNow);
+          const resTotal = res.reduce((s,r)=>s+(r[resYear]||0), 0);
+          const strip = [
+            { l:'Applications', v: fmt(apps), d: apps && appsPrev ? `${pctLabel(pct(apps,appsPrev))} vs ${prev.y}` : ''},
+            { l:'Grant rate', v: grantRate == null ? '—' : Math.round(grantRate*100) + '%', d: `initial decisions, ${yearNow}` },
+            { l:'Backlog', v: fmt(backlog), d: backlogDelta != null ? `${pctLabel(backlogDelta)} in one year` : ''},
+            { l:'Small-boat arrivals', v: fmt(boats), d: boats && boatsPrev ? `${pctLabel(pct(boats,boatsPrev))} vs ${prev.y}` : ''},
+            { l:'Resettled', v: fmt(resTotal), d: `across ${res.length} schemes`},
+          ];
+          return (<>
+            <div className="uc" style={{marginBottom:18,color:'var(--muted)'}}>At a glance · {yearNow}</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:0,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)'}}>
+              {strip.map((s,i)=>(
+                <div key={i} style={{padding:'22px 24px',borderRight: i<4?'1px solid var(--rule)':'none'}}>
+                  <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>{s.l}</div>
+                  <div style={{fontFamily:'var(--serif)',fontSize:32,fontWeight:400,color:'var(--ink)',letterSpacing:-0.3,lineHeight:1}} className="tnum">{s.v}</div>
+                  <div style={{fontSize:12.5,color:'var(--muted)',marginTop:8,fontStyle:'italic'}}>{s.d}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>);
+        })()}
       </section>
 
-      {/* Story grid */}
+      {/* Story grid — asymmetric: 2 medium on top row, 3 compact below */}
       <section style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
         <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:24}}>
           <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,margin:0,letterSpacing:-0.2}}>Recent stories</h2>
-          <div className="uc" style={{color:'var(--muted)'}}>Showing {rest.length} of {STORIES.length - 1 + 24} · <span style={{borderBottom:'1px solid currentColor',cursor:'pointer'}}>All stories</span></div>
+          <div className="uc" style={{color:'var(--muted)'}}>Showing {rest.length} {rest.length === 1 ? 'story' : 'stories'}</div>
         </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
-          {rest.map(s=>(
-            <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})}
-              style={{background:'var(--bg)',padding:'26px 28px 24px',textAlign:'left',border:'none',cursor:'pointer',transition:'background .15s',display:'flex',flexDirection:'column',gap:16,minHeight:260}}
-              onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-2)'}}
-              onMouseLeave={e=>{e.currentTarget.style.background='var(--bg)'}}>
-              <div className="uc" style={{color:'var(--accent-warn)',paddingBottom:4,borderBottom:'1.5px solid var(--accent-warn)',display:'inline-block'}}>{s.kicker}</div>
-              <div style={{fontFamily:'var(--serif)',fontSize:22,lineHeight:1.15,letterSpacing:-0.2,color:'var(--ink)',textWrap:'balance'}}>{s.title}</div>
-              <div style={{fontSize:14,lineHeight:1.5,color:'var(--ink-2)',textWrap:'pretty',flex:1}}>{s.dek}</div>
-              <div style={{borderTop:'1px solid var(--rule)',paddingTop:14,display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
-                <div className="uc" style={{color:'var(--muted)'}}>{s.date} · {s.reading}</div>
-                <StoryHero kind={s.hero}/>
-              </div>
-            </button>
-          ))}
-        </div>
+        {(() => {
+          const medium = rest.slice(0, 2);
+          const compact = rest.slice(2);
+          const cardHover = {
+            onMouseEnter:(e)=>{e.currentTarget.style.background='var(--bg-2)'},
+            onMouseLeave:(e)=>{e.currentTarget.style.background='var(--bg)'},
+          };
+          return (<div style={{display:'flex',flexDirection:'column',gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
+            {/* Medium row — 2 cards, larger type, full story hero */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:1,background:'var(--rule)'}}>
+              {medium.map(s=>(
+                <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})} {...cardHover}
+                  style={{background:'var(--bg)',padding:'32px 36px 28px',textAlign:'left',border:'none',cursor:'pointer',transition:'background .15s',display:'flex',flexDirection:'column',gap:18,minHeight:320}}>
+                  <div className="uc" style={{color:'var(--accent-warn)',paddingBottom:4,borderBottom:'1.5px solid var(--accent-warn)',display:'inline-block'}}>{s.kicker}</div>
+                  <div style={{fontFamily:'var(--serif)',fontSize:28,lineHeight:1.1,letterSpacing:-0.3,color:'var(--ink)',textWrap:'balance'}}>{s.title}</div>
+                  <div style={{fontSize:15,lineHeight:1.55,color:'var(--ink-2)',textWrap:'pretty',flex:1}}>{s.dek}</div>
+                  <div style={{borderTop:'1px solid var(--rule)',paddingTop:14,display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
+                    <div className="uc" style={{color:'var(--muted)'}}>{s.date} · {s.reading}</div>
+                    <StoryHero kind={s.hero}/>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {/* Compact row — 3 cards, tighter type, no hero glyph */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:1,background:'var(--rule)'}}>
+              {compact.map(s=>(
+                <button key={s.id} onClick={()=>setRoute({name:'story',id:s.id})} {...cardHover}
+                  style={{background:'var(--bg)',padding:'22px 24px 20px',textAlign:'left',border:'none',cursor:'pointer',transition:'background .15s',display:'flex',flexDirection:'column',gap:12,minHeight:180}}>
+                  <div className="uc" style={{color:'var(--muted)'}}>{s.kicker}</div>
+                  <div style={{fontFamily:'var(--serif)',fontSize:17,lineHeight:1.2,letterSpacing:-0.15,color:'var(--ink)',textWrap:'balance'}}>{s.title}</div>
+                  <div style={{fontSize:13,lineHeight:1.45,color:'var(--ink-2)',textWrap:'pretty',flex:1}}>{s.dek}</div>
+                  <div className="uc" style={{color:'var(--muted-2)',fontSize:10.5}}>{s.date} · {s.reading}</div>
+                </button>
+              ))}
+            </div>
+          </div>);
+        })()}
       </section>
     </main>
   );

@@ -149,44 +149,23 @@ def test_generated_records_total_matches_daily_sum():
     assert data["BOATS_RECORDS"]["totalMigrants"] == total
 
 
-_ASYLUM_ROW_RE = re.compile(
-    r"\{\s*y:\s*(\d{4})[^}]*?boats:\s*(\d+)\s*\}"
-)
-
-
-def _load_asylum_annual_boats() -> dict[int, int]:
-    """Parse the ASYLUM_ANNUAL literal in src/data.jsx into {year: boats}.
-
-    The literal is a JS object-literal (unquoted keys) so we can't JSON-parse
-    it. We only need the y/boats pair — a shallow regex is sufficient and
-    avoids pulling in a JS parser just for a test.
+def test_asylum_annual_boats_is_derived_from_boats_annual():
+    """CLAUDE.md § 'Things that look like problems but aren't' originally
+    required ASYLUM_ANNUAL.boats to be hand-synced with BOATS_ANNUAL. The
+    Apr 2026 hardcoded-shell drift fix replaced the literal with a derivation
+    at module-load time: ``.boats`` is read from ``window.BOATS_ANNUAL``. This
+    makes drift structurally impossible. The test now asserts the derivation
+    is still in place, so nobody silently reintroduces a hand-maintained copy.
     """
     src = ROOT / "src" / "data.jsx"
     if not src.exists():
         pytest.skip("src/data.jsx not present")
     text = src.read_text(encoding="utf-8")
-    return {int(y): int(b) for y, b in _ASYLUM_ROW_RE.findall(text)}
-
-
-def test_asylum_annual_boats_reconciles_with_boats_annual():
-    """CLAUDE.md § 'Things that look like problems but aren't':
-    when BOATS_ANNUAL changes, ASYLUM_ANNUAL.boats must be updated in the
-    same commit. Enforce that here. Only checks overlapping years.
-    """
-    data = _load_generated()
-    asylum_boats = _load_asylum_annual_boats()
-    boats_annual = {row["y"]: row["m"] for row in data["BOATS_ANNUAL"]}
-    overlap = sorted(set(asylum_boats) & set(boats_annual))
-    if not overlap:
-        pytest.skip("no year overlap between ASYLUM_ANNUAL and BOATS_ANNUAL")
-    mismatches = [
-        (y, asylum_boats[y], boats_annual[y])
-        for y in overlap
-        if asylum_boats[y] != boats_annual[y]
-    ]
-    assert not mismatches, (
-        "ASYLUM_ANNUAL.boats out of sync with BOATS_ANNUAL "
-        f"(year, asylum, boats): {mismatches}"
+    assert "const ASYLUM_ANNUAL = (() =>" in text, (
+        "ASYLUM_ANNUAL must be an IIFE that derives .boats from BOATS_ANNUAL"
+    )
+    assert "_W.BOATS_ANNUAL" in text, (
+        "ASYLUM_ANNUAL derivation must read window.BOATS_ANNUAL"
     )
 
 

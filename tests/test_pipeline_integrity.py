@@ -493,3 +493,225 @@ def test_route_of_entry_source_is_fresh():
         _load_globals(ROUTE_OF_ENTRY_JS)["ROUTE_OF_ENTRY_META"]["source"],
         "ROUTE_OF_ENTRY",
     )
+
+
+# ---------------------------------------------------------------------------
+# OUTCOME_COHORT_ANNUAL (ASY_D04)
+# ---------------------------------------------------------------------------
+
+OUTCOME_COHORT_JS = ROOT / "data" / "outcome-cohort-data.js"
+
+_OUTCOME_BUCKETS = ("protection", "otherLeave", "refusals",
+                    "withdrawals", "admin", "notYet")
+
+
+def test_outcome_cohort_shape_is_documented():
+    """Shape check: rows carry year, nationality, claims, initial+latest
+    buckets, and returns. Passes vacuously when the stub is empty."""
+    g = _load_globals(OUTCOME_COHORT_JS)
+    rows = g["OUTCOME_COHORT_ANNUAL"]
+    if not rows:
+        pytest.skip("OUTCOME_COHORT_ANNUAL is empty (ASY_D04 not yet ingested)")
+    sample = rows[0]
+    for key in ("year", "nationality", "claims", "initial", "returns", "latest"):
+        assert key in sample, f"missing key {key!r} in OUTCOME_COHORT_ANNUAL row"
+    for phase in ("initial", "latest"):
+        for b in _OUTCOME_BUCKETS:
+            assert b in sample[phase], f"missing {phase}.{b}"
+    for k in ("enforced", "voluntary"):
+        assert k in sample["returns"], f"missing returns.{k}"
+
+
+def test_outcome_cohort_initial_sum_reconciles_with_claims():
+    """For each cohort row, sum of initial splits (including notYet) must
+    equal claims within ±1 (rounding slack). Skips when empty."""
+    g = _load_globals(OUTCOME_COHORT_JS)
+    rows = g["OUTCOME_COHORT_ANNUAL"]
+    if not rows:
+        pytest.skip("OUTCOME_COHORT_ANNUAL is empty (ASY_D04 not yet ingested)")
+    mismatches = []
+    for r in rows:
+        s = sum(r["initial"].get(b, 0) for b in _OUTCOME_BUCKETS)
+        if abs(s - r["claims"]) > 1:
+            mismatches.append((r["year"], r["nationality"], r["claims"], s))
+    assert not mismatches, (
+        f"initial split sums disagree with claims on {len(mismatches)} rows; "
+        f"first: {mismatches[:3]}"
+    )
+
+
+def test_outcome_cohort_latest_sum_does_not_exceed_claims():
+    """Latest splits must not exceed claims (enforced + voluntary returns
+    reduce the remaining population; they're counted separately)."""
+    g = _load_globals(OUTCOME_COHORT_JS)
+    rows = g["OUTCOME_COHORT_ANNUAL"]
+    if not rows:
+        pytest.skip("OUTCOME_COHORT_ANNUAL is empty (ASY_D04 not yet ingested)")
+    offenders = []
+    for r in rows:
+        s = sum(r["latest"].get(b, 0) for b in _OUTCOME_BUCKETS)
+        if s > r["claims"] + 1:  # ±1 rounding slack
+            offenders.append((r["year"], r["nationality"], r["claims"], s))
+    assert not offenders, (
+        "latest split sums exceed claims on "
+        f"{len(offenders)} rows; first: {offenders[:3]}"
+    )
+
+
+def test_outcome_cohort_meta_year_range():
+    g = _load_globals(OUTCOME_COHORT_JS)
+    meta = g["OUTCOME_COHORT_META"]
+    yr = meta.get("yearRange")
+    if not yr:  # None or empty → ingest hasn't run yet
+        pytest.skip("yearRange not set (ASY_D04 not yet ingested)")
+    assert isinstance(yr, list) and len(yr) == 2 and yr[0] <= yr[1]
+    assert 2000 <= yr[0] <= dt.date.today().year
+
+
+# ---------------------------------------------------------------------------
+# UNHCR (POC + UK apps + UK decisions)
+# ---------------------------------------------------------------------------
+
+UNHCR_JS = ROOT / "data" / "unhcr-data.js"
+UNHCR_POC_HEADLINE = ("refugees", "asylumSeekers", "idps", "oip", "stateless")
+
+
+def test_unhcr_poc_row_shape():
+    g = _load_globals(UNHCR_JS)
+    rows = g["UNHCR_POC_ANNUAL"]
+    if not rows:
+        pytest.skip("UNHCR_POC_ANNUAL is empty (pipeline not yet run)")
+    sample = rows[0]
+    for k in ("year", "originIso", "originName", "total", *UNHCR_POC_HEADLINE):
+        assert k in sample, f"missing UNHCR POC key {k!r}"
+    assert isinstance(sample["originIso"], str) and len(sample["originIso"]) == 3
+
+
+def test_unhcr_poc_totals_reconcile():
+    """POC row ``total`` equals the sum of the five headline categories."""
+    g = _load_globals(UNHCR_JS)
+    rows = g["UNHCR_POC_ANNUAL"]
+    if not rows:
+        pytest.skip("UNHCR_POC_ANNUAL is empty (pipeline not yet run)")
+    mismatches = []
+    for r in rows:
+        s = sum(r.get(k, 0) for k in UNHCR_POC_HEADLINE)
+        if s != r["total"]:
+            mismatches.append((r["year"], r["originIso"], s, r["total"]))
+    assert not mismatches, f"POC total disagrees on {len(mismatches)} rows: {mismatches[:3]}"
+
+
+def test_unhcr_uk_apps_shape():
+    g = _load_globals(UNHCR_JS)
+    rows = g["UNHCR_UK_APPS_ANNUAL"]
+    if not rows:
+        pytest.skip("UNHCR_UK_APPS_ANNUAL is empty (pipeline not yet run)")
+    sample = rows[0]
+    for k in ("year", "originIso", "originName", "applied"):
+        assert k in sample
+    assert all(r["applied"] >= 0 for r in rows)
+
+
+def test_unhcr_uk_decisions_total_reconciles():
+    """Decisions row total should equal the sum of recognized + other +
+    rejected + closed within a 1-unit rounding slack."""
+    g = _load_globals(UNHCR_JS)
+    rows = g["UNHCR_UK_DECISIONS_ANNUAL"]
+    if not rows:
+        pytest.skip("UNHCR_UK_DECISIONS_ANNUAL is empty (pipeline not yet run)")
+    offenders = []
+    for r in rows:
+        s = r.get("recognized", 0) + r.get("other", 0) + r.get("rejected", 0) + r.get("closed", 0)
+        if abs(s - r["total"]) > 1:
+            offenders.append((r["year"], r["originIso"], s, r["total"]))
+    assert not offenders, f"decisions total disagrees on {len(offenders)} rows: {offenders[:3]}"
+
+
+# ---------------------------------------------------------------------------
+# IRR_BOATS_BY_NATIONALITY (Irregular migration — small-boat arrivals)
+# ---------------------------------------------------------------------------
+
+IRR_JS = ROOT / "data" / "irregular-data.js"
+
+
+def test_irr_boats_row_shape():
+    g = _load_globals(IRR_JS)
+    rows = g["IRR_BOATS_BY_NATIONALITY"]
+    if not rows:
+        pytest.skip("IRR_BOATS_BY_NATIONALITY is empty (pipeline not yet run)")
+    for r in rows:
+        assert set(r.keys()) >= {"year", "nationality", "count", "partial"}, r
+        assert isinstance(r["year"], int) and 2000 <= r["year"] <= 2100
+        assert isinstance(r["nationality"], str) and r["nationality"]
+        assert isinstance(r["count"], int) and r["count"] >= 0
+        assert isinstance(r["partial"], bool)
+
+
+def test_irr_boats_totals_reconcile_with_nationality_sum():
+    """For each year, sum of per-nationality rows (excluding meta rows)
+    should equal the explicit ``Total`` row within a small slack.
+
+    ``All other nationalities`` is itself a real aggregate in the source
+    so it counts in the per-nationality sum. ``Not currently recorded``
+    is also included by Home Office in their Total."""
+    g = _load_globals(IRR_JS)
+    rows = g["IRR_BOATS_BY_NATIONALITY"]
+    if not rows:
+        pytest.skip("IRR_BOATS_BY_NATIONALITY is empty (pipeline not yet run)")
+    by_year: dict[int, dict] = {}
+    for r in rows:
+        y = r["year"]
+        d = by_year.setdefault(y, {"nat_sum": 0, "total": None})
+        if r.get("meta") == "total":
+            d["total"] = r["count"]
+        elif not r.get("meta"):
+            d["nat_sum"] += r["count"]
+        else:
+            # Other / unrecorded — already nationality-like aggregates kept
+            # verbatim; include in sum to match Home Office totals.
+            d["nat_sum"] += r["count"]
+    offenders = []
+    for y, d in by_year.items():
+        if d["total"] is None:
+            continue
+        if abs(d["nat_sum"] - d["total"]) > 2:
+            offenders.append((y, d["nat_sum"], d["total"]))
+    assert not offenders, f"IRR year totals disagree: {offenders[:3]}"
+
+
+def test_irr_boats_top5_matches_expected_nationalities():
+    """Soft-check that the top five nationalities by latest full year are
+    drawn from the expected irregular-migration cohort. The exact ranking
+    varies release-to-release but the set is stable."""
+    g = _load_globals(IRR_JS)
+    rows = g["IRR_BOATS_BY_NATIONALITY"]
+    if not rows:
+        pytest.skip("IRR_BOATS_BY_NATIONALITY is empty (pipeline not yet run)")
+    # Most recent fully non-partial year
+    complete_years = sorted({r["year"] for r in rows if not r["partial"]})
+    if not complete_years:
+        pytest.skip("no complete years present")
+    y = complete_years[-1]
+    nats = sorted(
+        [r for r in rows if r["year"] == y and not r.get("meta")],
+        key=lambda r: -r["count"],
+    )[:5]
+    names = {r["nationality"] for r in nats}
+    expected_pool = {
+        "Afghanistan", "Eritrea", "Iran", "Iraq", "Syria", "Sudan",
+        "Vietnam", "Albania", "Somalia", "Turkey", "Ethiopia", "Yemen",
+    }
+    overlap = names & expected_pool
+    assert len(overlap) >= 3, (
+        f"top-5 for {y} ({names}) has <3 overlap with expected set"
+    )
+
+
+def test_irr_boats_meta_year_range():
+    g = _load_globals(IRR_JS)
+    meta = g["IRR_BOATS_META"]
+    yr = meta.get("yearRange")
+    if not yr:
+        pytest.skip("yearRange not set (IRR not yet ingested)")
+    assert isinstance(yr, list) and len(yr) == 2 and yr[0] <= yr[1]
+    assert 2000 <= yr[0] <= dt.date.today().year

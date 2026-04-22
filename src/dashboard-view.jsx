@@ -2,9 +2,72 @@
 
 const { useState: uSD, useMemo: uMD, useRef: uRD, useEffect: uED } = React;
 
+// Parse a "2018-2025" style token from the location hash so a shared
+// URL reopens the dashboard pinned to the same range. Falls back to
+// localStorage so the range is stable across plain reloads too.
+function readInitialRange(min, max) {
+  try {
+    const fromHash = /[#&]r=(\d{4})-(\d{4})/.exec(typeof location !== 'undefined' ? location.hash : '');
+    if (fromHash) {
+      const a = Math.max(min, Math.min(max, +fromHash[1]));
+      const b = Math.max(min, Math.min(max, +fromHash[2]));
+      if (a <= b) return [a, b];
+    }
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('dashRange') : null;
+    if (stored) {
+      const [a, b] = stored.split('-').map(Number);
+      if (Number.isFinite(a) && Number.isFinite(b) && a <= b) {
+        return [Math.max(min, Math.min(max, a)), Math.max(min, Math.min(max, b))];
+      }
+    }
+  } catch (_) { /* ignore */ }
+  return [2018, max];
+}
+
+// Pull a freshness date off a *_META global — prefers the upstream publication
+// date ("latestDataPoint", "asOf") over the pipeline's own generation stamp.
+// Returned value is the raw string; SourceStrip formats it for display.
+function metaAsOf(meta) {
+  if (!meta) return null;
+  return meta.latest_date || meta.latestDataPoint || meta.asOf || meta.generatedAt || null;
+}
+function metaNext(meta) {
+  if (!meta) return null;
+  return meta.nextUpdate || null;
+}
+
 function DashboardView({ setRoute }) {
-  const [range, setRange] = uSD([2018, DATA_MAX_YEAR]);
+  const [range, setRange] = uSD(() => readInitialRange(2014, DATA_MAX_YEAR));
   const [focus, setFocus] = uSD('all'); // all | applications | decisions | geography
+
+  // Cache per-source freshness once per render — one lookup per *_META.
+  const _boatsMeta = typeof BOATS_META !== 'undefined' ? BOATS_META : null;
+  const _natMeta   = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META : null;
+  const _decMeta   = typeof DECISIONS_META !== 'undefined' ? DECISIONS_META : null;
+  const _blgMeta   = typeof BACKLOG_META !== 'undefined' ? BACKLOG_META : null;
+  const _grantMeta = typeof NAT_GRANT_ANNUAL !== 'undefined' && NAT_GRANT_ANNUAL?._meta ? NAT_GRANT_ANNUAL._meta : null;
+  const srcAsOf = {
+    SB_01: metaAsOf(_boatsMeta),  SB_01_next: metaNext(_boatsMeta),
+    SB_02: _boatsMeta ? metaAsOf(_boatsMeta) : null, SB_02_next: metaNext(_boatsMeta),
+    ASY_D01: metaAsOf(_natMeta),  ASY_D01_next: metaNext(_natMeta),
+    ASY_D02: metaAsOf(_decMeta ?? _natMeta), ASY_D02_next: metaNext(_decMeta ?? _natMeta),
+    ASY_D03: metaAsOf(_blgMeta),  ASY_D03_next: metaNext(_blgMeta),
+    GRANT: metaAsOf(_grantMeta ?? _natMeta), GRANT_next: metaNext(_grantMeta ?? _natMeta),
+  };
+
+  // Persist range to both localStorage and the URL hash so a link carries it.
+  uED(() => {
+    try {
+      const val = `${range[0]}-${range[1]}`;
+      localStorage.setItem('dashRange', val);
+      if (typeof location !== 'undefined') {
+        const other = location.hash.replace(/([#&])r=\d{4}-\d{4}/g, '$1').replace(/^#&/, '#').replace(/&&/g, '&');
+        const sep = other && other !== '#' ? (other.endsWith('#') ? '' : '&') : '#';
+        const next = (other && other !== '#' ? other : '') + sep + `r=${val}`;
+        if (next !== location.hash) history.replaceState(null, '', next);
+      }
+    } catch (_) { /* ignore */ }
+  }, [range]);
 
   const filteredAnnual = uMD(()=>ASYLUM_ANNUAL.filter(d => d.y >= range[0] && d.y <= range[1]), [range]);
   const latest = ASYLUM_ANNUAL[ASYLUM_ANNUAL.length - 1];
@@ -173,12 +236,173 @@ function DashboardView({ setRoute }) {
       {/* title strip */}
       <div style={{borderBottom:'1px solid var(--rule)',paddingBottom:22,marginBottom:28}}>
         <div className="kicker-rule" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,textTransform:'uppercase',fontWeight:500}}>Live dashboard · Q1 2026</div>
-        <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'6px 0 10px'}}>Asylum &amp; resettlement at a glance</h1>
+        <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap',margin:'6px 0 10px'}}>
+          <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:0}}>Asylum &amp; resettlement at a glance</h1>
+          <button
+            onClick={()=>{
+              const anchor = document.getElementById('dash-range');
+              if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+            title="Jump to range filter"
+            style={{
+              fontFamily:'var(--mono, var(--serif))',fontSize:11,padding:'3px 10px',
+              border:'1px solid var(--rule-2)',background:'var(--bg-2)',color:'var(--ink-2)',
+              letterSpacing:0.04,cursor:'pointer',
+            }}>
+            <span style={{color:'var(--muted)',marginRight:6}}>Filtering</span>
+            <span className="tnum">{range[0]}–{range[1]}</span>
+          </button>
+        </div>
         <p style={{fontSize:15.5,color:'var(--ink-2)',maxWidth:680,margin:0,lineHeight:1.5}}>
           Headline figures from Home Office data. Updated when the Home Office releases its quarterly figures.
         </p>
       </div>
 
+      {/* Provisional last-7-days strip — lifted above KPI rows as the freshest data point. */}
+      {provisional && provisionalDays.length > 0 && (
+        <section style={{marginBottom:28,padding:'18px 22px',border:'1px dashed var(--rule-2)',background:'var(--bg-2)',borderRadius:0,borderLeft:'none',borderRight:'none'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,gap:24,flexWrap:'wrap'}}>
+            <div>
+              <div className="uc" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,fontWeight:500,marginBottom:8}}>Last 7 days · provisional</div>
+              <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap'}}>
+                <div style={{fontFamily:'var(--serif)',fontSize:36,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">
+                  {provisionalWeekTotal.toLocaleString()}
+                </div>
+                {sameWeekLastYear && sameWeekLastYear.m > 0 && (() => {
+                  const diff = provisionalWeekTotal - sameWeekLastYear.m;
+                  const pct = (diff / sameWeekLastYear.m * 100).toFixed(0);
+                  return (
+                    <div style={{fontSize:13,color: diff > 0 ? 'var(--accent-warn)' : 'var(--accent-2)',fontStyle:'italic'}}>
+                      {diff>=0?'+':''}{pct}% vs same week {sameWeekLastYear.we.slice(0,4)}
+                    </div>
+                  );
+                })()}
+              </div>
+              {/* Mini sparkline */}
+              <svg width={provisionalDays.length * 22} height={30} style={{display:'block',marginTop:8}}>
+                {(() => {
+                  const vals = provisionalDays.map(d => d.m);
+                  const maxV = Math.max(...vals, 1);
+                  return vals.map((v, i) => (
+                    <rect key={i} x={i * 22} y={30 - Math.round((v / maxV) * 24)} width={18} height={Math.round((v / maxV) * 24)}
+                      fill={provisionalDays[i].superseded ? 'var(--muted-2)' : 'var(--accent-warn)'}/>
+                  ));
+                })()}
+              </svg>
+            </div>
+            <div style={{fontSize:12,color:'var(--muted)',fontStyle:'italic',textAlign:'right',marginTop:4}}>
+              {provisionalMeta?.updatedAt
+                ? `Updated ${new Date(provisionalMeta.updatedAt+'T00:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}`
+                : ''}
+              {canonicalLatest && <div style={{marginTop:4}}>Canonical ODS through {canonicalLatest}</div>}
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:8}}>
+            {provisionalDays.map((d,i) => (
+              <div key={d.d}
+                title={d.superseded
+                  ? 'Verified — this date has been incorporated into the weekly ODS time series and is no longer provisional.'
+                  : 'Provisional — not yet confirmed by the weekly ODS. May be revised when the next release publishes.'}
+                style={{padding:'10px 10px 12px',background:'#fff',
+                  border: d.superseded ? '1px solid var(--rule)' : '1px dashed var(--accent-warn)',
+                  opacity: d.superseded ? 0.5 : 1,cursor:'help'}}>
+                <div className="uc" style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0.1}}>{d.label}</div>
+                <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,lineHeight:1.1,marginTop:6,color:'var(--ink)'}}>
+                  {d.m.toLocaleString()}
+                </div>
+                <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:4}}>
+                  {d.b} boat{d.b===1?'':'s'}{d.superseded ? ' · verified' : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{fontSize:11.5,color:'var(--muted)',marginTop:10,fontStyle:'italic'}}>
+            Daily figures from gov.uk provisional page. Faded cells have been verified by the weekly ODS. Hover a cell for details.
+          </div>
+        </section>
+      )}
+
+      {/* Hero KPI row — four promoted statistics with sparklines.
+          Deliberately large and quiet: this is what a casual visitor should
+          see first. The full 15-card grid sits underneath, collapsed. */}
+      {(() => {
+        const W = (typeof window !== 'undefined') ? window : {};
+        // This-week arrivals — last row of BOATS_WEEKLY.
+        const wk = (W.BOATS_WEEKLY || []);
+        const lastWk = wk[wk.length - 1];
+        // YTD arrivals — last non-null value of the current year's BOATS_YOY series.
+        const yoy = W.BOATS_YOY || {};
+        const yoyYears = Object.keys(yoy).sort();
+        const latestYoyYear = yoyYears[yoyYears.length - 1];
+        const latestYoyArr = latestYoyYear ? yoy[latestYoyYear] : [];
+        let ytd = null, ytdDay = null;
+        for (let i = latestYoyArr.length - 1; i >= 0; i--) {
+          if (latestYoyArr[i] != null) { ytd = latestYoyArr[i]; ytdDay = i + 1; break; }
+        }
+        const priorYoyArr = yoyYears.length > 1 ? yoy[yoyYears[yoyYears.length - 2]] : [];
+        const ytdPrior = (ytdDay != null && priorYoyArr[ytdDay - 1] != null) ? priorYoyArr[ytdDay - 1] : null;
+        const ytdDelta = (ytd && ytdPrior) ? ((ytd - ytdPrior) / ytdPrior * 100) : null;
+        // Weighted UK grant rate series — from NAT_GRANT_ANNUAL if we have NAT_FULL counts per year
+        // we could weight properly; without per-year counts, fall back to the DECISIONS_LATEST point.
+        // Sparklines driven by BOATS_ANNUAL (arrivals), BACKLOG_LATEST (backlog).
+        const boatsAnnual = (W.BOATS_ANNUAL || []).map(r => ({ y: r.y, v: r.m }));
+        const backlogSeries = (W.BACKLOG_LATEST || []).map(r => ({ y: r.y, v: r.v }));
+        // Grant-rate sparkline: unweighted average across NAT_GRANT_ANNUAL series for each year.
+        const nga = W.NAT_GRANT_ANNUAL;
+        const grantSpark = (nga && Array.isArray(nga.years) && Array.isArray(nga.series)) ? nga.years.map((yr, i) => {
+          const vals = nga.series.map(s => s.data[i]).filter(v => v != null);
+          const avg = vals.length ? vals.reduce((a,b)=>a+b,0) / vals.length : null;
+          return avg == null ? null : { y: yr, v: avg };
+        }).filter(Boolean) : [];
+
+        const heroCards = [
+          { label: 'This week · arrivals',
+            v: lastWk ? fmtN(lastWk.m) : '—',
+            d: lastWk ? `week ending ${lastWk.we}` : 'Data pending',
+            spark: wk.slice(-12).map((w,i) => ({ y: i, v: w.m || 0 })),
+            sparkStroke: 'var(--accent-warn)' },
+          { label: `YTD arrivals · ${latestYoyYear ?? ''}`,
+            v: ytd != null ? fmtN(ytd) : '—',
+            d: ytdDelta != null ? `${ytdDelta>=0?'+':''}${ytdDelta.toFixed(1)}% vs same day ${+latestYoyYear - 1}` : 'latest cumulative',
+            spark: boatsAnnual, sparkStroke: 'var(--accent-warn)' },
+          { label: `Backlog · ${backlogSeries[backlogSeries.length-1]?.y ?? ''}`,
+            v: backlogSeries.length ? fmtN(backlogSeries[backlogSeries.length-1].v) : '—',
+            d: (() => {
+              if (backlogSeries.length < 2) return 'pending initial decision';
+              const a = backlogSeries[backlogSeries.length-1].v, b = backlogSeries[backlogSeries.length-2].v;
+              return b>0 ? `${((a-b)/b*100).toFixed(1)}% vs prior year` : 'pending initial decision';
+            })(),
+            spark: backlogSeries, sparkStroke: 'var(--accent-gold)' },
+          { label: `Grant rate · ${decisionsYear}`,
+            v: `${Math.round(grantRate*100)}%`,
+            d: 'of initial decisions',
+            spark: grantSpark.length ? grantSpark.slice(-8) : [], sparkStroke: 'var(--accent-2)' },
+        ];
+        return (
+          <section style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:24,paddingBottom:22,borderBottom:'1px solid var(--rule)'}}>
+            {heroCards.map((k,i) => (
+              <div key={i} style={{padding:'20px 22px',background:'var(--bg-2)',border:'1px solid var(--rule)'}}>
+                <div className="uc" style={{color:'var(--muted)',marginBottom:10,fontSize:10.5}}>{k.label}</div>
+                <div style={{fontFamily:'var(--serif)',fontSize:40,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">{k.v}</div>
+                <div style={{fontSize:12.5,color:'var(--muted)',marginTop:8,fontStyle:'italic'}}>{k.d}</div>
+                {k.spark && k.spark.length > 1 && (
+                  <div style={{marginTop:12}}>
+                    <Spark data={k.spark} width={220} height={36} stroke={k.sparkStroke}/>
+                  </div>
+                )}
+              </div>
+            ))}
+          </section>
+        );
+      })()}
+
+      {/* Detail statistics — full 15-card grid, collapsed by default. */}
+      <details style={{marginBottom:14}}>
+        <summary style={{cursor:'pointer',listStyle:'none',padding:'10px 0',borderBottom:'1px solid var(--rule)',display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+          <span className="uc" style={{color:'var(--muted)',fontSize:10.5}}>Detail · 15 statistics</span>
+          <span style={{fontSize:11,color:'var(--muted-2)',fontStyle:'italic'}}>click to expand ▾</span>
+        </summary>
+        <div style={{paddingTop:18}}>
       {/* KPI strip row 1 — Small boat arrivals · Preventions · Applications · Initial decisions · Appeals allowed */}
       <section style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:14}}>
         {[
@@ -272,73 +496,11 @@ function DashboardView({ setRoute }) {
           </div>
         ))}
       </section>
+        </div>
+      </details>
 
-      {/* Provisional last-7-days strip — pinned below KPI cards as latest-news. */}
-      {provisional && provisionalDays.length > 0 && (
-        <section style={{marginBottom:0,padding:'18px 22px',border:'1px dashed var(--rule-2)',background:'var(--bg-2)',borderRadius:0,borderLeft:'none',borderRight:'none'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,gap:24,flexWrap:'wrap'}}>
-            <div>
-              <div className="uc" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,fontWeight:500,marginBottom:8}}>Last 7 days · provisional</div>
-              <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap'}}>
-                <div style={{fontFamily:'var(--serif)',fontSize:36,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">
-                  {provisionalWeekTotal.toLocaleString()}
-                </div>
-                {sameWeekLastYear && sameWeekLastYear.m > 0 && (() => {
-                  const diff = provisionalWeekTotal - sameWeekLastYear.m;
-                  const pct = (diff / sameWeekLastYear.m * 100).toFixed(0);
-                  return (
-                    <div style={{fontSize:13,color: diff > 0 ? 'var(--accent-warn)' : 'var(--accent-2)',fontStyle:'italic'}}>
-                      {diff>=0?'+':''}{pct}% vs same week {sameWeekLastYear.we.slice(0,4)}
-                    </div>
-                  );
-                })()}
-              </div>
-              {/* Mini sparkline */}
-              <svg width={provisionalDays.length * 22} height={30} style={{display:'block',marginTop:8}}>
-                {(() => {
-                  const vals = provisionalDays.map(d => d.m);
-                  const maxV = Math.max(...vals, 1);
-                  return vals.map((v, i) => (
-                    <rect key={i} x={i * 22} y={30 - Math.round((v / maxV) * 24)} width={18} height={Math.round((v / maxV) * 24)}
-                      fill={provisionalDays[i].superseded ? 'var(--muted-2)' : 'var(--accent-warn)'}/>
-                  ));
-                })()}
-              </svg>
-            </div>
-            <div style={{fontSize:12,color:'var(--muted)',fontStyle:'italic',textAlign:'right',marginTop:4}}>
-              {provisionalMeta?.updatedAt
-                ? `Updated ${new Date(provisionalMeta.updatedAt+'T00:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}`
-                : ''}
-              {canonicalLatest && <div style={{marginTop:4}}>Canonical ODS through {canonicalLatest}</div>}
-            </div>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:8}}>
-            {provisionalDays.map((d,i) => (
-              <div key={d.d}
-                title={d.superseded
-                  ? 'Verified — this date has been incorporated into the weekly ODS time series and is no longer provisional.'
-                  : 'Provisional — not yet confirmed by the weekly ODS. May be revised when the next release publishes.'}
-                style={{padding:'10px 10px 12px',background:'#fff',
-                  border: d.superseded ? '1px solid var(--rule)' : '1px dashed var(--accent-warn)',
-                  opacity: d.superseded ? 0.5 : 1,cursor:'help'}}>
-                <div className="uc" style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0.1}}>{d.label}</div>
-                <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,lineHeight:1.1,marginTop:6,color:'var(--ink)'}}>
-                  {d.m.toLocaleString()}
-                </div>
-                <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:4}}>
-                  {d.b} boat{d.b===1?'':'s'}{d.superseded ? ' · verified' : ''}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{fontSize:11.5,color:'var(--muted)',marginTop:10,fontStyle:'italic'}}>
-            Daily figures from gov.uk provisional page. Faded cells have been verified by the weekly ODS. Hover a cell for details.
-          </div>
-        </section>
-      )}
-
-      {/* Time range filter */}
-      <div style={{borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
+      {/* Time range filter (sticky so it stays visible while scrolling) */}
+      <div id="dash-range" style={{position:'sticky',top:0,zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
         <div style={{flex:'0 1 540px',minWidth:300}}>
           <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
             <span className="tick tick-accent"/>Time range
@@ -352,7 +514,7 @@ function DashboardView({ setRoute }) {
 
       {/* Section focus nav */}
       <div style={{display:'flex',alignItems:'center',gap:10,margin:'0 0 28px',paddingTop:20,paddingBottom:20,borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
-        <span className="uc" style={{color:'var(--muted)',marginRight:4}}>Jump to</span>
+        <span className="uc" style={{color:'var(--muted)',marginRight:4}}>Show only</span>
         {[
           { id:'all', label:'All sections' },
           { id:'applications', label:'Applications & journeys' },
@@ -376,43 +538,61 @@ function DashboardView({ setRoute }) {
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Applications and journeys" title="Volume and composition" accent="var(--accent-warn)" cadence="Annual · boats weekly"/>
           <div style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:20}}>
-            <DashFrame number="01" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}>
+            <DashFrame number="01" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}
+              setRoute={setRoute} forkPreset={{ d:'applications', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
               <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={720} height={280}
                 annotations={[
                   range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
                 ].filter(Boolean)}
-                source="Home Office · ASY_D01"/>
+                source="Home Office · ASY_D01"
+                asOf={srcAsOf.ASY_D01} nextUpdate={srcAsOf.ASY_D01_next}/>
             </DashFrame>
-            <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals" sub={`UK · ${range[0]}–${range[1]}`}>
+            <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals · year-to-date comparison" sub="Cumulative crossings by day of year"
+              setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'daily' }}>
               {(() => {
+                if (typeof BOATS_YOY !== 'undefined' && BOATS_YOY && Object.keys(BOATS_YOY).length) {
+                  return (
+                    <YoYCumulative series={BOATS_YOY} width={520} height={280}
+                      caption="Each line traces cumulative small-boat arrivals through the year. The current-year line stops at the most recent published week — no interpolation past that point."
+                      source="Home Office · SB_01"
+                      asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
+                  );
+                }
                 const boatsAnnual = (typeof BOATS_ANNUAL !== 'undefined' && BOATS_ANNUAL.length)
                   ? BOATS_ANNUAL.map(d => ({ y: d.y, v: d.m }))
                   : ASYLUM_ANNUAL.map(d => ({ y: d.y, v: d.boats }));
-                const latestDate = (typeof BOATS_META !== 'undefined' && BOATS_META.latestDataPoint)
-                  || (typeof BOATS_RECORDS !== 'undefined' && BOATS_RECORDS.latestDate)
-                  || null;
-                const partialYear = latestDate ? Number(latestDate.slice(0,4)) : null;
-                const partialLabel = latestDate
-                  ? `${partialYear} YTD (to ${new Date(latestDate + 'T00:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short'})})`
-                  : null;
                 return (
                   <LineChart data={boatsAnnual} yearRange={range}
                     stroke="var(--accent-warn)" width={520} height={280}
-                    annotations={partialYear && range[0] <= partialYear && range[1] >= partialYear ? [
-                      { y: partialYear, label: partialLabel, dx: -90, dy: -14 }
-                    ] : []}
-                    source="Home Office · SB_01"/>
+                    source="Home Office · SB_01"
+                    asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
                 );
               })()}
             </DashFrame>
           </div>
+          {/* Seasonal heat-map — one row per year, 52 weekly cells.
+              Reveals the strong spring→autumn seasonality that the annual line
+              flattens out. */}
+          {typeof BOATS_WEEKLY !== 'undefined' && BOATS_WEEKLY.length > 0 && (
+            <div style={{marginTop:20}}>
+              <DashFrame number="02b" kickerColor="var(--accent-warn)" title="Arrivals by week · seasonal pattern" sub="Weekly crossings, 2018–latest · darker = more arrivals"
+                setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'weekly' }}>
+                <SeasonalHeatMap data={BOATS_WEEKLY} width={1100} height={260}
+                  caption="Each cell is one ISO week × year. Darker cells are weeks with more crossings. Seasonality is unmistakable: very low from January to March, rising from April, peaking late summer."
+                  source="Home Office · SB_01"
+                  asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
+              </DashFrame>
+            </div>
+          )}
           <div style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
             <DashFrame number="03" kickerColor="var(--accent-gold)" title="Top five nationalities"
-              sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}>
+              sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}
+              setRoute={setRoute} forkPreset={{ d:'nationalities', ct:'line', g:'annual' }}>
               {(() => { const ns = (typeof NAT_SERIES_LATEST !== 'undefined') ? NAT_SERIES_LATEST : NAT_SERIES;
                 return <MultiLineChart years={ns.years} series={ns.series} width={760} height={260}/>; })()}
             </DashFrame>
-            <DashFrame number="03a" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}>
+            <DashFrame number="03a" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}
+              setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'bar', g:'annual' }}>
               <NationalitiesTable data={natFull}/>
             </DashFrame>
           </div>
@@ -424,7 +604,8 @@ function DashboardView({ setRoute }) {
                     stroke="var(--accent)" area={true} showLine={true}
                     xLabelFmt={(_, i, p) => _fmtMonth(p?.label)}
                     caption="Events in which Border Force prevented a crossing in progress. Weekly figures aggregated to calendar months."
-                    source="Home Office · SB_02"/>
+                    source="Home Office · SB_02"
+                    asOf={srcAsOf.SB_02} nextUpdate={srcAsOf.SB_02_next}/>
                 </DashFrame>
               )}
               {preventionsMonthly.length > 0 && (
@@ -433,7 +614,8 @@ function DashboardView({ setRoute }) {
                     stroke="var(--accent-warn)" area={true} showLine={true}
                     xLabelFmt={(_, i, p) => _fmtMonth(p?.label)}
                     caption="Migrants prevented from crossing, aggregated by month. Reporting of preventions began in May 2024."
-                    source="Home Office · SB_02"/>
+                    source="Home Office · SB_02"
+                    asOf={srcAsOf.SB_02} nextUpdate={srcAsOf.SB_02_next}/>
                 </DashFrame>
               )}
             </div>
@@ -447,59 +629,86 @@ function DashboardView({ setRoute }) {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
             <DashFrame number="04" kickerColor="var(--accent-warn)" title={`Initial decisions, ${decisionsYear}`} sub="Share of substantive outcomes">
               <StackedBar data={decisionsData} width={600} height={110}/>
-              <div style={{marginTop:18,display:'grid',gridTemplateColumns:'auto 1fr',gap:12,alignItems:'center'}}>
-                <Ring value={grantRate} size={110} stroke={12} label="Grant rate" sub={`${decisionsYear}`}/>
+              <div style={{marginTop:18,display:'grid',gridTemplateColumns:'auto 1fr',gap:22,alignItems:'center'}}>
+                <Ring value={grantRate} size={220} stroke={22}
+                  ghostValue={0.24} ghostLabel="from 24% in 2019"
+                  label="Grant rate" sub={`${decisionsYear}`}/>
                 <div style={{fontSize:14,lineHeight:1.5,color:'var(--ink-2)',textWrap:'pretty'}}>
-                  {Math.round(grantRate*100)}% of all decided cases in {decisionsYear} resulted in a grant of protection — up from 24% in 2019. The shift reflects changes in nationality composition (Afghan and Sudanese claims have very high grant rates).
+                  {Math.round(grantRate*100)}% of all decided cases in {decisionsYear} resulted in a grant of protection — up from 24% in 2019 (faint inner arc). The shift reflects changes in nationality composition (Afghan and Sudanese claims have very high grant rates) and the unwinding of a backlog weighted toward older, harder-to-grant cases.
                 </div>
               </div>
             </DashFrame>
             <DashFrame number="05" kickerColor="var(--accent-gold)" title="Pending cases (backlog)"
-              sub={`${range[0]}–${range[1]}${backlogMeta ? ` · 31 Dec snapshots · Asy_D03` : ''}`}>
+              sub={`${range[0]}–${range[1]}${backlogMeta ? ` · 31 Dec snapshots · Asy_D03` : ''}`}
+              setRoute={setRoute} forkPreset={{ d:'backlog', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
               <LineChart data={filteredBacklog} yearRange={range} width={560} height={260}
                 stroke="var(--accent-gold)"
                 annotations={[
                   range[0] <= 2022 && range[1] >= 2022 && { y:2022, label:'Peak 132k', dx:-80, dy:-10 },
                 ].filter(Boolean)}
-                source="Home Office · Asy_D03"/>
+                source="Home Office · Asy_D03"
+                asOf={srcAsOf.ASY_D03} nextUpdate={srcAsOf.ASY_D03_next}/>
             </DashFrame>
           </div>
+          {/* Grant-rate small multiples — 12 nationalities, one cell each. */}
+          {typeof NAT_GRANT_ANNUAL !== 'undefined' && NAT_GRANT_ANNUAL && (
+            <div style={{marginTop:20}}>
+              <DashFrame number="05a" kickerColor="var(--accent-2)"
+                title="Grant rate by nationality · small multiples"
+                sub={`${NAT_GRANT_ANNUAL.years[0]}–${NAT_GRANT_ANNUAL.years[NAT_GRANT_ANNUAL.years.length-1]} · 12 nationalities · independent trends`}
+                setRoute={setRoute} forkPreset={{ d:'grant_rate', ct:'line' }}>
+                <GrantRateSmallMultiples series={NAT_GRANT_ANNUAL} width={1100} height={380} cols={4}
+                  highlight={['Afghanistan','Syria','Iran','Eritrea']}
+                  caption="Each cell is one nationality. Y-axis is 0–100% grant rate; x-axis runs across the full window. Dashed grid line marks 50%. Most nationalities move independently — no single macro driver explains all of them."
+                  source="Home Office · ASY_D02 (derived)"
+                  asOf={srcAsOf.GRANT} nextUpdate={srcAsOf.GRANT_next}/>
+              </DashFrame>
+            </div>
+          )}
         </section>
       )}
 
       {(focus === 'all' || focus === 'geography') && (
         <section style={{marginBottom:44}}>
-          <DashSectionHeader kicker="Geography" title="Asylum seeker countries of origin and where they're housed" accent="var(--accent-gold)" cadence="Quarterly snapshot · hotels"/>
+          <DashSectionHeader kicker="Geography" title="Who applies" accent="var(--accent-gold)" cadence={`Applications · ${natFullYear ?? 'latest'}`}/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
-            {(() => {
-              const regData = (typeof SUPPORT_REGIONS !== 'undefined' && SUPPORT_REGIONS.length)
-                ? SUPPORT_REGIONS : REGIONS;
-              const regMeta = typeof SUPPORT_REGIONS_META !== 'undefined' ? SUPPORT_REGIONS_META : null;
-              return (
-                <DashFrame number="06" kickerColor="var(--accent-warn)"
-                  title="Asylum seekers in receipt of Home Office support, by region"
-                  sub={regMeta ? `UK regions · as at ${regMeta.date} · Asy_D11` : 'UK · 2024'}>
-                  <BarChart data={regData} width={560} color="var(--accent)"/>
-                  <div style={{marginTop:14,paddingTop:12,borderTop:'1px dotted var(--rule-2)',fontSize:12.5,lineHeight:1.6,color:'var(--muted)'}}>
-                    Counts people receiving Section 95 support (accommodation and subsistence for destitute asylum seekers awaiting a decision), Section 98 (emergency support while a Section 95 application is assessed), or Section 4 (support for failed asylum seekers unable to leave the UK). This is where people are housed — not where claims were lodged.
-                  </div>
-                </DashFrame>
-              );
-            })()}
-            <DashFrame number="07" kickerColor="var(--accent-2)" title="Top nationalities" sub={`All asylum applications · UK · ${natFullYear ?? 2024}`} tableSub="Grant rate from ASY_D02">
+            <DashFrame number="06" kickerColor="var(--accent-2)" title="Top nationalities" sub={`All asylum applications · UK · ${natFullYear ?? 2024}`} tableSub="Grant rate from ASY_D02">
               <BarChart data={(natFull ?? TOP_NATIONALITIES).slice(0,8)} width={560} color="var(--accent-warn)" showGrant={true}/>
             </DashFrame>
+            {natFull && (
+              <DashFrame number="07" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from ASY_D01`}>
+                <WorldMapChoropleth data={groupNatByRegion(natFull)} width={540} height={320}/>
+              </DashFrame>
+            )}
           </div>
           {natFull && (
             <div style={{display:'grid',gridTemplateColumns:'1fr',gap:20}}>
-              <DashFrame number="08" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from ASY_D01`}>
-                <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.3fr) minmax(260px,1fr)',gap:28,alignItems:'start'}}>
-                  <WorldMapChoropleth data={groupNatByRegion(natFull)} width={720} height={380}/>
-                  <RegionTable data={groupNatByRegion(natFull)} rows={natFull}/>
-                </div>
+              <DashFrame number="08" kickerColor="var(--accent-gold)" title="Applicants by region — detail" sub={`UK · ${natFullYear ?? ''} · grouped from ASY_D01`}>
+                <RegionTable data={groupNatByRegion(natFull)} rows={natFull}/>
               </DashFrame>
             </div>
           )}
+        </section>
+      )}
+
+      {(focus === 'all' || focus === 'geography') && (
+        <section style={{marginBottom:44,paddingTop:30,borderTop:'1px solid var(--rule)'}}>
+          <DashSectionHeader kicker="Geography" title="Where they live while waiting" accent="var(--accent-warn)" cadence="Quarterly snapshot · Home Office support"/>
+          {(() => {
+            const regData = (typeof SUPPORT_REGIONS !== 'undefined' && SUPPORT_REGIONS.length)
+              ? SUPPORT_REGIONS : REGIONS;
+            const regMeta = typeof SUPPORT_REGIONS_META !== 'undefined' ? SUPPORT_REGIONS_META : null;
+            return (
+              <DashFrame number="09" kickerColor="var(--accent-warn)"
+                title="Asylum seekers in receipt of Home Office support, by region"
+                sub={regMeta ? `UK regions · as at ${regMeta.date} · Asy_D11` : 'UK · 2024'}>
+                <BarChart data={regData} width={1100} color="var(--accent)"/>
+                <div style={{marginTop:14,paddingTop:12,borderTop:'1px dotted var(--rule-2)',fontSize:12.5,lineHeight:1.6,color:'var(--muted)',maxWidth:820}}>
+                  Counts people receiving Section 95 support (accommodation and subsistence for destitute asylum seekers awaiting a decision), Section 98 (emergency support while a Section 95 application is assessed), or Section 4 (support for failed asylum seekers unable to leave the UK). This is where people are housed — not where claims were lodged.
+                </div>
+              </DashFrame>
+            );
+          })()}
         </section>
       )}
 
@@ -563,11 +772,11 @@ function DashboardView({ setRoute }) {
               )}
               <div className="uc" style={{color:'var(--muted-2)',marginTop:14}}>Source: Home Office · RES_D01</div>
             </div>
-            <div style={{border:'1px solid var(--rule)',background:'var(--bg-2)',padding:'26px 28px'}}>
-              <div style={{fontFamily:'var(--serif)',fontSize:17,fontWeight:500,color:'var(--ink)',marginBottom:14}} className="rule-terra" >
-                <span style={{paddingBottom:8,display:'inline-block'}}>What the numbers mean</span>
+            <div style={{background:'var(--bg-3)',borderLeft:'2px solid var(--accent)',padding:'24px 26px'}}>
+              <div style={{fontFamily:'var(--serif)',fontSize:17,fontWeight:500,color:'var(--ink)',marginBottom:14}}>
+                What the numbers mean
               </div>
-              <p style={{fontSize:14.5,lineHeight:1.6,color:'var(--ink-2)',margin:'0 0 14px',textWrap:'pretty'}}>
+              <p className="method-dropcap" style={{fontSize:14.5,lineHeight:1.6,color:'var(--ink-2)',margin:'0 0 14px',textWrap:'pretty'}}>
                 The five schemes on the left are the main routes for people arriving as refugees <em>by invitation</em> — distinct from those who claim asylum after arrival. Together they brought around 12,400 people to the UK in 2024.
               </p>
               <p style={{fontSize:14.5,lineHeight:1.6,color:'var(--ink-2)',margin:'0 0 14px',textWrap:'pretty'}}>
@@ -714,6 +923,8 @@ function DashSectionHeader({ kicker, title, accent, cadence }) {
 function NationalitiesTable({ data }) {
   const [sortBy, setSortBy] = uSD('v');
   const [asc, setAsc] = uSD(false);
+  const [query, setQuery] = uSD('');
+  const [region, setRegion] = uSD('all');
 
   if (!data || !data.length) {
     return (
@@ -723,11 +934,35 @@ function NationalitiesTable({ data }) {
     );
   }
 
-  const sorted = [...data].sort((a,b) => {
+  // All regions from REGION_MAP — 'Other / Unclassified' bucket covers names
+  // missing from the map. Built once per render from the data slice so the
+  // filter dropdown only lists regions present in the current dataset.
+  const regionOptions = uMD(() => {
+    const set = new Set();
+    data.forEach(r => set.add(REGION_MAP[r.name] ?? 'Other / Unclassified'));
+    return Array.from(set).sort();
+  }, [data]);
+
+  // Apply text + region filter, then sort.
+  const filtered = uMD(() => {
+    const q = query.trim().toLowerCase();
+    return data.filter(r => {
+      const rg = REGION_MAP[r.name] ?? 'Other / Unclassified';
+      if (region !== 'all' && rg !== region) return false;
+      if (q && !r.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [data, query, region]);
+
+  const sorted = [...filtered].sort((a,b) => {
     const av = a[sortBy], bv = b[sortBy];
     if (typeof av === 'string') return asc ? av.localeCompare(bv) : bv.localeCompare(av);
     return asc ? av - bv : bv - av;
   });
+
+  // Axis for the inline grant-rate bar — fixed at 1.0 so the bar reads as a
+  // share of all decisions, not a relative share within the visible rows.
+  const grantBarColour = g => g == null ? 'var(--muted-2)' : g >= 0.6 ? 'var(--accent-2)' : g >= 0.35 ? 'var(--accent-gold)' : 'var(--accent-warn)';
 
   const click = (col) => () => {
     if (sortBy === col) setAsc(!asc);
@@ -736,25 +971,51 @@ function NationalitiesTable({ data }) {
   const arrow = (col) => sortBy===col ? (asc?' ↑':' ↓') : '';
 
   return (
-    <div style={{maxHeight:260,overflowY:'auto',marginTop:12}}>
-      <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-        <thead style={{position:'sticky',top:0,background:'#fff'}}>
-          <tr>
-            <th className="uc" onClick={click('name')} style={{textAlign:'left',padding:'6px 8px 6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Nationality{arrow('name')}</th>
-            <th className="uc" onClick={click('v')}    style={{textAlign:'right',padding:'6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Apps{arrow('v')}</th>
-            <th className="uc" onClick={click('grant')}style={{textAlign:'right',padding:'6px 0 6px 8px',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Grant{arrow('grant')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((r,i)=>(
-            <tr key={r.name} style={{borderBottom:'1px dotted var(--rule)'}}>
-              <td style={{padding:'5px 8px 5px 0',color:'var(--ink)'}}>{r.name}</td>
-              <td className="tnum" style={{padding:'5px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
-              <td className="tnum" style={{padding:'5px 0 5px 8px',textAlign:'right',color:'var(--muted)'}}>{r.grant!=null ? Math.round(r.grant*100)+'%' : '—'}</td>
+    <div style={{marginTop:12}}>
+      {/* Filter row — text search + region pick */}
+      <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center',flexWrap:'wrap'}}>
+        <input type="search" value={query} onChange={e => setQuery(e.target.value)}
+          placeholder="Find a nationality…"
+          style={{flex:'1 1 140px',minWidth:120,padding:'5px 10px',fontSize:12.5,border:'1px solid var(--rule)',background:'var(--bg)',color:'var(--ink)',fontFamily:'var(--serif)',outline:'none'}}/>
+        <select value={region} onChange={e => setRegion(e.target.value)}
+          style={{padding:'5px 8px',fontSize:12,border:'1px solid var(--rule)',background:'var(--bg)',color:'var(--ink-2)',fontFamily:'var(--serif)'}}>
+          <option value="all">All regions</option>
+          {regionOptions.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <span className="uc" style={{color:'var(--muted-2)',fontSize:10.5}}>{sorted.length} of {data.length}</span>
+      </div>
+
+      <div style={{maxHeight:260,overflowY:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+          <thead style={{position:'sticky',top:0,background:'#fff'}}>
+            <tr>
+              <th className="uc" onClick={click('name')} style={{textAlign:'left',padding:'6px 8px 6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Nationality{arrow('name')}</th>
+              <th className="uc" onClick={click('v')}    style={{textAlign:'right',padding:'6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Apps{arrow('v')}</th>
+              <th className="uc" onClick={click('grant')}style={{textAlign:'right',padding:'6px 0 6px 8px',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer',minWidth:90}}>Grant{arrow('grant')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sorted.map((r,i)=>(
+              <tr key={r.name} style={{borderBottom:'1px dotted var(--rule)'}}>
+                <td style={{padding:'5px 8px 5px 0',color:'var(--ink)'}}>{r.name}</td>
+                <td className="tnum" style={{padding:'5px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
+                <td style={{padding:'5px 0 5px 8px',textAlign:'right'}}>
+                  {r.grant != null ? (
+                    <div style={{display:'inline-flex',alignItems:'center',gap:6,justifyContent:'flex-end',width:'100%'}}>
+                      <div style={{position:'relative',width:56,height:8,background:'var(--bg-2)'}} title={`${Math.round(r.grant*100)}%`}>
+                        <div style={{position:'absolute',inset:0,width:`${Math.min(100, r.grant*100)}%`,background:grantBarColour(r.grant)}}/>
+                      </div>
+                      <span className="tnum" style={{color:'var(--muted)',fontSize:11,minWidth:30,textAlign:'right'}}>{Math.round(r.grant*100)}%</span>
+                    </div>
+                  ) : (
+                    <span className="tnum" style={{color:'var(--muted-2)'}}>—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -839,7 +1100,19 @@ function SchemeCell({ name, colorIdx }) {
   );
 }
 
-function DashFrame({ number, kickerColor, title, sub, children, style={} }) {
+function DashFrame({ number, kickerColor, title, sub, children, style={}, forkPreset=null, setRoute=null }) {
+  // Fork to Build-a-chart, pre-selecting a dataset / overlay / granularity.
+  // `forkPreset` is a partial config keyed like BuildView's URL hash:
+  // { d: 'applications', g: 'annual', ct: 'line', o: 'boats', r: '2018-2025' }.
+  const openInBuild = forkPreset && setRoute ? () => {
+    try {
+      const parts = Object.entries(forkPreset)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`);
+      if (parts.length) history.replaceState(null, '', '#' + parts.join('&'));
+    } catch (_) { /* ignore */ }
+    setRoute({ name: 'build' });
+  } : null;
   return (
     <div style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule)',gap:16}}>
@@ -847,10 +1120,22 @@ function DashFrame({ number, kickerColor, title, sub, children, style={} }) {
           <div style={{fontSize:10.5,letterSpacing:0.12,textTransform:'uppercase',color:kickerColor,fontWeight:500,display:'inline-block',paddingBottom:4,borderBottom:`1.5px solid ${kickerColor}`,marginBottom:10}}>Fig. {number}</div>
           <div style={{fontFamily:'var(--serif)',fontSize:18,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1,lineHeight:1.25}}>{title}</div>
           {sub && <div style={{fontSize:12.5,color:'var(--muted)',marginTop:6,fontStyle:'italic',lineHeight:1.4}}>{sub}</div>}
+          {openInBuild && (
+            <button onClick={openInBuild}
+              className="ulh"
+              style={{display:'inline-block',marginTop:8,fontSize:11,color:'var(--accent)',textTransform:'none',letterSpacing:0}}
+              title="Open this chart's dataset in Build-a-chart">
+              ↗ Fork in Build-a-chart
+            </button>
+          )}
         </div>
         <div style={{display:'flex',gap:10,fontSize:11,color:'var(--muted-2)',flex:'0 0 auto',paddingTop:2}} className="uc">
           <span className="pressable" style={{cursor:'pointer'}}>↓</span>
-          <span className="pressable" style={{cursor:'pointer'}}>⇢</span>
+          {openInBuild ? (
+            <span className="pressable" style={{cursor:'pointer'}} onClick={openInBuild} title="Fork in Build-a-chart">⇢</span>
+          ) : (
+            <span className="pressable" style={{cursor:'pointer',opacity:0.5}}>⇢</span>
+          )}
           <span className="pressable" style={{cursor:'pointer'}}>⎘</span>
         </div>
       </div>

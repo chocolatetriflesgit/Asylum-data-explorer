@@ -3,6 +3,76 @@
 const { useState: uS2, useMemo: uM2, useEffect: uE2 } = React;
 
 // ─────────────────────────────────────────────────────────────
+// Story digest block (Tranche 6.2)
+// Sits at the top of every StoryView to render the standard story anatomy:
+// one-paragraph digest, a "what this measures / what it doesn't" pair,
+// and a Build-a-chart call-to-action. Reads `digest`, `measures`, `excludes`
+// fields on the story object — if they're missing (older stories), the
+// block renders nothing so the original narrative still leads.
+// ─────────────────────────────────────────────────────────────
+function StoryDigestBlock({ story, setRoute }) {
+  if (!story || (!story.digest && !story.measures && !story.excludes)) return null;
+  return (
+    <section style={{marginBottom:40,display:'grid',gridTemplateColumns:'1fr 340px',gap:72,alignItems:'start'}}>
+      <div>
+        {story.digest && (
+          <p style={{fontFamily:'var(--serif)',fontSize:17,lineHeight:1.55,color:'var(--ink)',margin:'0 0 20px',textWrap:'pretty',maxWidth:640}}>
+            {story.digest}
+          </p>
+        )}
+        <button
+          onClick={()=>setRoute && setRoute({name:'build'})}
+          className="ulh"
+          style={{fontSize:13,color:'var(--accent)',fontFamily:'var(--sans)',letterSpacing:0.2,background:'none',border:'none',padding:0,cursor:'pointer'}}>
+          Build a chart from this data →
+        </button>
+      </div>
+      {(story.measures || story.excludes) && (
+        <aside style={{background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',padding:'18px 22px',fontSize:13.5,lineHeight:1.5,color:'var(--ink-2)',display:'flex',flexDirection:'column',gap:14}}>
+          {story.measures && (
+            <div>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:4,fontSize:11}}>What this measures</div>
+              <div>{story.measures}</div>
+            </div>
+          )}
+          {story.excludes && (
+            <div>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:4,fontSize:11}}>What it doesn't</div>
+              <div>{story.excludes}</div>
+            </div>
+          )}
+        </aside>
+      )}
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Further-reading footer (Tranche 6.4)
+// Renders the `reading_links` array on each story as outbound anchors.
+// Kept as its own component so the same block can be reused on an
+// "Updates" page later.
+// ─────────────────────────────────────────────────────────────
+function FurtherReading({ story }) {
+  if (!story || !Array.isArray(story.reading_links) || story.reading_links.length === 0) return null;
+  return (
+    <section style={{marginTop:56,paddingTop:28,borderTop:'1px dotted var(--rule-2)'}}>
+      <div className="uc" style={{color:'var(--muted)',marginBottom:14,fontSize:11}}>Further reading</div>
+      <ul style={{listStyle:'none',padding:0,margin:0,display:'flex',flexDirection:'column',gap:10}}>
+        {story.reading_links.map((link, i) => (
+          <li key={i} style={{fontSize:14,lineHeight:1.4}}>
+            <a href={link.url} target="_blank" rel="noopener noreferrer"
+               style={{color:'var(--accent)',textDecoration:'none',borderBottom:'1px solid var(--rule)'}}>
+              {link.label} ↗
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Story view
 // ─────────────────────────────────────────────────────────────
 function StoryView({ id, setRoute, onMethod }) {
@@ -42,6 +112,9 @@ function StoryView({ id, setRoute, onMethod }) {
           </div>
         </aside>
       </header>
+
+      {/* digest block — standard story anatomy (Tranche 6.2) */}
+      <StoryDigestBlock story={story} setRoute={setRoute}/>
 
       {/* body — grid: narrative left, chart right */}
       <article style={{display:'grid',gridTemplateColumns:'360px 1fr',gap:72,alignItems:'start'}}>
@@ -89,8 +162,10 @@ function StoryView({ id, setRoute, onMethod }) {
                 data={ASYLUM_ANNUAL}
                 yearRange={range}
                 title="Asylum applications, UK"
-                subtitle={`Figure 01 · ${range[0]}–${range[1]}`}
+                subtitle={`Applications annual · main applicants only · UK, ${range[0]}–${range[1]}`}
                 source="Home Office · ASY_D01"
+                asOf={(typeof NAT_FULL_META !== 'undefined' && NAT_FULL_META) ? (NAT_FULL_META.latestDataPoint || NAT_FULL_META.asOf || NAT_FULL_META.generatedAt) : null}
+                nextUpdate={(typeof NAT_FULL_META !== 'undefined' && NAT_FULL_META) ? NAT_FULL_META.nextUpdate : null}
                 annotations={[
                   range[0] <= 2023 && range[1] >= 2023 && { y: 2023, label: '84,425', dx: -80, dy: -14 },
                   range[0] <= 2020 && range[1] >= 2020 && { y: 2020, label: 'Covid', dx: -46, dy: 44 },
@@ -112,9 +187,11 @@ function StoryView({ id, setRoute, onMethod }) {
                 data={ASYLUM_ANNUAL.map(d=>({y:d.y,v:d.boats}))}
                 yearRange={range}
                 title="Small-boat arrivals, UK"
-                subtitle={`Figure 02 · ${range[0]}–${range[1]}`}
+                subtitle={`Small-boat arrivals annual · English Channel · UK, ${range[0]}–${range[1]}`}
                 stroke="var(--accent-warn)"
                 source="Home Office · IRR_D01"
+                asOf={(typeof IRR_BOATS_META !== 'undefined' && IRR_BOATS_META) ? (IRR_BOATS_META.asOf || IRR_BOATS_META.generatedAt) : (typeof BOATS_META !== 'undefined' ? BOATS_META.latestDataPoint : null)}
+                nextUpdate={(typeof IRR_BOATS_META !== 'undefined' && IRR_BOATS_META) ? IRR_BOATS_META.nextUpdate : null}
                 caption="Border Force-recorded arrivals by small boat across the Channel. Series begins 2018; figures for earlier years are zero by definition."
                 width={720} height={220}
               />
@@ -124,7 +201,7 @@ function StoryView({ id, setRoute, onMethod }) {
           {/* related figure — nationalities */}
           <div style={{background:'#fff',padding:'20px 28px',border:'1px solid var(--rule)',marginTop:16}}>
             <div style={{marginBottom:12}}>
-              <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Figure 03 · 2020–2024</div>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Applications by top nationality · main applicants · 2020–2025</div>
               <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top five nationalities</div>
             </div>
             <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={720} height={280}/>
@@ -132,6 +209,9 @@ function StoryView({ id, setRoute, onMethod }) {
           </div>
         </div>
       </article>
+
+      {/* further reading (Tranche 6.4) */}
+      <FurtherReading story={story}/>
 
       {/* more in this section */}
       <section style={{marginTop:72,paddingTop:36,borderTop:'1px solid var(--rule)'}}>
@@ -153,14 +233,42 @@ function StoryView({ id, setRoute, onMethod }) {
 // ─────────────────────────────────────────────────────────────
 // Datasets browse view
 // ─────────────────────────────────────────────────────────────
+// Peek the first three rows of whichever window-global is most
+// representative for a given dataset code. Used by the Datasets page
+// to show readers what the underlying shape actually looks like — no
+// more "trust us, it exists" listings.
+function _previewFor(code) {
+  const W = typeof window !== 'undefined' ? window : {};
+  const pick = (arr) => Array.isArray(arr) && arr.length ? arr.slice(0, 3) : null;
+  switch (code) {
+    case 'ASY_D01':  return { global: 'NAT_FULL',            rows: pick(W.NAT_FULL) };
+    case 'ASY_D02':  return { global: 'DECISIONS_LATEST',    rows: pick(W.DECISIONS_LATEST) };
+    case 'ASY_D03':  return { global: 'SEX_AGE_ANNUAL',      rows: pick(W.SEX_AGE_ANNUAL) };
+    case 'ASY_D04':  return { global: 'OUTCOME_COHORT_ANNUAL', rows: pick(W.OUTCOME_COHORT_ANNUAL) };
+    case 'ASY_D07':  return { global: 'BACKLOG_LATEST',      rows: pick(W.BACKLOG_LATEST) };
+    case 'ASY_D05':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
+    case 'ASY_D09':  return { global: 'HOTELS',              rows: pick(W.HOTELS) };
+    case 'ASY_D11':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
+    case 'AGE_D01':  return { global: 'AGE_DISPUTES_BY_NATIONALITY', rows: pick(W.AGE_DISPUTES_BY_NATIONALITY) };
+    case 'SB_D01':   return { global: 'BOATS_WEEKLY',        rows: pick(W.BOATS_WEEKLY) };
+    case 'SB_D02':   return { global: 'BOATS_PROVISIONAL',   rows: pick(W.BOATS_PROVISIONAL) };
+    case 'IRR_D01':  return { global: 'IRR_BOATS_BY_NATIONALITY', rows: null };
+    case 'RES_D01':  return { global: 'RESETTLEMENT_SERIES', rows: pick(W.RESETTLEMENT_SERIES) };
+    case 'RES_D02':  return { global: 'UKRAINE_VISAS',       rows: null };
+    default:         return { global: null, rows: null };
+  }
+}
+
 function DatasetsView({ setRoute }) {
   const [q, setQ] = uS2('');
   const [freq, setFreq] = uS2('All');
+  const [openCode, setOpenCode] = uS2(null);
   const filtered = DATASETS.filter(d => {
     if (freq !== 'All' && d.freq !== freq) return false;
     if (q && !d.name.toLowerCase().includes(q.toLowerCase()) && !d.code.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });
+  const consumers = (typeof DATASET_CONSUMERS !== 'undefined') ? DATASET_CONSUMERS : {};
   return (
     <main className="fade-enter" style={{maxWidth:1240,margin:'0 auto',padding:'48px 48px 80px'}}>
       <div style={{marginBottom:28}}>
@@ -186,30 +294,99 @@ function DatasetsView({ setRoute }) {
           </tr>
         </thead>
         <tbody>
-          {filtered.map(d=>(
-            <tr key={d.code} style={{borderBottom:'1px solid var(--rule)',cursor: d.landingUrl ? 'pointer' : 'default'}}
-                onClick={() => { if (d.landingUrl) window.open(d.landingUrl, '_blank', 'noopener,noreferrer'); }}
-                onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-2)'}}
-                onMouseLeave={e=>{e.currentTarget.style.background='transparent'}}>
-              <td className="mono" style={{padding:'14px 14px',color:'var(--accent)',fontSize:12}}>{d.code}</td>
-              <td style={{padding:'14px 14px',color:'var(--ink)'}}>{d.name}</td>
-              <td className="tnum" style={{padding:'14px 14px',textAlign:'right',color:'var(--ink-2)'}}>{d.rows}</td>
-              <td style={{padding:'14px 14px',color:'var(--muted)'}}>{d.updated}</td>
-              <td style={{padding:'14px 14px',color:'var(--muted)',fontStyle:'italic'}}>{d.freq}</td>
-              <td style={{padding:'14px 14px',textAlign:'right'}}>
-                {d.landingUrl ? (
-                  <a href={d.landingUrl} target="_blank" rel="noopener noreferrer"
-                     onClick={e => e.stopPropagation()}
-                     className="ulh"
-                     style={{color:'var(--accent)',fontSize:12.5,textDecoration:'none'}}>
-                    Open on gov.uk ↗
-                  </a>
-                ) : (
-                  <span className="ulh" style={{color:'var(--muted)',fontSize:12.5}}>—</span>
+          {filtered.map(d=>{
+            const open = openCode === d.code;
+            const uses = consumers[d.code] ?? [];
+            const preview = _previewFor(d.code);
+            const schemaKeys = preview.rows && preview.rows[0] ? Object.keys(preview.rows[0]) : null;
+            return (
+              <React.Fragment key={d.code}>
+                <tr style={{borderBottom:'1px solid var(--rule)',cursor:'pointer',background: open ? 'var(--bg-2)' : 'transparent'}}
+                    onClick={() => setOpenCode(open ? null : d.code)}>
+                  <td className="mono" style={{padding:'14px 14px',color:'var(--accent)',fontSize:12}}>{d.code}</td>
+                  <td style={{padding:'14px 14px',color:'var(--ink)'}}>
+                    {d.name}
+                    <span style={{marginLeft:8,fontSize:11,color:'var(--muted-2)'}}>{open ? '▴' : '▾'}</span>
+                  </td>
+                  <td className="tnum" style={{padding:'14px 14px',textAlign:'right',color:'var(--ink-2)'}}>{d.rows}</td>
+                  <td style={{padding:'14px 14px',color:'var(--muted)'}}>{d.updated}</td>
+                  <td style={{padding:'14px 14px',color:'var(--muted)',fontStyle:'italic'}}>{d.freq}</td>
+                  <td style={{padding:'14px 14px',textAlign:'right'}}>
+                    {d.landingUrl ? (
+                      <a href={d.landingUrl} target="_blank" rel="noopener noreferrer"
+                         onClick={e => e.stopPropagation()}
+                         className="ulh"
+                         style={{color:'var(--accent)',fontSize:12.5,textDecoration:'none'}}>
+                        Open on gov.uk ↗
+                      </a>
+                    ) : (
+                      <span className="ulh" style={{color:'var(--muted)',fontSize:12.5}}>—</span>
+                    )}
+                  </td>
+                </tr>
+                {open && (
+                  <tr style={{background:'var(--bg-2)'}}>
+                    <td colSpan={6} style={{padding:'4px 14px 20px 14px'}}>
+                      <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1.3fr)',gap:28}}>
+                        {/* Used-in panel */}
+                        <div>
+                          <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8}}>Used in</div>
+                          {uses.length === 0 ? (
+                            <div style={{fontSize:12,color:'var(--muted-2)',fontStyle:'italic'}}>
+                              No charts in the product currently consume this dataset.
+                            </div>
+                          ) : (
+                            <ul style={{margin:0,padding:'0 0 0 16px',listStyle:'disc',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55}}>
+                              {uses.map((u, i) => (
+                                <li key={i}><span style={{color:'var(--muted)'}}>{u.view}:</span> {u.chart}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        {/* Schema preview panel */}
+                        <div>
+                          <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8,display:'flex',justifyContent:'space-between'}}>
+                            <span>Schema preview</span>
+                            {preview.global && <span className="mono" style={{color:'var(--muted-2)'}}>window.{preview.global}</span>}
+                          </div>
+                          {!preview.rows ? (
+                            <div style={{fontSize:12,color:'var(--muted-2)',fontStyle:'italic'}}>
+                              No ingested builder yet. Add one in scripts/ and register it in _sources.py.
+                            </div>
+                          ) : (
+                            <div style={{overflowX:'auto'}}>
+                              <table style={{width:'100%',fontSize:11.5,borderCollapse:'collapse'}} className="mono">
+                                <thead>
+                                  <tr>
+                                    {schemaKeys.map(k => (
+                                      <th key={k} style={{textAlign:'left',padding:'4px 8px',color:'var(--muted)',borderBottom:'1px solid var(--rule-2)',fontWeight:500}}>
+                                        {k}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {preview.rows.map((row, i) => (
+                                    <tr key={i}>
+                                      {schemaKeys.map(k => (
+                                        <td key={k} style={{padding:'4px 8px',color:'var(--ink-2)',borderBottom:'1px dotted var(--rule-2)',whiteSpace:'nowrap',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis'}}>
+                                          {typeof row[k] === 'object' ? JSON.stringify(row[k]).slice(0,40) : String(row[k])}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
                 )}
-              </td>
-            </tr>
-          ))}
+              </React.Fragment>
+            );
+          })}
         </tbody>
       </table>
       {filtered.length === 0 && <div style={{padding:'48px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No datasets match your filter.</div>}
@@ -377,16 +554,153 @@ function getGranularSeries(opt, gran) {
   return opt.series;
 }
 
+// Read the Build view's initial config out of the URL hash (set when a
+// Dashboard chart is "forked into Build-a-chart" or when a link is
+// shared). Falls back to localStorage, then to the built-in defaults.
+function readBuildInitial() {
+  const defaults = {
+    ds: 'applications',
+    overlays: ['boats'],
+    chartType: 'line',
+    range: [2018, DATA_MAX_YEAR],
+    granularity: 'annual',
+    selectedNats: ['Pakistan','Afghanistan','Iran','Eritrea','Syria'],
+  };
+  try {
+    const read = (key, fromHash) => {
+      const m = typeof location !== 'undefined'
+        ? new RegExp('[#&]' + key + '=([^&]+)').exec(location.hash) : null;
+      if (m) return decodeURIComponent(m[1]);
+      if (fromHash) return null;
+      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('build_' + key) : null;
+      return stored;
+    };
+    const ds = read('d') || defaults.ds;
+    const overlays = (read('o') || defaults.overlays.join(',')).split(',').filter(Boolean);
+    const chartType = read('ct') || defaults.chartType;
+    const rng = (read('r') || `${defaults.range[0]}-${defaults.range[1]}`).split('-').map(Number);
+    const range = (rng.length === 2 && rng.every(Number.isFinite)) ? rng : defaults.range;
+    const granularity = read('g') || defaults.granularity;
+    const selectedNats = (read('nats') || defaults.selectedNats.join(',')).split(',').filter(Boolean);
+    return { ds, overlays, chartType, range, granularity, selectedNats };
+  } catch (_) {
+    return defaults;
+  }
+}
+
 function BuildView({ setRoute }) {
-  const [ds, setDs] = uS2('applications');
-  const [overlays, setOverlays] = uS2(['boats']);
-  const [chartType, setChartType] = uS2('line');
-  const [range, setRange] = uS2([2018, DATA_MAX_YEAR]);
+  const initial = uM2(() => readBuildInitial(), []);
+  const [ds, setDs] = uS2(initial.ds);
+  const [overlays, setOverlays] = uS2(initial.overlays);
+  const [chartType, setChartType] = uS2(initial.chartType);
+  const [range, setRange] = uS2(initial.range);
   const [overlaySingleChart, setOverlaySingleChart] = uS2(true);
   const [showLabels, setShowLabels] = uS2(false);
-  const [granularity, setGranularity] = uS2('annual');
-  const [selectedNats, setSelectedNats] = uS2(['Pakistan','Afghanistan','Iran','Eritrea','Syria']);
+  const [granularity, setGranularity] = uS2(initial.granularity);
+  const [selectedNats, setSelectedNats] = uS2(initial.selectedNats);
   const [natQuery, setNatQuery] = uS2('');
+
+  const previewRef = React.useRef(null);
+
+  // Curated entry points. Each preset fills in the handful of config
+  // knobs a reader would have to set by hand to reproduce a familiar
+  // chart from the stories / dashboard. Click → apply.
+  const BUILD_PRESETS = [
+    { label: 'Small-boat arrivals by month',  cfg: { ds:'boats', chartType:'line', granularity:'monthly' } },
+    { label: 'Small-boat arrivals by week',   cfg: { ds:'boats', chartType:'line', granularity:'weekly' } },
+    { label: 'Applications, 2014–today',      cfg: { ds:'applications', chartType:'line', granularity:'annual', range:[2014, DATA_MAX_YEAR] } },
+    { label: 'Top 5 nationalities over time', cfg: { ds:'nationalities', chartType:'line', granularity:'annual' } },
+    { label: 'Grant rate · top 5',            cfg: { ds:'grant_rate', selectedNats:['Afghanistan','Syria','Iran','Eritrea','Sudan'], range:[2016, DATA_MAX_YEAR] } },
+    { label: 'Backlog since 2018',            cfg: { ds:'backlog', chartType:'line', granularity:'annual', range:[2018, DATA_MAX_YEAR] } },
+    { label: 'Resettlement by scheme',        cfg: { ds:'resettlement', chartType:'stacked' } },
+    { label: 'Hotels occupancy',              cfg: { ds:'hotels', chartType:'line' } },
+  ];
+  const applyPreset = (cfg) => {
+    if (cfg.ds) setDs(cfg.ds);
+    if (cfg.chartType) setChartType(cfg.chartType);
+    if (cfg.granularity) setGranularity(cfg.granularity);
+    if (cfg.range) setRange(cfg.range);
+    if (cfg.selectedNats) setSelectedNats(cfg.selectedNats);
+  };
+
+  // Find the first <svg> inside the preview and trigger a download of it
+  // as either an inline-SVG file or a rasterised PNG. The chart primitives
+  // use `var(--…)` tokens so we inline the relevant custom properties at
+  // serialise time — otherwise a stand-alone SVG looks untokened.
+  const TOKEN_KEYS = ['--accent','--accent-2','--accent-warn','--accent-gold','--bg','--bg-2','--bg-3','--ink','--ink-2','--muted','--muted-2','--rule','--rule-2','--serif','--mono'];
+  const serialiseSvg = () => {
+    const host = previewRef.current;
+    if (!host) return null;
+    const svg = host.querySelector('svg');
+    if (!svg) return null;
+    const clone = svg.cloneNode(true);
+    // Inline design tokens so the file survives outside the page.
+    const cs = getComputedStyle(document.documentElement);
+    const declarations = TOKEN_KEYS
+      .map(k => `${k}: ${cs.getPropertyValue(k).trim()};`)
+      .filter(d => d.split(':')[1] && d.split(':')[1] !== ' ;')
+      .join(' ');
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('style', (clone.getAttribute('style') || '') + '; ' + declarations);
+    if (!clone.getAttribute('width')) clone.setAttribute('width', svg.getBoundingClientRect().width || 800);
+    if (!clone.getAttribute('height')) clone.setAttribute('height', svg.getBoundingClientRect().height || 400);
+    return new XMLSerializer().serializeToString(clone);
+  };
+  const downloadBlob = (blob, name) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+  const baseName = () => `hodx-${ds}-${range[0]}-${range[1]}`;
+  const onDownloadSvg = () => {
+    const text = serialiseSvg();
+    if (!text) return;
+    downloadBlob(new Blob([text], { type: 'image/svg+xml' }), baseName() + '.svg');
+  };
+  const onDownloadPng = () => {
+    const text = serialiseSvg();
+    if (!text) return;
+    const host = previewRef.current.querySelector('svg');
+    const bbox = host.getBoundingClientRect();
+    const scale = 2; // retina-ish
+    const img = new Image();
+    const svgUrl = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.max(1, Math.round(bbox.width  * scale));
+      canvas.height = Math.max(1, Math.round(bbox.height * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(b => { if (b) downloadBlob(b, baseName() + '.png'); });
+      URL.revokeObjectURL(svgUrl);
+    };
+    img.onerror = () => URL.revokeObjectURL(svgUrl);
+    img.src = svgUrl;
+  };
+
+  // Write back to hash + localStorage whenever any serialisable bit of
+  // state changes, so refreshes and shared links round-trip.
+  uE2(() => {
+    try {
+      const parts = {
+        d:    ds,
+        o:    overlays.join(','),
+        ct:   chartType,
+        r:    `${range[0]}-${range[1]}`,
+        g:    granularity,
+        nats: selectedNats.join(','),
+      };
+      Object.entries(parts).forEach(([k,v]) => { if (v != null) localStorage.setItem('build_' + k, v); });
+      if (typeof location !== 'undefined') {
+        const hash = '#' + Object.entries(parts).map(([k,v]) => `${k}=${encodeURIComponent(v ?? '')}`).join('&');
+        if (hash !== location.hash) history.replaceState(null, '', hash);
+      }
+    } catch (_) { /* ignore */ }
+  }, [ds, overlays, chartType, range, granularity, selectedNats]);
 
   // Prune the primary dataset from the overlay list if the user switches to it.
   uE2(() => { setOverlays(os => os.filter(id => id !== ds)); }, [ds]);
@@ -462,7 +776,26 @@ function BuildView({ setRoute }) {
       <div style={{marginBottom:28}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-2)'}}>Build a chart</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 14px'}}>Make your own.</h1>
-        <p style={{fontSize:17,color:'var(--ink-2)',maxWidth:640,margin:0,lineHeight:1.5}}>Pick a dataset, a time range, and a chart type. Export as an image or embed it in your own article.</p>
+        <p style={{fontSize:17,color:'var(--ink-2)',maxWidth:640,margin:0,lineHeight:1.5}}>Pick a dataset, a time range, and a chart type. Download as PNG or SVG, or share the URL — Build preserves every setting in the hash.</p>
+      </div>
+
+      {/* Preset gallery — curated starting points. Clicking re-fills the
+          controls below; the URL updates to match so the preset is shareable. */}
+      <div style={{marginBottom:28}}>
+        <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Start from a preset</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+          {BUILD_PRESETS.map(p => (
+            <button key={p.label} onClick={()=>applyPreset(p.cfg)}
+              title={`Load ${p.label.toLowerCase()} into the controls below`}
+              style={{
+                fontFamily:'var(--serif)',fontSize:12.5,padding:'6px 12px',
+                background:'#fff',border:'1px solid var(--rule-2)',color:'var(--ink-2)',
+                cursor:'pointer',letterSpacing:0.01,
+              }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div style={{display:'grid',gridTemplateColumns:'300px 1fr',gap:40,alignItems:'start'}}>
@@ -622,15 +955,24 @@ function BuildView({ setRoute }) {
           )}
 
           <div style={{paddingTop:18,borderTop:'1px solid var(--rule)',display:'flex',flexDirection:'column',gap:8}}>
-            <button style={{background:'var(--accent)',color:'var(--bg)',padding:'10px 14px',fontSize:13,fontFamily:'var(--serif)'}}>↓ Download PNG</button>
-            <button style={{background:'#fff',color:'var(--accent)',padding:'10px 14px',fontSize:13,fontFamily:'var(--serif)',border:'1px solid var(--accent)'}}>↓ Download CSV</button>
-            <button style={{color:'var(--muted)',padding:'8px 14px',fontSize:13,fontFamily:'var(--serif)'}}>⎘ Copy embed code</button>
+            <button onClick={onDownloadPng}
+              style={{background:'var(--accent)',color:'var(--bg)',padding:'10px 14px',fontSize:13,fontFamily:'var(--serif)',cursor:'pointer',border:'none'}}>
+              ↓ Download PNG
+            </button>
+            <button onClick={onDownloadSvg}
+              style={{background:'#fff',color:'var(--accent)',padding:'10px 14px',fontSize:13,fontFamily:'var(--serif)',border:'1px solid var(--accent)',cursor:'pointer'}}>
+              ↓ Download SVG
+            </button>
+            <button onClick={() => { try { navigator.clipboard.writeText(location.href); } catch(_){} }}
+              style={{color:'var(--muted)',padding:'8px 14px',fontSize:13,fontFamily:'var(--serif)',background:'transparent',border:'none',cursor:'pointer'}}>
+              ⎘ Copy share link
+            </button>
           </div>
         </aside>
 
         {/* preview */}
         <section>
-          <div style={{background:'var(--bg-2)',padding:'32px 36px',border:'1px solid var(--rule)'}}>
+          <div ref={previewRef} style={{background:'var(--bg-2)',padding:'32px 36px',border:'1px solid var(--rule)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:18,paddingBottom:14,borderBottom:'1px solid var(--rule-2)'}}>
               <div>
                 <div className="uc" style={{color:'var(--muted)'}}>Preview · Figure A</div>
@@ -924,4 +1266,121 @@ function BuildView({ setRoute }) {
   );
 }
 
-Object.assign(window, { StoryView, DatasetsView, BuildView });
+// ─────────────────────────────────────────────────────────────
+// Updates view (Tranche 6.3)
+// Chronological changelog. Combines two streams:
+//   1. Auto-detected "source refreshed" rows from each *_META.generatedAt
+//      (one line per dataset, keyed by code, newest first).
+//   2. Hand-curated editorial entries (new charts, revisions, notes) —
+//      stored inline as REVISION_LOG because there is no upstream source.
+// The merged list is rendered newest-first. No chart primitives; the page
+// is purely a timeline so readers can see "what changed when".
+// ─────────────────────────────────────────────────────────────
+const REVISION_LOG = [
+  { date: '22 April 2026', kind: 'Feature',   text: 'Cohort outcome ribbon, merged three-column sankey, and annual backlog waterfall launched from ASY_D04.' },
+  { date: '22 April 2026', kind: 'Feature',   text: 'Per-capita Atlas mode (apps per 100k of origin-country displaced population) uses UNHCR population data.' },
+  { date: '22 April 2026', kind: 'Feature',   text: 'Boats-by-nationality chart on the Flow view now reads from IRR_D01.' },
+  { date: '21 April 2026', kind: 'Editorial', text: 'Story pages restructured with a standard anatomy: 80-word digest, "what this measures / doesn\u2019t" card, Further reading footer.' },
+  { date: '21 April 2026', kind: 'Editorial', text: 'Every chart footer now shows "Source \u00b7 as-of \u00b7 next update", read directly from the source metadata.' },
+  { date: '20 April 2026', kind: 'Editorial', text: 'Dashboard statistics rebuilt with a four-up hero strip and sparklines; 11 supporting statistics moved under "Detail".' },
+  { date: '17 April 2026', kind: 'Source',    text: 'First successful data refresh against the 17 April 2026 small-boats ODS release.' },
+];
+
+function _updatesSourceRows() {
+  const W = (typeof window !== 'undefined') ? window : {};
+  const entries = [
+    ['SB_D01',  'Small-boats crossings',                  W.BOATS_META],
+    ['SB_D02',  'Small-boats last 7 days',                W.BOATS_PROVISIONAL_META],
+    ['ASY_D01', 'Asylum applications by nationality',     W.NAT_FULL_META],
+    ['ASY_D02', 'Initial decisions on asylum claims',     W.DECISIONS_META],
+    ['ASY_D03', 'Age and sex of applicants',              W.SEX_AGE_META],
+    ['ASY_D04', 'Outcome analysis (cohort)',              W.OUTCOME_COHORT_META],
+    ['ASY_D05', 'Asylum support',                          W.SUPPORT_REGIONS_META],
+    ['ASY_D07', 'Backlog \u2014 cases awaiting decision',  W.BACKLOG_META],
+    ['ASY_D09', 'Asylum seekers in hotels',                W.HOTELS_META],
+    ['AGE_D01', 'Age disputes',                            W.AGE_DISPUTES_META],
+    ['IRR_D01', 'Irregular migration by nationality',     W.IRR_BOATS_META],
+    ['RES_D01', 'Resettlement schemes',                    W.RESETTLEMENT_META],
+  ];
+  const rows = [];
+  for (const [code, name, meta] of entries) {
+    if (!meta) continue;
+    const raw = meta.generatedAt || meta.latestDataPoint || meta.latest_date || meta.asOf;
+    if (!raw) continue;
+    rows.push({
+      date: raw,
+      kind: 'Source',
+      code,
+      text: name + ' refreshed (as of ' + (meta.latestDataPoint || meta.latest_date || raw).slice(0,10) + ').',
+    });
+  }
+  return rows;
+}
+
+function _fmtLogDate(raw) {
+  if (!raw) return '';
+  // Already "DD Month YYYY" → pass through.
+  if (/^\d{1,2}\s+[A-Za-z]+\s+\d{4}$/.test(String(raw))) return String(raw);
+  const d = new Date(raw);
+  if (isNaN(d)) return String(raw);
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+}
+
+function _logSortKey(raw) {
+  if (!raw) return 0;
+  if (/^\d{1,2}\s+[A-Za-z]+\s+\d{4}$/.test(String(raw))) {
+    const parts = String(raw).split(/\s+/);
+    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const mi = MONTHS.indexOf(parts[1]);
+    if (mi < 0) return 0;
+    return Date.UTC(+parts[2], mi, +parts[0]);
+  }
+  const d = new Date(raw);
+  return isNaN(d) ? 0 : d.getTime();
+}
+
+function UpdatesView({ setRoute }) {
+  const rows = uM2(() => {
+    const merged = REVISION_LOG.concat(_updatesSourceRows());
+    merged.sort((a, b) => _logSortKey(b.date) - _logSortKey(a.date));
+    return merged;
+  }, []);
+  const kindColor = {
+    'Feature':   'var(--accent)',
+    'Editorial': 'var(--accent-warn)',
+    'Source':    'var(--muted-2)',
+    'Revision':  'var(--accent-warn)',
+  };
+  return (
+    <main className="fade-enter" style={{maxWidth:920,margin:'0 auto',padding:'56px 48px 100px'}}>
+      <div className="uc" style={{color:'var(--muted)',marginBottom:10,fontSize:11}}>Log</div>
+      <h1 style={{fontFamily:'var(--serif)',fontSize:46,lineHeight:1.05,letterSpacing:-0.5,fontWeight:400,margin:'0 0 14px',color:'var(--ink)'}}>
+        Updates
+      </h1>
+      <p style={{fontSize:16.5,lineHeight:1.55,color:'var(--ink-2)',margin:'0 0 36px',maxWidth:640}}>
+        Every source refresh and every notable change to this explorer, newest first. Source rows come from the pipeline metadata; editorial rows are curated by hand.
+      </p>
+      <ol style={{listStyle:'none',padding:0,margin:0,borderTop:'1px solid var(--rule)'}}>
+        {rows.map((r, i) => (
+          <li key={i} style={{display:'grid',gridTemplateColumns:'180px 110px 1fr',gap:24,padding:'18px 0',borderBottom:'1px solid var(--rule)',alignItems:'baseline'}}>
+            <div className="uc" style={{fontSize:12,color:'var(--muted)',letterSpacing:0.3}}>
+              {_fmtLogDate(r.date)}
+            </div>
+            <div className="uc" style={{fontSize:11,color:kindColor[r.kind] || 'var(--muted)',letterSpacing:0.6}}>
+              {r.kind}{r.code ? ' · ' + r.code : ''}
+            </div>
+            <div style={{fontSize:14.5,lineHeight:1.55,color:'var(--ink-2)'}}>
+              {r.text}
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div style={{marginTop:36,fontSize:12.5,color:'var(--muted)',lineHeight:1.5}}>
+        Source rows are generated from each dataset&apos;s <code>*_META</code> at bundle time. Editorial rows live in <code>src/views-story-build.jsx</code> under <code>REVISION_LOG</code>; add a line there when a figure is revised or a new chart ships.
+      </div>
+    </main>
+  );
+}
+
+Object.assign(window, { StoryView, DatasetsView, BuildView, UpdatesView });
