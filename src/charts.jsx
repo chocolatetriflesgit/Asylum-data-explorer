@@ -133,8 +133,10 @@ function LineChart({
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
 
-  const filtered = yearRange ? data.filter(d => d.y >= yearRange[0] && d.y <= yearRange[1]) : data;
-  const d = filtered.length ? filtered : data;
+  const yrFiltered = yearRange ? data.filter(d => d.y >= yearRange[0] && d.y <= yearRange[1]) : data;
+  // Drop null/undefined v's so missing years (e.g. pre-2018 boats) don't plot as 0.
+  const filtered = yrFiltered.filter(p => p && p.v != null);
+  const d = filtered.length ? filtered : data.filter(p => p && p.v != null);
 
   const xs = d.map(p => p.y);
   const ys = d.map(p => p.v);
@@ -840,8 +842,9 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
   const ser = series.map(s => ({ ...s, data: yearIdx.map(i => s.data[i]) }));
   const activeYears = yrs.length ? yrs : years;
   const activeSeries = yrs.length ? ser : series;
-  const allV = activeSeries.flatMap(s=>s.data);
-  const yMax = Math.max(...allV) * 1.12;
+  // Null/undefined values are treated as missing data — excluded from yMax and drawn as line breaks.
+  const allV = activeSeries.flatMap(s=>s.data).filter(v => v != null);
+  const yMax = (allV.length ? Math.max(...allV) : 0) * 1.12;
   const x = i => pad.l + (i/Math.max(1, activeYears.length-1))*iw;
 
   const effectiveBreak = breakY && allV.some(v=>v<breakY[0]) && allV.some(v=>v>breakY[1]) ? breakY : null;
@@ -904,8 +907,17 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
         {/* Lines rendered first so break band can mask them */}
         {activeSeries.map((s,si)=>{
           const color = MULTI_COLORS[si % MULTI_COLORS.length];
-          const pts = s.data.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
-          return <polyline key={`line-${si}`} points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>;
+          // Split into contiguous runs so null gaps become real line breaks rather than plotted as zero.
+          const runs = [];
+          let cur = [];
+          s.data.forEach((v,i) => {
+            if (v == null) { if (cur.length) { runs.push(cur); cur = []; } }
+            else cur.push(`${x(i)},${y(v)}`);
+          });
+          if (cur.length) runs.push(cur);
+          return runs.map((run, ri) => (
+            <polyline key={`line-${si}-${ri}`} points={run.join(' ')} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>
+          ));
         })}
         {/* Break band mask */}
         {effectiveBreak && (()=>{
@@ -927,9 +939,12 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
         {activeSeries.map((s,si)=>{
           const color = MULTI_COLORS[si % MULTI_COLORS.length];
           const last = s.data.length-1;
+          // End-of-line label anchors on the last non-null point.
+          let lastNonNull = -1;
+          for (let i = s.data.length - 1; i >= 0; i--) { if (s.data[i] != null) { lastNonNull = i; break; } }
           return (
             <g key={`pts-${si}-${s.name}`}>
-              {s.data.map((v,i)=>(
+              {s.data.map((v,i)=> v == null ? null : (
                 <g key={i}>
                   <circle cx={x(i)} cy={y(v)} r="2.6" fill={color}/>
                   <circle cx={x(i)} cy={y(v)} r="12" fill="transparent"
@@ -938,8 +953,8 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
                   />
                 </g>
               ))}
-              {!legend && <text x={x(last)+10} y={y(s.data[last])+4} fontSize="12" fill={color} style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{s.name}</text>}
-              {showLabels && s.data.map((v,i)=>(
+              {!legend && lastNonNull >= 0 && <text x={x(lastNonNull)+10} y={y(s.data[lastNonNull])+4} fontSize="12" fill={color} style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{s.name}</text>}
+              {showLabels && s.data.map((v,i)=> v == null ? null : (
                 <text key={`lbl-${i}`} x={x(i)} y={y(v)-8} textAnchor="middle" fontSize="10" fill={color} style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
               ))}
             </g>

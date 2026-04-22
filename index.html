@@ -309,14 +309,14 @@ const ASYLUM_ANNUAL = (() => {
   const natTotal = Array.isArray(_W.NAT_FULL)
     ? _W.NAT_FULL.reduce((s, r) => s + (r.v || 0), 0) : null;
   const rows = _ASYLUM_V_MANUAL.map(r => ({
-    y: r.y, v: r.v, boats: boatsByYear[r.y] ?? 0,
+    y: r.y, v: r.v, boats: boatsByYear[r.y] ?? null,
   }));
   if (natYear && natTotal != null && !rows.some(r => r.y === natYear)) {
-    rows.push({ y: natYear, v: natTotal, boats: boatsByYear[natYear] ?? 0 });
+    rows.push({ y: natYear, v: natTotal, boats: boatsByYear[natYear] ?? null });
   } else if (natYear && natTotal != null) {
     // Overwrite if pipeline now disagrees with the hand-maintained row.
     const idx = rows.findIndex(r => r.y === natYear);
-    if (idx >= 0) rows[idx] = { y: natYear, v: natTotal, boats: boatsByYear[natYear] ?? 0 };
+    if (idx >= 0) rows[idx] = { y: natYear, v: natTotal, boats: boatsByYear[natYear] ?? null };
   }
   return rows.sort((a, b) => a.y - b.y);
 })();
@@ -934,8 +934,10 @@ function LineChart({
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
 
-  const filtered = yearRange ? data.filter(d => d.y >= yearRange[0] && d.y <= yearRange[1]) : data;
-  const d = filtered.length ? filtered : data;
+  const yrFiltered = yearRange ? data.filter(d => d.y >= yearRange[0] && d.y <= yearRange[1]) : data;
+  // Drop null/undefined v's so missing years (e.g. pre-2018 boats) don't plot as 0.
+  const filtered = yrFiltered.filter(p => p && p.v != null);
+  const d = filtered.length ? filtered : data.filter(p => p && p.v != null);
 
   const xs = d.map(p => p.y);
   const ys = d.map(p => p.v);
@@ -1641,8 +1643,9 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
   const ser = series.map(s => ({ ...s, data: yearIdx.map(i => s.data[i]) }));
   const activeYears = yrs.length ? yrs : years;
   const activeSeries = yrs.length ? ser : series;
-  const allV = activeSeries.flatMap(s=>s.data);
-  const yMax = Math.max(...allV) * 1.12;
+  // Null/undefined values are treated as missing data — excluded from yMax and drawn as line breaks.
+  const allV = activeSeries.flatMap(s=>s.data).filter(v => v != null);
+  const yMax = (allV.length ? Math.max(...allV) : 0) * 1.12;
   const x = i => pad.l + (i/Math.max(1, activeYears.length-1))*iw;
 
   const effectiveBreak = breakY && allV.some(v=>v<breakY[0]) && allV.some(v=>v>breakY[1]) ? breakY : null;
@@ -1705,8 +1708,17 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
         {/* Lines rendered first so break band can mask them */}
         {activeSeries.map((s,si)=>{
           const color = MULTI_COLORS[si % MULTI_COLORS.length];
-          const pts = s.data.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
-          return <polyline key={`line-${si}`} points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>;
+          // Split into contiguous runs so null gaps become real line breaks rather than plotted as zero.
+          const runs = [];
+          let cur = [];
+          s.data.forEach((v,i) => {
+            if (v == null) { if (cur.length) { runs.push(cur); cur = []; } }
+            else cur.push(`${x(i)},${y(v)}`);
+          });
+          if (cur.length) runs.push(cur);
+          return runs.map((run, ri) => (
+            <polyline key={`line-${si}-${ri}`} points={run.join(' ')} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round"/>
+          ));
         })}
         {/* Break band mask */}
         {effectiveBreak && (()=>{
@@ -1728,9 +1740,12 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
         {activeSeries.map((s,si)=>{
           const color = MULTI_COLORS[si % MULTI_COLORS.length];
           const last = s.data.length-1;
+          // End-of-line label anchors on the last non-null point.
+          let lastNonNull = -1;
+          for (let i = s.data.length - 1; i >= 0; i--) { if (s.data[i] != null) { lastNonNull = i; break; } }
           return (
             <g key={`pts-${si}-${s.name}`}>
-              {s.data.map((v,i)=>(
+              {s.data.map((v,i)=> v == null ? null : (
                 <g key={i}>
                   <circle cx={x(i)} cy={y(v)} r="2.6" fill={color}/>
                   <circle cx={x(i)} cy={y(v)} r="12" fill="transparent"
@@ -1739,8 +1754,8 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
                   />
                 </g>
               ))}
-              {!legend && <text x={x(last)+10} y={y(s.data[last])+4} fontSize="12" fill={color} style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{s.name}</text>}
-              {showLabels && s.data.map((v,i)=>(
+              {!legend && lastNonNull >= 0 && <text x={x(lastNonNull)+10} y={y(s.data[lastNonNull])+4} fontSize="12" fill={color} style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{s.name}</text>}
+              {showLabels && s.data.map((v,i)=> v == null ? null : (
                 <text key={`lbl-${i}`} x={x(i)} y={y(v)-8} textAnchor="middle" fontSize="10" fill={color} style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
               ))}
             </g>
@@ -3152,7 +3167,7 @@ function StoryHero({ kind }) {
   );
   if (kind === 'backlog') return <Spark data={BACKLOG} width={220} height={62} stroke="var(--accent-warn)"/>;
   if (kind === 'area') return (
-    <Spark data={ASYLUM_ANNUAL.map(d=>({y:d.y,v:d.boats}))} width={220} height={62} stroke="var(--accent-2)"/>
+    <Spark data={ASYLUM_ANNUAL.filter(d=>d.boats!=null).map(d=>({y:d.y,v:d.boats}))} width={220} height={62} stroke="var(--accent-2)"/>
   );
   if (kind === 'ring') return (
     <svg width="220" height="62" viewBox="0 0 220 62">
@@ -3987,7 +4002,7 @@ function DashboardView({ setRoute }) {
                 }
                 const boatsAnnual = (typeof BOATS_ANNUAL !== 'undefined' && BOATS_ANNUAL.length)
                   ? BOATS_ANNUAL.map(d => ({ y: d.y, v: d.m }))
-                  : ASYLUM_ANNUAL.map(d => ({ y: d.y, v: d.boats }));
+                  : ASYLUM_ANNUAL.filter(d => d.boats != null).map(d => ({ y: d.y, v: d.boats }));
                 return (
                   <LineChart data={boatsAnnual} yearRange={range}
                     stroke="var(--accent-warn)" width={520} height={280}
@@ -5098,7 +5113,7 @@ const _annualFromWeekly = (key) => {
 
 const DATASET_OPTIONS = [
   { id: 'applications', label: 'Applications',         series: ASYLUM_ANNUAL.map(d=>({y:d.y, v:d.v})),     color: 'var(--accent)' },
-  { id: 'boats',        label: 'Small-boat arrivals',  series: ASYLUM_ANNUAL.map(d=>({y:d.y, v:d.boats})), color: 'var(--accent-warn)', supportsGranularity: true },
+  { id: 'boats',        label: 'Small-boat arrivals',  series: ASYLUM_ANNUAL.filter(d=>d.boats!=null).map(d=>({y:d.y, v:d.boats})), color: 'var(--accent-warn)', supportsGranularity: true },
   { id: 'backlog',      label: 'Backlog (pending)',    series: BACKLOG.map(d=>({y:d.y, v:d.v})),           color: 'var(--accent-2)' },
   { id: 'preventions',  label: 'Preventions',          series: _annualFromWeekly('p'),                      color: 'var(--accent-gold)', note: 'Preventions not reported before 2023 — earlier years are absent from this series, not zero.' },
   { id: 'interceptions',label: 'Interceptions',        series: _annualFromWeekly('e'),                      color: 'var(--muted-2)' },

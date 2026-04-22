@@ -231,7 +231,7 @@ function StoryHero({ kind }) {
   );
   if (kind === 'backlog') return <Spark data={BACKLOG} width={220} height={62} stroke="var(--accent-warn)"/>;
   if (kind === 'area') return (
-    <Spark data={ASYLUM_ANNUAL.map(d=>({y:d.y,v:d.boats}))} width={220} height={62} stroke="var(--accent-2)"/>
+    <Spark data={ASYLUM_ANNUAL.filter(d=>d.boats!=null).map(d=>({y:d.y,v:d.boats}))} width={220} height={62} stroke="var(--accent-2)"/>
   );
   if (kind === 'ring') return (
     <svg width="220" height="62" viewBox="0 0 220 62">

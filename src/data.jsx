@@ -35,14 +35,14 @@ const ASYLUM_ANNUAL = (() => {
   const natTotal = Array.isArray(_W.NAT_FULL)
     ? _W.NAT_FULL.reduce((s, r) => s + (r.v || 0), 0) : null;
   const rows = _ASYLUM_V_MANUAL.map(r => ({
-    y: r.y, v: r.v, boats: boatsByYear[r.y] ?? 0,
+    y: r.y, v: r.v, boats: boatsByYear[r.y] ?? null,
   }));
   if (natYear && natTotal != null && !rows.some(r => r.y === natYear)) {
-    rows.push({ y: natYear, v: natTotal, boats: boatsByYear[natYear] ?? 0 });
+    rows.push({ y: natYear, v: natTotal, boats: boatsByYear[natYear] ?? null });
   } else if (natYear && natTotal != null) {
     // Overwrite if pipeline now disagrees with the hand-maintained row.
     const idx = rows.findIndex(r => r.y === natYear);
-    if (idx >= 0) rows[idx] = { y: natYear, v: natTotal, boats: boatsByYear[natYear] ?? 0 };
+    if (idx >= 0) rows[idx] = { y: natYear, v: natTotal, boats: boatsByYear[natYear] ?? null };
   }
   return rows.sort((a, b) => a.y - b.y);
 })();

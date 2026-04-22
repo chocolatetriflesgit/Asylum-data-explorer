@@ -587,7 +587,7 @@ function DashboardView({ setRoute }) {
                 }
                 const boatsAnnual = (typeof BOATS_ANNUAL !== 'undefined' && BOATS_ANNUAL.length)
                   ? BOATS_ANNUAL.map(d => ({ y: d.y, v: d.m }))
-                  : ASYLUM_ANNUAL.map(d => ({ y: d.y, v: d.boats }));
+                  : ASYLUM_ANNUAL.filter(d => d.boats != null).map(d => ({ y: d.y, v: d.boats }));
                 return (
                   <LineChart data={boatsAnnual} yearRange={range}
                     stroke="var(--accent-warn)" width={520} height={280}

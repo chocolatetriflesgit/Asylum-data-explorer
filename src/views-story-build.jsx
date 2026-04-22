@@ -413,7 +413,7 @@ const _annualFromWeekly = (key) => {
 
 const DATASET_OPTIONS = [
   { id: 'applications', label: 'Applications',         series: ASYLUM_ANNUAL.map(d=>({y:d.y, v:d.v})),     color: 'var(--accent)' },
-  { id: 'boats',        label: 'Small-boat arrivals',  series: ASYLUM_ANNUAL.map(d=>({y:d.y, v:d.boats})), color: 'var(--accent-warn)', supportsGranularity: true },
+  { id: 'boats',        label: 'Small-boat arrivals',  series: ASYLUM_ANNUAL.filter(d=>d.boats!=null).map(d=>({y:d.y, v:d.boats})), color: 'var(--accent-warn)', supportsGranularity: true },
   { id: 'backlog',      label: 'Backlog (pending)',    series: BACKLOG.map(d=>({y:d.y, v:d.v})),           color: 'var(--accent-2)' },
   { id: 'preventions',  label: 'Preventions',          series: _annualFromWeekly('p'),                      color: 'var(--accent-gold)', note: 'Preventions not reported before 2023 — earlier years are absent from this series, not zero.' },
   { id: 'interceptions',label: 'Interceptions',        series: _annualFromWeekly('e'),                      color: 'var(--muted-2)' },
