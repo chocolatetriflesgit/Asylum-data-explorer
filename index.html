@@ -4095,9 +4095,13 @@ function DashboardView({ setRoute }) {
               </DashFrame>
             </div>
           )}
-          <div style={{marginTop:20}}>
-            <ChannelDeathsCard/>
-          </div>
+          {(() => {
+            const annual = typeof DEATHS_ANNUAL !== 'undefined' ? DEATHS_ANNUAL : [];
+            const meta = typeof DEATHS_META !== 'undefined' ? DEATHS_META : null;
+            const pending = !annual.length || !meta || meta.pending;
+            if (pending) return null;
+            return <div style={{marginTop:20}}><ChannelDeathsCard/></div>;
+          })()}
           <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
             <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top five nationalities"
               sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}
