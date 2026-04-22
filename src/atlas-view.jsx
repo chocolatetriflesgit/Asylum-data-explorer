@@ -48,22 +48,6 @@ function pathCentroid(d) {
   return [pts.reduce((s,p)=>s+p[0],0)/pts.length, pts.reduce((s,p)=>s+p[1],0)/pts.length];
 }
 
-// Bounding box of a path's M/L commands. Returns [xMin, yMin, w, h] or null.
-// Used by flyToBox so large countries (Russia, Canada) fit fully inside the
-// zoomed viewport — a fixed centroid zoom left them clipped.
-function pathBBox(d) {
-  const re = /[ML]\s*([-\d.]+)[,\s]([-\d.]+)/g;
-  let xMin = Infinity, yMin = Infinity, xMax = -Infinity, yMax = -Infinity, m, any = false;
-  while ((m = re.exec(d))) {
-    const x = +m[1], y = +m[2];
-    if (x < xMin) xMin = x; if (y < yMin) yMin = y;
-    if (x > xMax) xMax = x; if (y > yMax) yMax = y;
-    any = true;
-  }
-  if (!any) return null;
-  return [xMin, yMin, Math.max(1e-6, xMax - xMin), Math.max(1e-6, yMax - yMin)];
-}
-
 const ATLAS_METRIC_OPTIONS = [
   { id: 'applicants',   label: 'Applicants' },
   { id: 'grant_rate',   label: 'Grant rate' },
@@ -106,7 +90,7 @@ function tercileBin(v, cuts) {
   return 2;
 }
 
-function AtlasChoropleth({ countryValues, selectedName, compareName, onSelect, metricLabel = 'applicants', bivariate=false, width=820, height=440, zoom }) {
+function AtlasChoropleth({ countryValues, selectedNames = [], onSelect, metricLabel = 'applicants', bivariate=false, width=820, height=540, zoom }) {
   const worldMap = (typeof WORLD_MAP !== 'undefined') ? WORLD_MAP : null;
   if (!worldMap) {
     return <div style={{padding:40,color:'var(--muted)',fontStyle:'italic'}}>World map not loaded.</div>;
@@ -148,13 +132,12 @@ function AtlasChoropleth({ countryValues, selectedName, compareName, onSelect, m
             const nat = resolveNat(c.name);
             const raw = nat ? countryValues[nat] : null;
             const v = bivariate ? raw : (raw ?? 0);
-            const isSel = nat && nat === selectedName;
-            const isCmp = nat && nat === compareName;
+            const isSel = nat && selectedNames.includes(nat);
             return (
               <path key={`${c.iso || ''}-${c.name}-${i}`} d={c.d}
                 fill={fillFor(v)}
-                stroke={isSel ? '#e91e63' : isCmp ? '#f59e0b' : 'var(--rule-2)'} strokeWidth={isSel || isCmp ? 2.5 : 0.4}
-                onClick={e => { if (!zoom.didDrag() && nat) onSelect(nat, e.shiftKey); }}
+                stroke={isSel ? '#e91e63' : 'var(--rule-2)'} strokeWidth={isSel ? 2.5 : 0.4}
+                onClick={() => { if (!zoom.didDrag() && nat) onSelect(nat); }}
                 style={{cursor: nat ? (zoom.zoomed ? 'grab' : 'pointer') : 'default'}}>
                 <title>{titleFor(c.name, v)}</title>
               </path>
@@ -191,8 +174,6 @@ function AtlasLegend({ countryValues, metricLabel = 'Applicants', bivariate=fals
         <div style={{display:'flex',alignItems:'center',gap:6,marginTop:10,fontSize:10.5,color:'var(--muted-2)'}}>
           <span style={{display:'inline-block',width:16,height:10,border:'2px solid #e91e63',background:'transparent'}}/>
           Selected
-          <span style={{display:'inline-block',width:16,height:10,border:'2px solid #f59e0b',background:'transparent',marginLeft:10}}/>
-          Compare
         </div>
       </div>
     );
@@ -229,8 +210,6 @@ function AtlasLegend({ countryValues, metricLabel = 'Applicants', bivariate=fals
         <div style={{display:'flex',alignItems:'center',gap:6,marginTop:10,fontSize:10.5,color:'var(--muted-2)'}}>
           <span style={{display:'inline-block',width:16,height:10,border:'2px solid #e91e63',background:'transparent'}}/>
           Selected
-          <span style={{display:'inline-block',width:16,height:10,border:'2px solid #f59e0b',background:'transparent',marginLeft:10}}/>
-          Compare (shift-click)
         </div>
       </div>
     </div>
@@ -238,104 +217,126 @@ function AtlasLegend({ countryValues, metricLabel = 'Applicants', bivariate=fals
 }
 
 function AtlasKPI({ label, value, sub }) {
+  // Returns/age-dispute subs commonly render long compound strings like
+  // "Enforced 4,512 · Voluntary 1,233" — split on " · " onto separate lines so
+  // the 4-up KPI grid doesn't wrap awkwardly.
+  const subLines = typeof sub === 'string' ? sub.split(' · ') : (sub ? [sub] : []);
   return (
-    <div style={{border:'1px solid var(--rule)',padding:'14px 16px',background:'#fff'}}>
-      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:4}}>{label}</div>
-      <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:26,fontWeight:500,color:'var(--ink)',letterSpacing:-0.3}}>{value}</div>
-      {sub && <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:4}}>{sub}</div>}
+    <div style={{border:'1px solid var(--rule)',padding:'16px 18px',background:'#fff',minHeight:118,display:'flex',flexDirection:'column'}}>
+      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>{label}</div>
+      <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:26,fontWeight:500,color:'var(--ink)',letterSpacing:-0.3,lineHeight:1.1}}>{value}</div>
+      {subLines.length > 0 && (
+        <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:6,lineHeight:1.45}}>
+          {subLines.map((s, i) => (
+            <div key={i}>{s}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// Gather the stat tuple for a single country name so AtlasDetail can
-// render one or two countries through the same lookups.
-function useCountryFacts(name) {
-  return uMA(() => {
-    if (!name) return null;
-    const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
-    const returns = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
-    const ageDisputes = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
-    const natQ = typeof NAT_QUARTERLY !== 'undefined' ? NAT_QUARTERLY : null;
-    const grantData = typeof NAT_GRANT_ANNUAL !== 'undefined' ? NAT_GRANT_ANNUAL : null;
-    return {
-      apps: natFull.find(r => r.name === name) || null,
-      qRow: natQ?.series?.find(s => s.name === name) || null,
-      ret: returns.find(r => r.name === name) || null,
-      ad: ageDisputes.find(r => r.name === name) || null,
-      grantSeries: grantData?.series?.find(s => s.name === name) || null,
-    };
-  }, [name]);
-}
-
-function AtlasDetail({ name, compareName, onClearCompare, setRoute }) {
-  const [showLabels, setShowLabels] = uSA(false);
-  if (!name) {
+function AtlasSelectedTable({ selectedNats, onRemove }) {
+  const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
+  const natMeta = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META : null;
+  const returns = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
+  const ageDisputes = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
+  const facts = selectedNats.map(name => ({
+    name,
+    apps: natFull.find(r => r.name === name) || null,
+    ret: returns.find(r => r.name === name) || null,
+    ad: ageDisputes.find(r => r.name === name) || null,
+  }));
+  const fmt = n => n != null ? n.toLocaleString() : '—';
+  if (!selectedNats.length) {
     return (
-      <div style={{padding:'60px 24px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',border:'1px dashed var(--rule-2)'}}>
-        Click a country on the map to see details. Shift-click to compare.
+      <div style={{background:'#fff',border:'1px dashed var(--rule-2)',padding:'24px 16px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:12.5,height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        No countries selected. Pick one on the map or from the list on the left — selections appear here.
       </div>
     );
   }
+  return (
+    <div style={{background:'#fff',border:'1px solid var(--rule-2)',overflow:'hidden',display:'flex',flexDirection:'column'}}>
+      <div className="uc" style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'8px 12px',borderBottom:'1px solid var(--rule-2)',fontSize:10.5,color:'var(--muted)',background:'var(--bg-2)'}}>
+        <span>Selected · {selectedNats.length} {selectedNats.length === 1 ? 'country' : 'countries'}</span>
+        <span style={{letterSpacing:0,textTransform:'none',fontStyle:'italic',fontSize:10.5,color:'var(--muted-2)'}}>{natMeta ? `latest complete year · ${natMeta.year}` : 'latest complete year'}</span>
+      </div>
+      <div style={{overflowX:'auto',overflowY:'auto',maxHeight:320}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12.5,fontFamily:'var(--serif)'}}>
+          <thead>
+            <tr style={{color:'var(--muted)',textAlign:'left'}}>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,borderBottom:'1px solid var(--rule-2)'}}>Country</th>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Applicants</th>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Grant</th>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Returns</th>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Age disputes</th>
+              <th style={{padding:'8px 6px',borderBottom:'1px solid var(--rule-2)'}}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {facts.map(f => (
+              <tr key={f.name} style={{borderBottom:'1px dotted var(--rule-2)'}}>
+                <td style={{padding:'8px 10px',color:'var(--ink)'}}>{f.name}</td>
+                <td className="tnum" style={{padding:'8px 10px',textAlign:'right'}}>{fmt(f.apps?.v)}</td>
+                <td className="tnum" style={{padding:'8px 10px',textAlign:'right'}}>{f.apps?.grant != null ? `${Math.round(f.apps.grant*100)}%` : '—'}</td>
+                <td className="tnum" style={{padding:'8px 10px',textAlign:'right'}}>{fmt(f.ret?.total)}</td>
+                <td className="tnum" style={{padding:'8px 10px',textAlign:'right'}}>{fmt(f.ad?.raised)}</td>
+                <td style={{padding:'8px 6px',textAlign:'right'}}>
+                  <button onClick={()=>onRemove(f.name)} title={`Remove ${f.name}`}
+                    style={{color:'var(--muted)',fontSize:14,background:'transparent',border:'none',cursor:'pointer',padding:'0 4px'}}>×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AtlasDetail({ selectedNats, setRoute }) {
+  const [showLabels, setShowLabels] = uSA(false);
+  if (!selectedNats.length) {
+    return null;
+  }
   const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
-  const natMeta = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META : null;
   const natQ = typeof NAT_QUARTERLY !== 'undefined' ? NAT_QUARTERLY : null;
-  const returns = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
-  const ageDisputes = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
-
   const grantData = typeof NAT_GRANT_ANNUAL !== 'undefined' ? NAT_GRANT_ANNUAL : null;
-  const grantSeries = grantData?.series?.find(s => s.name === name);
+  const boatsRows = typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' ? IRR_BOATS_BY_NATIONALITY : [];
 
-  const apps = natFull.find(r => r.name === name);
-  const qRow = natQ?.series?.find(s => s.name === name);
-  const ret = returns.find(r => r.name === name);
-  const ad = ageDisputes.find(r => r.name === name);
+  const facts = selectedNats.map(name => ({
+    name,
+    apps: natFull.find(r => r.name === name) || null,
+    qRow: natQ?.series?.find(s => s.name === name) || null,
+    grantSeries: grantData?.series?.find(s => s.name === name) || null,
+  }));
 
-  const grantPct = apps && apps.grant != null ? `${Math.round(apps.grant * 100)}%` : '—';
-  const applicants = apps ? apps.v.toLocaleString() : '—';
-  const retTotal = ret ? ret.total.toLocaleString() : '—';
-  const adRaised = ad ? ad.raised.toLocaleString() : '—';
+  const qFacts = facts.filter(f => f.qRow);
+  const missingQ = facts.filter(f => !f.qRow);
+  const grantFacts = facts.filter(f => f.grantSeries && grantData);
+  const missingGrant = facts.filter(f => !f.grantSeries && grantData);
 
-  const cmpFacts = useCountryFacts(compareName);
-  const cmpApps = cmpFacts?.apps;
-  const cmpRet = cmpFacts?.ret;
-  const cmpAd = cmpFacts?.ad;
+  const boatYears = boatsRows.length ? Array.from(new Set(boatsRows.filter(r => !r.partial).map(r => r.year))).sort((a,b)=>a-b) : [];
+  const boatSeries = facts.map(f => {
+    if (!boatYears.length) return null;
+    const byYear = Object.fromEntries(
+      boatsRows.filter(r => r.nationality === f.name && !r.partial).map(r => [r.year, r.count])
+    );
+    const data = boatYears.map(y => byYear[y] ?? null);
+    if (data.every(v => v == null || v === 0)) return null;
+    return { name: f.name, data };
+  }).filter(Boolean);
 
   return (
     <div style={{border:'1px solid var(--rule)',background:'var(--bg-2)',padding:'20px 22px'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule-2)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule-2)',flexWrap:'wrap',rowGap:4,columnGap:16}}>
         <h2 style={{fontFamily:'var(--serif)',fontSize:24,fontWeight:500,margin:0,letterSpacing:-0.3,color:'var(--ink)'}}>
-          {name}
-          {compareName ? <span style={{color:'var(--muted-2)',fontWeight:400}}> vs <span style={{color:'var(--accent-gold)'}}>{compareName}</span></span> : null}
+          {selectedNats.length === 1 ? selectedNats[0] : `${selectedNats.length} countries overlaid`}
         </h2>
-        <div className="uc" style={{color:'var(--muted)',fontSize:10.5}}>Latest complete year</div>
+        <div className="uc" style={{color:'var(--muted)',fontSize:10.5}}>Trends</div>
       </div>
-      {compareName ? (
-        <div style={{marginBottom:14,padding:'10px 12px',border:'1px solid var(--rule-2)',background:'#fff'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-            <div className="uc" style={{fontSize:10.5,color:'var(--muted)'}}>Compare · {name} vs {compareName}</div>
-            <button className="ulh" onClick={onClearCompare} style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0,textTransform:'none'}}>Clear ×</button>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,fontSize:12}}>
-            <div style={{paddingRight:10,borderRight:'1px dotted var(--rule-2)'}}>
-              <div style={{fontFamily:'var(--serif)',fontSize:15,color:'var(--accent)',marginBottom:4}}>{name}</div>
-              <div className="tnum">{apps ? apps.v.toLocaleString() : '—'} applicants · {apps && apps.grant != null ? `${Math.round(apps.grant*100)}% grant` : 'no grant'}</div>
-              <div className="tnum" style={{color:'var(--muted-2)'}}>{ret ? ret.total.toLocaleString() : '—'} returns · {ad ? ad.raised.toLocaleString() : '—'} age disputes</div>
-            </div>
-            <div style={{paddingLeft:10}}>
-              <div style={{fontFamily:'var(--serif)',fontSize:15,color:'var(--accent-gold)',marginBottom:4}}>{compareName}</div>
-              <div className="tnum">{cmpApps ? cmpApps.v.toLocaleString() : '—'} applicants · {cmpApps && cmpApps.grant != null ? `${Math.round(cmpApps.grant*100)}% grant` : 'no grant'}</div>
-              <div className="tnum" style={{color:'var(--muted-2)'}}>{cmpRet ? cmpRet.total.toLocaleString() : '—'} returns · {cmpAd ? cmpAd.raised.toLocaleString() : '—'} age disputes</div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:10,marginBottom:16}}>
-        <AtlasKPI label="Applicants" value={applicants} sub={natMeta ? `${natMeta.year} · NAT_FULL` : null}/>
-        <AtlasKPI label="Grant rate" value={grantPct} sub="Initial decisions"/>
-        <AtlasKPI label="Returns" value={retTotal} sub={ret ? `Enforced ${ret.enforced.toLocaleString()} · Voluntary ${ret.voluntary.toLocaleString()}` : null}/>
-        <AtlasKPI label="Age disputes raised" value={adRaised} sub={ad ? `Resolved <18: ${ad.resolved_under_18}` : 'No data'}/>
-      </div>
-      {qRow ? (
+
+      {qFacts.length > 0 ? (
         <div style={{background:'#fff',padding:'14px 16px',border:'1px solid var(--rule-2)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
             <div className="uc" style={{color:'var(--muted)',fontSize:10.5}}>Applicants · last 8 quarters</div>
@@ -345,18 +346,22 @@ function AtlasDetail({ name, compareName, onClearCompare, setRoute }) {
           </div>
           <MultiLineChart
             years={natQ.quarters}
-            series={compareName && cmpFacts?.qRow
-              ? [{ name, data: qRow.data }, { name: compareName, data: cmpFacts.qRow.data }]
-              : [{ name, data: qRow.data }]}
-            width={720} height={180}
+            series={qFacts.map(f => ({ name: f.name, data: f.qRow.data }))}
+            width={720} height={qFacts.length > 2 ? 340 : 280}
             showLabels={showLabels}
+            legend={qFacts.length > 1}
             yLabel="applicants"
           />
+          {missingQ.length > 0 && (
+            <div style={{marginTop:8,fontSize:11,color:'var(--muted-2)',fontStyle:'italic',lineHeight:1.45}}>
+              No quarterly trend for: {missingQ.map(f => f.name).join(', ')}. Only the top-20 nationalities by applicant volume have a full quarterly series published.
+            </div>
+          )}
         </div>
       ) : (
         <div style={{padding:'18px 20px',color:'var(--ink-2)',fontSize:13,lineHeight:1.55,background:'#fff',border:'1px dotted var(--rule-2)'}}>
           <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8,fontStyle:'normal'}}>No quarterly trend</div>
-          The Home Office publishes a full quarterly time series only for the 20 nationalities with the largest applicant volumes. For other countries, only the most recent annual and quarterly totals are released, so a full trend can't be drawn here. Asylum applicants are not published at a daily or weekly granularity either, so the series can't be reconstructed from finer-grained data.
+          None of the selected countries appear in the top-20 quarterly series. The Home Office publishes a full quarterly time series only for the 20 nationalities with the largest applicant volumes. For other countries, only the most recent annual and quarterly totals are released.
           {' '}
           <a href="https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables"
              target="_blank" rel="noopener"
@@ -365,37 +370,54 @@ function AtlasDetail({ name, compareName, onClearCompare, setRoute }) {
           </a>.
         </div>
       )}
-      {grantSeries && grantData ? (
+
+      {grantData && grantFacts.length > 0 ? (
         <div style={{background:'#fff',padding:'14px 16px',border:'1px solid var(--rule-2)',marginTop:10}}>
           <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8}}>
             Grant rate · {grantData.years[0]}–{grantData.years[grantData.years.length - 1]} · % of initial decisions granted
           </div>
           <MultiLineChart
             years={grantData.years}
-            series={compareName && cmpFacts?.grantSeries
-              ? [
-                  { name, data: grantSeries.data.map(v => v != null ? Math.round(v * 100) : null) },
-                  { name: compareName, data: cmpFacts.grantSeries.data.map(v => v != null ? Math.round(v * 100) : null) },
-                ]
-              : [{ name, data: grantSeries.data.map(v => v != null ? Math.round(v * 100) : null) }]}
-            width={720} height={140}
+            series={grantFacts.map(f => ({
+              name: f.name,
+              data: f.grantSeries.data.map(v => v != null ? Math.round(v * 100) : null),
+            }))}
+            width={720} height={grantFacts.length > 2 ? 320 : 260}
             showLabels={showLabels}
-            yLabel="%"
+            legend={grantFacts.length > 1}
+            yLabel="% granted"
+          />
+          {missingGrant.length > 0 && (
+            <div style={{marginTop:8,fontSize:11,color:'var(--muted-2)',fontStyle:'italic',lineHeight:1.45}}>
+              No grant-rate trend for: {missingGrant.map(f => f.name).join(', ')} (fewer than 200 total decisions, or fewer than 5 years with data).
+            </div>
+          )}
+        </div>
+      ) : grantData ? (
+        <div style={{padding:'14px 16px',color:'var(--muted-2)',fontStyle:'italic',fontSize:13,background:'#fff',border:'1px dotted var(--rule-2)',marginTop:10}}>
+          No grant-rate trend for the selected countries (fewer than 200 total decisions, or fewer than 5 years with data).
+        </div>
+      ) : null}
+
+      {boatSeries.length > 0 && (
+        <div style={{background:'#fff',padding:'14px 16px',border:'1px solid var(--rule-2)',marginTop:10}}>
+          <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8}}>
+            Small-boat arrivals · {boatYears[0]}–{boatYears[boatYears.length - 1]} · annual (full years only)
+          </div>
+          <MultiLineChart
+            years={boatYears}
+            series={boatSeries}
+            width={720} height={boatSeries.length > 2 ? 320 : 260}
+            showLabels={showLabels}
+            legend={boatSeries.length > 1}
+            yLabel="arrivals"
           />
         </div>
-      ) : (
-        <div style={{padding:'14px 16px',color:'var(--muted-2)',fontStyle:'italic',fontSize:13,background:'#fff',border:'1px dotted var(--rule-2)',marginTop:10}}>
-          No grant-rate trend (fewer than 200 total decisions, or fewer than 5 years with data).
-        </div>
       )}
-      {!apps && !ret && !ad && (
-        <div style={{marginTop:12,fontSize:12,color:'var(--muted-2)',fontStyle:'italic'}}>
-          No applicants, returns, or age-dispute records for this country in the latest data.
-        </div>
-      )}
+
       <div style={{marginTop:14,display:'flex',gap:14,fontSize:12}}>
         <button className="ulh" style={{color:'var(--accent)'}}
-          onClick={()=>setRoute({name:'build', preselectNat: name})}>
+          onClick={()=>setRoute({name:'build', preselectNat: selectedNats[0]})}>
           Compare in Build a chart →
         </button>
       </div>
@@ -424,35 +446,24 @@ function topQoQMover() {
 }
 
 function AtlasView({ setRoute }) {
-  const defaultSelection = uMA(() => topQoQMover(), []);
-  const [selected, setSelected] = uSA(defaultSelection);
-  const [compareWith, setCompareWith] = uSA(null);
+  const defaultSelection = uMA(() => {
+    const top = topQoQMover();
+    return top ? [top] : [];
+  }, []);
+  const [selectedNats, setSelectedNats] = uSA(defaultSelection);
   const [metric, setMetric] = uSA('applicants');
-  const [countryQuery, setCountryQuery] = uSA('');
+  const [natQuery, setNatQuery] = uSA('');
   const zoom = useMapZoom(720, 335);
 
-  const flyToCountry = nat => {
-    const wm = typeof WORLD_MAP !== 'undefined' ? WORLD_MAP : [];
-    const entry = wm.find(c => resolveNat(c.name) === nat);
-    if (entry) {
-      const bb = pathBBox(entry.d);
-      if (bb) zoom.flyToBox(bb[0], bb[1], bb[2], bb[3]);
-    }
+  const toggleNat = nat => {
+    setSelectedNats(prev => {
+      if (prev.includes(nat)) return prev.filter(n => n !== nat);
+      return [...prev, nat];
+    });
   };
 
-  const handleSelect = (nat, shift=false) => {
-    setCountryQuery('');
-    if (shift && selected && nat !== selected) {
-      // Shift-click on a different country adds/replaces the comparison.
-      setCompareWith(nat);
-      flyToCountry(nat);
-      return;
-    }
-    // Plain click: replace primary, clear comparison when the user picks
-    // a country that already was the comparison (preventing duplicate).
-    if (nat === compareWith) setCompareWith(null);
-    setSelected(nat);
-    flyToCountry(nat);
+  const handleSelect = nat => {
+    toggleNat(nat);
   };
 
   const countryValues = uMA(() => {
@@ -545,49 +556,78 @@ function AtlasView({ setRoute }) {
           );
         })}
       </div>
-      <div className="atlas-layout" style={{display:'grid',gridTemplateColumns:'minmax(0,1.4fr) minmax(360px,1fr)',gap:28,alignItems:'start'}}>
+      <div className="atlas-layout" style={{display:'flex',flexDirection:'column',gap:28}}>
         <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'12px'}}>
-          <AtlasChoropleth countryValues={countryValues} selectedName={selected} compareName={compareWith} onSelect={handleSelect} metricLabel={metricLabel.toLowerCase()} bivariate={bivariate} zoom={zoom}/>
+          <AtlasChoropleth countryValues={countryValues} selectedNames={selectedNats} onSelect={handleSelect} metricLabel={metricLabel.toLowerCase()} bivariate={bivariate} zoom={zoom}/>
           <AtlasLegend countryValues={countryValues} metricLabel={metricLabel} bivariate={bivariate}/>
           <div style={{marginTop:12,paddingTop:10,borderTop:'1px dotted var(--rule-2)'}}>
-            <div style={{position:'relative',marginBottom:8}}>
-              <input type="search" value={countryQuery} onChange={e=>setCountryQuery(e.target.value)}
-                placeholder="Search countries…"
-                style={{width:'100%',fontSize:12.5,padding:'6px 8px',fontFamily:'var(--serif)',border:'1px solid var(--rule-2)',background:'#fff',boxSizing:'border-box'}}/>
-              {countryQuery.trim() && (() => {
-                const q = countryQuery.trim().toLowerCase();
-                const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
-                const matches = natFull.filter(r => r.name.toLowerCase().includes(q)).slice(0, 12);
-                if (!matches.length) return null;
-                return (
-                  <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--rule-2)',borderTop:'none',maxHeight:160,overflowY:'auto',zIndex:10}}>
-                    {matches.map(r => (
-                      <button key={r.name} onClick={()=>handleSelect(r.name)}
-                        style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',fontSize:12.5,fontFamily:'var(--serif)',background:'transparent',border:'none',borderBottom:'1px dotted var(--rule-2)',cursor:'pointer',color:'var(--ink-2)'}}>
-                        {r.name}
-                      </button>
-                    ))}
+            {(() => {
+              const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
+              const allNames = natFull.map(r => r.name).sort((a, b) => a.localeCompare(b));
+              const q = natQuery.trim().toLowerCase();
+              const filtered = q ? allNames.filter(n => n.toLowerCase().includes(q)) : allNames;
+              return (
+                <div className="atlas-picker-row" style={{display:'grid',gridTemplateColumns:'minmax(280px, 1fr) 1.6fr',gap:18,alignItems:'start'}}>
+                  <div>
+                    <div className="uc" style={{color:'var(--muted)',fontSize:10.5,display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8}}>
+                      <span>Countries</span>
+                      <span style={{display:'flex',gap:10,alignItems:'baseline'}}>
+                        {selectedNats.length > 0 && (
+                          <button onClick={()=>setSelectedNats([])}
+                            style={{fontSize:11,color:'var(--accent)',background:'transparent',border:'1px solid var(--accent)',padding:'2px 8px',textTransform:'none',letterSpacing:0,fontFamily:'var(--serif)',cursor:'pointer'}}>
+                            Clear all
+                          </button>
+                        )}
+                        <span style={{color:'var(--muted-2)'}} className="tnum">{selectedNats.length} picked</span>
+                      </span>
+                    </div>
+                    {selectedNats.length > 0 && (
+                      <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:10}}>
+                        {selectedNats.map(n => (
+                          <button key={n} onClick={()=>toggleNat(n)}
+                            style={{fontSize:11,padding:'3px 8px 3px 10px',background:'var(--bg-2)',border:'1px solid var(--rule-2)',color:'var(--ink-2)',fontFamily:'var(--serif)',cursor:'pointer'}}>
+                            {n} <span style={{color:'var(--muted)',marginLeft:4}}>×</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <input type="search" value={natQuery} onChange={e=>setNatQuery(e.target.value)}
+                      placeholder={`Search ${allNames.length} countries…`}
+                      style={{width:'100%',fontSize:12.5,padding:'6px 8px',fontFamily:'var(--serif)',border:'1px solid var(--rule-2)',background:'#fff',marginBottom:8,boxSizing:'border-box'}}/>
+                    <div style={{maxHeight:180,overflowY:'auto',marginRight:-6,paddingRight:6,borderTop:'1px dotted var(--rule-2)'}}>
+                      {filtered.length === 0 ? (
+                        <div style={{fontSize:12,color:'var(--muted-2)',padding:'8px 0',fontStyle:'italic'}}>No matches.</div>
+                      ) : filtered.map(n => (
+                        <label key={n} className="chk" style={{display:'flex',alignItems:'center',padding:'4px 0',fontSize:12.5,gap:6,cursor:'pointer'}}>
+                          <input type="checkbox" checked={selectedNats.includes(n)} onChange={()=>toggleNat(n)} style={{appearance:'auto',width:13,height:13}}/>
+                          <span style={{flex:1}}>{n}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <details style={{marginTop:10}}>
+                      <summary style={{cursor:'pointer',fontSize:11,color:'var(--muted)',fontStyle:'italic'}}>Common choices ▾</summary>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:8}}>
+                        {topCountries.map(c => (
+                          <button key={c.name} onClick={()=>toggleNat(c.name)}
+                            style={{fontSize:11.5,padding:'2px 8px',background: selectedNats.includes(c.name) ? 'var(--accent)' : 'var(--bg-2)',
+                                    color: selectedNats.includes(c.name) ? '#fff' : 'var(--ink-2)',
+                                    border:'1px solid var(--rule-2)',fontFamily:'var(--serif)',cursor:'pointer'}}>
+                            {c.name}
+                          </button>
+                        ))}
+                      </div>
+                    </details>
+                    <div style={{marginTop:8,fontSize:10.5,color:'var(--muted-2)',fontStyle:'italic'}}>
+                      Click a country on the map to toggle it on or off, or tick multiple from the list. Every selected country is overlaid on each chart below.
+                    </div>
                   </div>
-                );
-              })()}
-            </div>
-            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-              <span className="uc" style={{fontSize:10.5,color:'var(--muted)',marginRight:8,alignSelf:'center'}}>Jump to:</span>
-              {topCountries.map(c => (
-                <button key={c.name} onClick={e=>handleSelect(c.name, e.shiftKey)}
-                  style={{fontSize:11.5,padding:'2px 8px',background: selected===c.name ? 'var(--accent)' : compareWith===c.name ? 'var(--accent-gold)' : 'var(--bg-2)',
-                          color: (selected===c.name || compareWith===c.name) ? '#fff' : 'var(--ink-2)',
-                          border:'1px solid var(--rule-2)',fontFamily:'var(--serif)'}}>
-                  {c.name}
-                </button>
-              ))}
-            </div>
-            <div style={{marginTop:8,fontSize:10.5,color:'var(--muted-2)',fontStyle:'italic'}}>
-              Shift-click a country to compare it with the current selection.
-            </div>
+                  <AtlasSelectedTable selectedNats={selectedNats} onRemove={toggleNat}/>
+                </div>
+              );
+            })()}
           </div>
         </div>
-        <AtlasDetail name={selected} compareName={compareWith} onClearCompare={()=>setCompareWith(null)} setRoute={setRoute}/>
+        <AtlasDetail selectedNats={selectedNats} setRoute={setRoute}/>
       </div>
     </main>
   );

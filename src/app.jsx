@@ -8,8 +8,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 // ─────────────────────────────────────────────────────────────
 // Masthead — thin dated stripe above the main header nav.
-// Shows: Vol (years-since-launch) · Issue (ISO week of latest data point)
-// · "data through <date>" (latest live data point across all feeds).
+// Shows "data through <date>" (latest live data point across all feeds).
 // ─────────────────────────────────────────────────────────────
 function latestDataThrough() {
   const w = (typeof window !== 'undefined') ? window : {};
@@ -29,23 +28,13 @@ function fmtMasthead(d) {
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
-function isoWeek(d) {
-  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-  return Math.ceil((((t - yearStart) / 86400000) + 1) / 7);
-}
 function Masthead() {
   const latest = latestDataThrough();
   if (!latest) return null;
   const d = latest.d;
-  const vol = Math.max(1, d.getUTCFullYear() - 2025); // Vol I = 2026
-  const wk = isoWeek(d);
-  const toRoman = n => ['','I','II','III','IV','V','VI','VII','VIII','IX','X'][n] || String(n);
   return (
     <div style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
-      <div className="masthead-inner" style={{maxWidth:1240,margin:'0 auto',padding:'4px 48px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:16}}>
-        <span className="uc" style={{color:'var(--muted)'}}>Vol {toRoman(vol)} · Issue {wk}</span>
+      <div className="masthead-inner" style={{maxWidth:1240,margin:'0 auto',padding:'4px 48px',display:'flex',justifyContent:'flex-end',alignItems:'center',gap:16}}>
         <span className="uc" style={{color:'var(--muted)'}}>Data through {fmtMasthead(d)}</span>
       </div>
     </div>

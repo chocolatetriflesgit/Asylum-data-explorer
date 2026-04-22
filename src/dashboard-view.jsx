@@ -342,6 +342,20 @@ function DashboardView({ setRoute }) {
         </section>
       )}
 
+      {/* Time range filter — placed above the hero so the slider governs every
+          statistic and chart on the page. Sticky so it stays visible on scroll. */}
+      <div id="dash-range" className="range-filter-bar" style={{position:'sticky',top:0,zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'0 0 24px',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
+        <div className="filter-range-wrap" style={{flex:'0 1 540px',minWidth:300}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
+            <span className="tick tick-accent"/>Time range
+          </div>
+          <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
+        </div>
+        <div className="filter-range-hint" style={{flex:'1 1 260px',maxWidth:360,fontSize:12.5,color:'var(--muted)',fontStyle:'italic',lineHeight:1.5,paddingTop:22}}>
+          Drag the handles to change the years covered by every statistic and chart below. Use the presets for common ranges.
+        </div>
+      </div>
+
       {/* Hero KPI row — four promoted statistics with sparklines.
           Deliberately large and quiet: this is what a casual visitor should
           see first. The full 15-card grid sits underneath, collapsed. */}
@@ -529,19 +543,6 @@ function DashboardView({ setRoute }) {
         </div>
       </details>
 
-      {/* Time range filter (sticky so it stays visible while scrolling) */}
-      <div id="dash-range" className="range-filter-bar" style={{position:'sticky',top:0,zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
-        <div className="filter-range-wrap" style={{flex:'0 1 540px',minWidth:300}}>
-          <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
-            <span className="tick tick-accent"/>Time range
-          </div>
-          <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
-        </div>
-        <div className="filter-range-hint" style={{flex:'1 1 260px',maxWidth:360,fontSize:12.5,color:'var(--muted)',fontStyle:'italic',lineHeight:1.5,paddingTop:22}}>
-          Drag the handles to change the years covered by every statistic and chart below. Use the presets for common ranges.
-        </div>
-      </div>
-
       {/* Section focus nav */}
       <div className="focus-nav" style={{display:'flex',alignItems:'center',gap:10,margin:'0 0 28px',paddingTop:20,paddingBottom:20,borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
         <span className="uc" style={{color:'var(--muted)',marginRight:4}}>Show only</span>
@@ -567,23 +568,16 @@ function DashboardView({ setRoute }) {
       {(focus === 'all' || focus === 'applications') && (
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Applications and journeys" title="Volume and composition" accent="var(--accent-warn)" cadence="Annual · boats weekly"/>
-          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:20}}>
-            <DashFrame number="01" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}
-              setRoute={setRoute} forkPreset={{ d:'applications', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
-              <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={720} height={280}
-                compact={compact} yLabel="Applications" xLabel="Year"
-                annotations={[
-                  range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
-                ].filter(Boolean)}
-                source="Home Office · Asy_D01"
-                asOf={srcAsOf.Asy_D01} nextUpdate={srcAsOf.Asy_D01_next}/>
-            </DashFrame>
-            <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals · year-to-date comparison" sub="Cumulative crossings by day of year"
+          {/* Fig.01 — YoY cumulative crossings, promoted to hero width on the
+              left; a narrative panel on the right leads with the current YTD
+              number and year-over-year delta. */}
+          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20}}>
+            <DashFrame number="01" kickerColor="var(--accent-2)" title="Small-boat arrivals · year-to-date comparison" sub="Cumulative crossings by day of year"
               setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'daily' }}>
               {(() => {
                 if (typeof BOATS_YOY !== 'undefined' && BOATS_YOY && Object.keys(BOATS_YOY).length) {
                   return (
-                    <YoYCumulative series={BOATS_YOY} width={520} height={280}
+                    <YoYCumulative series={BOATS_YOY} width={740} height={340}
                       yearRange={range}
                       yLabel="Cumulative migrants" xLabel="Day of year"
                       caption="Each line traces cumulative small-boat arrivals through the year. The current-year line stops at the most recent published week — no interpolation past that point. Hover a line to bring it forward."
@@ -596,11 +590,73 @@ function DashboardView({ setRoute }) {
                   : ASYLUM_ANNUAL.filter(d => d.boats != null).map(d => ({ y: d.y, v: d.boats }));
                 return (
                   <LineChart data={boatsAnnual} yearRange={range}
-                    compact={compact} stroke="var(--accent-warn)" width={520} height={280}
+                    compact={compact} stroke="var(--accent-warn)" width={740} height={340}
                     source="Home Office · SB_01"
                     asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
                 );
               })()}
+            </DashFrame>
+            {(() => {
+              const W = (typeof window !== 'undefined') ? window : {};
+              const yoy = W.BOATS_YOY || {};
+              const yrs = Object.keys(yoy).sort();
+              const latestYr = yrs[yrs.length - 1];
+              const priorYr = yrs[yrs.length - 2];
+              const latestArr = latestYr ? yoy[latestYr] : [];
+              let ytd = null, ytdDay = null;
+              for (let i = latestArr.length - 1; i >= 0; i--) {
+                if (latestArr[i] != null) { ytd = latestArr[i]; ytdDay = i + 1; break; }
+              }
+              const priorArr = priorYr ? yoy[priorYr] : [];
+              const priorPoint = (ytdDay != null && priorArr[ytdDay - 1] != null) ? priorArr[ytdDay - 1] : null;
+              const delta = (ytd != null && priorPoint) ? ((ytd - priorPoint) / priorPoint * 100) : null;
+              const dayLabel = (() => {
+                if (ytdDay == null || !latestYr) return '';
+                const d = new Date(Date.UTC(+latestYr, 0, 1));
+                d.setUTCDate(d.getUTCDate() + (ytdDay - 1));
+                return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+              })();
+              return (
+                <div style={{background:'var(--bg-3)',borderLeft:'2px solid var(--accent)',padding:'24px 26px'}}>
+                  <div style={{fontFamily:'var(--serif)',fontSize:17,fontWeight:500,color:'var(--ink)',marginBottom:14}}>
+                    What the numbers mean
+                  </div>
+                  {ytd != null && (
+                    <div style={{fontFamily:'var(--serif)',fontSize:38,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">
+                      {fmtN(ytd)}
+                    </div>
+                  )}
+                  <div style={{fontSize:12.5,color:'var(--muted)',margin:'8px 0 14px',fontStyle:'italic'}}>
+                    Cumulative {latestYr ?? ''} arrivals{dayLabel ? ` · through ${dayLabel}` : ''}
+                  </div>
+                  {delta != null && priorYr && (
+                    <p style={{fontSize:14.5,lineHeight:1.6,color:'var(--ink-2)',margin:'0 0 12px',textWrap:'pretty'}}>
+                      That's <strong style={{fontWeight:500,color: delta >= 0 ? 'var(--accent-warn)' : 'var(--accent-2)'}}>{delta >= 0 ? '+' : ''}{delta.toFixed(1)}%</strong> compared with the same point in {priorYr}.
+                    </p>
+                  )}
+                  <p style={{fontSize:14,lineHeight:1.55,color:'var(--ink-2)',margin:'0 0 10px',textWrap:'pretty'}}>
+                    The line stops at the latest published week. Earlier years run for the full calendar year; the gap between curves at the right-hand edge is the year-on-year difference at that point.
+                  </p>
+                  <p style={{fontSize:13,lineHeight:1.55,color:'var(--muted)',margin:0,fontStyle:'italic',textWrap:'pretty'}}>
+                    Small-boat arrivals are strongly seasonal — nearly every curve is almost flat from January to March, then rises from April and peaks late summer.
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Fig.02 — Asylum applications, now sitting below the promoted YoY hero. */}
+          <div style={{marginTop:20}}>
+            <DashFrame number="02" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}
+              setRoute={setRoute} forkPreset={{ d:'applications', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
+              <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={1100} height={300}
+                compact={compact} yLabel="Applications" xLabel="Year"
+                annotations={[
+                  range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
+                ].filter(Boolean)}
+                source="Home Office · Asy_D01"
+                asOf={srcAsOf.Asy_D01} nextUpdate={srcAsOf.Asy_D01_next}
+                everyYear={true}/>
             </DashFrame>
           </div>
           {/* Seasonal heat-map — one row per year, 52 weekly cells.
@@ -627,11 +683,10 @@ function DashboardView({ setRoute }) {
             return <div style={{marginTop:20}}><ChannelDeathsCard/></div>;
           })()}
           <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
-            <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top five nationalities"
-              sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}
-              setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'line', g:'annual', nats:'Pakistan,Afghanistan,Iran,Eritrea,Syria' }}>
-              {(() => { const ns = (typeof NAT_SERIES_LATEST !== 'undefined') ? NAT_SERIES_LATEST : NAT_SERIES;
-                return <MultiLineChart years={ns.years} series={ns.series} yearRange={range} width={760} height={260}/>; })()}
+            <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top-five nationalities · small-boat arrivals"
+              sub={`Full years · IRR_BOATS_BY_NATIONALITY (Irr_02b)`}
+              setRoute={setRoute} forkPreset={{ d:'nationalities_boats', ct:'bar', g:'annual' }}>
+              <TopFiveStackedBars data={typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' ? IRR_BOATS_BY_NATIONALITY : []} width={760} height={260} asOf={typeof IRR_BOATS_META !== 'undefined' ? IRR_BOATS_META?.asOf : null}/>
             </DashFrame>
             <DashFrame number="05" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}
               setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'bar', g:'annual' }}>
@@ -731,7 +786,7 @@ function DashboardView({ setRoute }) {
           {natFull && (
             <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.35fr 1fr',gap:20,alignItems:'start'}}>
               <DashFrame number="10" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
-                <WorldMapChoropleth data={groupNatByRegion(natFull)} width={720} height={420}/>
+                <WorldMapChoropleth data={groupNatByRegion(natFull)} countryData={natFull} width={720} height={420}/>
               </DashFrame>
               <DashFrame number="11" kickerColor="var(--accent-gold)" title="Applicants by region — detail" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
                 <RegionTable data={groupNatByRegion(natFull)} rows={natFull}/>
@@ -842,6 +897,19 @@ function DashboardView({ setRoute }) {
               <p style={{fontSize:14.5,lineHeight:1.6,color:'var(--ink-2)',margin:'0 0 14px',textWrap:'pretty'}}>
                 ACRS and ARAP continue to dominate — both are the legacy of the 2021 Afghan evacuation. The Ukraine schemes are winding down as their successor, the <em>Ukraine Permission Extension</em>, moves people onto domestic visas.
               </p>
+              <p style={{fontSize:13,lineHeight:1.55,color:'var(--muted)',margin:'0 0 12px',fontStyle:'italic',textWrap:'pretty'}}>
+                ARAP is closed to new applicants; ARC (Afghan Resettlement component) is closed to all applications.
+              </p>
+              <details style={{marginTop:4,fontSize:13,color:'var(--ink-2)'}}>
+                <summary style={{cursor:'pointer',color:'var(--muted)',fontFamily:'var(--serif)',fontStyle:'italic'}}>Scheme references</summary>
+                <ul style={{listStyle:'none',padding:'10px 0 0',margin:0,display:'flex',flexDirection:'column',gap:7,lineHeight:1.5}}>
+                  <li><strong>ARAP</strong> — <a href="https://www.gov.uk/government/publications/afghan-relocations-and-assistance-policy/afghan-relocations-and-assistance-policy-information-and-guidance" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>Afghan Relocations and Assistance Policy guidance</a> <span style={{color:'var(--muted-2)'}}>(closed to new applicants)</span></li>
+                  <li><strong>UKRS</strong> — <a href="https://assets.publishing.service.gov.uk/media/611cd056d3bf7f63b45df0ed/Resettlement_Policy_Guidance_2021.pdf" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>UK Resettlement Policy Guidance 2021</a></li>
+                  <li><strong>Community Sponsorship</strong> — <a href="https://www.gov.uk/government/publications/apply-for-full-community-sponsorship/community-sponsorship-guidance-for-prospective-sponsors" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>CS scheme guidance</a></li>
+                  <li><strong>Mandate Scheme</strong> — <a href="https://assets.publishing.service.gov.uk/media/611cd056d3bf7f63b45df0ed/Resettlement_Policy_Guidance_2021.pdf" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>Resettlement Policy Guidance 2021</a></li>
+                  <li><strong>ARC</strong> — <a href="https://www.gov.uk/guidance/afghan-resettlement-programme#full-publication-update-history" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>Afghan Resettlement Programme update history</a> <span style={{color:'var(--muted-2)'}}>(closed to all applications)</span></li>
+                </ul>
+              </details>
               <div style={{marginTop:20,paddingTop:18,borderTop:'1px dotted var(--rule-2)',display:'flex',justifyContent:'space-between',fontSize:12.5,color:'var(--muted)'}}>
                 <span className="uc"><span className="tick tick-accent"/>Read: Resettlement explained</span>
                 <span className="ulh" style={{color:'var(--accent)',cursor:'pointer'}}>Full story →</span>
@@ -1036,13 +1104,51 @@ function SupportTiersCard({ tiers }) {
   ];
   const total = tiers.total || rows.reduce((s,r)=>s+r.v,0);
   const palette = ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)'];
+
+  // Measure container so we can draw SVG arrows from each bar segment's midpoint
+  // down to its corresponding number-block column midpoint.
+  const wrapRef = uRD(null);
+  const [w, setW] = uSD(0);
+  uED(() => {
+    if (!wrapRef.current) return;
+    const update = () => setW(wrapRef.current ? wrapRef.current.getBoundingClientRect().width : 0);
+    update();
+    const ro = (typeof ResizeObserver !== 'undefined') ? new ResizeObserver(update) : null;
+    if (ro) ro.observe(wrapRef.current);
+    window.addEventListener('resize', update);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', update); };
+  }, []);
+
+  // Segment midpoints (0..1) along the stacked bar
+  let acc = 0;
+  const segMids = rows.map(r => { const frac = r.v / total; const mid = acc + frac/2; acc += frac; return mid; });
+  const colMids = [1/6, 3/6, 5/6];
+  const arrowH = 26;
+
   return (
-    <div>
-      <div style={{display:'flex',width:'100%',height:14,border:'1px solid var(--rule)',background:'var(--bg-2)',marginBottom:18}}>
+    <div ref={wrapRef}>
+      <div style={{display:'flex',width:'100%',height:14,border:'1px solid var(--rule)',background:'var(--bg-2)'}}>
         {rows.map((r,i) => (
           <div key={r.key} style={{width:`${(r.v/total)*100}%`,background:palette[i]}} title={`${r.label}: ${r.v.toLocaleString()}`}/>
         ))}
       </div>
+      {w > 0 ? (
+        <svg width={w} height={arrowH} style={{display:'block'}} aria-hidden="true">
+          {rows.map((r,i) => {
+            const x1 = segMids[i] * w;
+            const x2 = colMids[i] * w;
+            const y2 = arrowH - 4;
+            return (
+              <g key={r.key}>
+                <line x1={x1} y1={0} x2={x2} y2={y2} stroke="var(--muted)" strokeWidth={1.25}/>
+                <polyline points={`${x2-4},${y2-5} ${x2},${y2} ${x2+4},${y2-5}`} fill="none" stroke="var(--muted)" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round"/>
+              </g>
+            );
+          })}
+        </svg>
+      ) : (
+        <div style={{height:18}}/>
+      )}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:18}}>
         {rows.map((r,i) => (
           <div key={r.key} style={{borderTop:`2px solid ${palette[i]}`,paddingTop:12}}>

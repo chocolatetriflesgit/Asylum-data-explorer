@@ -424,12 +424,23 @@ const DATASET_OPTIONS = [
     // in NAT_FULL, and the chart pulls its data from there (annual snapshot)
     // or NAT_QUARTERLY (last 8 quarters, top-20 only) when available.
     id: 'nationalities_custom',
-    label: 'Nationalities (pick any)',
+    label: 'Nationalities of asylum applicants',
     render: 'custom-multi',
     color: 'var(--accent)',
     supportsGranularity: ['annual', 'quarterly'],
     // Dummy series so the "Compare with" picker has something safe if this
     // option is picked there too (unlikely — it's filtered out below).
+    series: [],
+  },
+  {
+    // Nationalities of small-boat arrivals — fed by IRR_BOATS_BY_NATIONALITY
+    // (Irr_02b). Rendered as a GroupedBarChart at bar granularity; everything
+    // else falls back to the same handler so selection UX stays consistent.
+    id: 'nationalities_boats',
+    label: 'Nationalities of small-boat arrivals',
+    render: 'custom-multi-boats',
+    color: 'var(--accent-warn)',
+    supportsGranularity: ['annual'],
     series: [],
   },
   {
@@ -606,6 +617,7 @@ function BuildView({ setRoute }) {
     { label: 'Small-boat arrivals by week',   cfg: { ds:'boats', chartType:'line', granularity:'weekly' } },
     { label: 'Applications, 2014–today',      cfg: { ds:'applications', chartType:'line', granularity:'annual', range:[2014, DATA_MAX_YEAR] } },
     { label: 'Top 5 nationalities over time', cfg: { ds:'nationalities_custom', chartType:'line', granularity:'annual', selectedNats:['Pakistan','Afghanistan','Iran','Eritrea','Syria'] } },
+    { label: 'Boat arrivals · top nationalities', cfg: { ds:'nationalities_boats', chartType:'bar', granularity:'annual', selectedNats:['Afghanistan','Iran','Iraq','Syria','Eritrea'] } },
     { label: 'Grant rate · top 5',            cfg: { ds:'grant_rate', selectedNats:['Afghanistan','Syria','Iran','Eritrea','Sudan'], range:[2016, DATA_MAX_YEAR] } },
     { label: 'Backlog since 2018',            cfg: { ds:'backlog', chartType:'line', granularity:'annual', range:[2018, DATA_MAX_YEAR] } },
     { label: 'Resettlement by scheme',        cfg: { ds:'resettlement', chartType:'stacked' } },
@@ -705,6 +717,7 @@ function BuildView({ setRoute }) {
     || DATASET_OPTIONS.find(o => o && o.id === 'applications');
   const isMultiPrim = prim.render === 'multi';
   const isCustomNat = prim.render === 'custom-multi';
+  const isCustomNatBoats = prim.render === 'custom-multi-boats';
   const isGrantRate = prim.render === 'grant-rate';
   const isReturnsDetail = prim.render === 'returns-detail';
 
@@ -717,8 +730,8 @@ function BuildView({ setRoute }) {
 
   uE2(() => { if (disabledTypes.has(chartType)) setChartType('bar'); }, [chartType, disabledTypes]);
 
-  const overlayOpts = (!isMultiPrim && !isCustomNat && !isGrantRate)
-    ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && o.id !== ds)
+  const overlayOpts = (!isMultiPrim && !isCustomNat && !isCustomNatBoats && !isGrantRate)
+    ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && o.render !== 'custom-multi-boats' && o.id !== ds)
     : [];
   // sec kept for bar/stacked chart-type code paths that still render a single secondary.
   const sec = overlayOpts[0] ?? null;
@@ -727,7 +740,7 @@ function BuildView({ setRoute }) {
   const effGran = supportsGran ? (granList.includes(granularity) ? granularity : granList[0]) : 'annual';
   const isAnnual = effGran === 'annual';
 
-  const primData = (isCustomNat || isGrantRate) ? [] : getGranularSeries(prim, effGran);
+  const primData = (isCustomNat || isCustomNatBoats || isGrantRate) ? [] : getGranularSeries(prim, effGran);
   const secData  = sec ? sec.series : null;
 
   // Custom-nationalities picker data derived from NAT_FULL (any of 187) +
@@ -739,12 +752,17 @@ function BuildView({ setRoute }) {
   // NAT_GRANT_ANNUAL for the grant-rate picker.
   const natGrant = typeof NAT_GRANT_ANNUAL !== 'undefined' ? NAT_GRANT_ANNUAL : null;
   const natGrantNames = uM2(() => natGrant ? natGrant.series.map(s => s.name) : [], [natGrant]);
+  // Nationalities present in IRR_BOATS_BY_NATIONALITY — used by the boats picker.
+  const boatsNatNames = uM2(() => {
+    const rows = (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && Array.isArray(IRR_BOATS_BY_NATIONALITY)) ? IRR_BOATS_BY_NATIONALITY : [];
+    return [...new Set(rows.filter(r => !r.meta && r.nationality).map(r => r.nationality))].sort();
+  }, []);
   const filteredNatNames = uM2(() => {
     const q = natQuery.trim().toLowerCase();
-    const names = isGrantRate ? natGrantNames : natFullRows.map(r => r.name);
+    const names = isCustomNatBoats ? boatsNatNames : (isGrantRate ? natGrantNames : natFullRows.map(r => r.name));
     if (!q) return names;
     return names.filter(n => n.toLowerCase().includes(q));
-  }, [natFullRows, natGrantNames, natQuery, isGrantRate]);
+  }, [natFullRows, natGrantNames, boatsNatNames, natQuery, isGrantRate, isCustomNatBoats]);
   const toggleNat = (name) => setSelectedNats(sel =>
     sel.includes(name) ? sel.filter(n => n !== name) : [...sel, name]
   );
@@ -766,7 +784,7 @@ function BuildView({ setRoute }) {
 
   const OVERLAY_CAP = 6;
   const overlayCandidates = DATASET_OPTIONS
-    .filter(o => o.id !== ds && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && !overlays.includes(o.id));
+    .filter(o => o.id !== ds && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && o.render !== 'custom-multi-boats' && !overlays.includes(o.id));
 
   return (
     <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
@@ -814,7 +832,7 @@ function BuildView({ setRoute }) {
             </div>
           </div>
 
-          {(isCustomNat || isGrantRate) && (
+          {(isCustomNat || isCustomNatBoats || isGrantRate) && (
             <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
               <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
                 <span>2 · Nationalities</span>
@@ -833,7 +851,7 @@ function BuildView({ setRoute }) {
                   ))}
                 </div>
               )}
-              <input type="search" placeholder={isGrantRate ? `Search ${natGrantNames.length} nationalities…` : 'Search 187 nationalities…'} value={natQuery}
+              <input type="search" placeholder={isGrantRate ? `Search ${natGrantNames.length} nationalities…` : isCustomNatBoats ? `Search ${boatsNatNames.length} boat-arrival nationalities…` : 'Search 187 nationalities…'} value={natQuery}
                 onChange={e=>setNatQuery(e.target.value)}
                 style={{width:'100%',fontSize:12.5,padding:'6px 8px',fontFamily:'var(--serif)',border:'1px solid var(--rule-2)',background:'#fff',marginBottom:8}}/>
               <div style={{maxHeight:180,overflowY:'auto',marginRight:-6,paddingRight:6,borderTop:'1px dotted var(--rule-2)'}}>
@@ -843,20 +861,22 @@ function BuildView({ setRoute }) {
                   <label key={n} className="chk" style={{display:'flex',alignItems:'center',padding:'4px 0',fontSize:12.5,gap:6}}>
                     <input type="checkbox" checked={selectedNats.includes(n)} onChange={()=>toggleNat(n)} style={{appearance:'auto',width:13,height:13}}/>
                     <span style={{flex:1}}>{n}</span>
-                    {natQNames.has(n) && <span title="Quarterly trend available" style={{fontSize:10,color:'var(--accent-2)',fontFamily:'var(--mono)'}}>Q</span>}
+                    {isCustomNat && natQNames.has(n) && <span title="Quarterly trend available" style={{fontSize:10,color:'var(--accent-2)',fontFamily:'var(--mono)'}}>Q</span>}
                   </label>
                 ))}
               </div>
               <div style={{fontSize:11,color:'var(--muted-2)',marginTop:8,fontStyle:'italic',lineHeight:1.45}}>
                 {isGrantRate
                   ? `${natGrantNames.length} nationalities with at least 200 decisions and 5 years of data. Grant rate = (refugee + humanitarian protection) / total initial decisions.`
+                  : isCustomNatBoats
+                  ? `${boatsNatNames.length} nationalities appear in IRR_BOATS_BY_NATIONALITY (Irr_02b). Annual, full calendar years only.`
                   : <>Rows marked <span className="mono" style={{color:'var(--accent-2)'}}>Q</span> have 8-quarter trend data (NAT_QUARTERLY, top-20). Others show a single annual point from {natFullYear ?? 'latest'}.</>
                 }
               </div>
             </div>
           )}
 
-          {!isMultiPrim && !isCustomNat && (
+          {!isMultiPrim && !isCustomNat && !isCustomNatBoats && !isGrantRate && (
             <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
               <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'flex',justifyContent:'space-between'}}>
                 <span>2 · Overlays</span>
@@ -1045,6 +1065,33 @@ function BuildView({ setRoute }) {
                   </>
                 );
               })()
+            ) : isCustomNatBoats ? (
+              selectedNats.length === 0 ? (
+                <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
+                  Pick one or more nationalities from the list to render a chart.
+                </div>
+              ) : (() => {
+                const rows = (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && Array.isArray(IRR_BOATS_BY_NATIONALITY)) ? IRR_BOATS_BY_NATIONALITY : [];
+                const years = [...new Set(rows.filter(r => !r.partial && !r.meta).map(r => r.year))].sort();
+                const withinRange = years.filter(y => y >= range[0] && y <= range[1]);
+                const series = selectedNats.map(n => ({
+                  name: n,
+                  data: withinRange.map(y => {
+                    const row = rows.find(r => r.year === y && r.nationality === n && !r.meta);
+                    return row ? row.count : 0;
+                  }),
+                }));
+                const partialYears = [...new Set(rows.filter(r => r.partial && !r.meta).map(r => r.year))];
+                return (
+                  <>
+                    <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Small-boat arrivals · full calendar years</div>
+                    <GroupedBarChart periods={withinRange.map(String)} series={series} width={900} height={380} rotateTicks={withinRange.length > 10}/>
+                    <div style={{fontSize:12,color:'var(--muted-2)',marginTop:8,fontStyle:'italic',lineHeight:1.45}}>
+                      Source: Home Office · IRR_BOATS_BY_NATIONALITY (Irr_02b). {partialYears.length ? `Partial year${partialYears.length > 1 ? 's' : ''} excluded: ${partialYears.join(', ')}.` : ''}
+                    </div>
+                  </>
+                );
+              })()
             ) : isCustomNat ? (
               selectedNats.length === 0 ? (
                 <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
@@ -1052,6 +1099,35 @@ function BuildView({ setRoute }) {
                 </div>
               ) : (effGran === 'annual' || !natQ) ? (
                 (() => {
+                  // Annual bar — use NAT_QUARTERLY aggregated to annual where possible so
+                  // the reader sees nationalities side-by-side across years, not just one
+                  // snapshot. Falls back to a single-year bar for non-top-20 nationalities.
+                  if (chartType === 'bar' && natQ) {
+                    const usable = selectedNats.filter(n => natQNames.has(n));
+                    const missing = selectedNats.filter(n => !natQNames.has(n));
+                    if (usable.length) {
+                      const quarters = natQ.quarters;
+                      const years = [...new Set(quarters.map(q => parseInt(q, 10)))].sort();
+                      const withinRange = years.filter(y => y >= range[0] && y <= range[1]);
+                      const series = usable.map(n => {
+                        const src = natQ.series.find(s => s.name === n);
+                        return {
+                          name: n,
+                          data: withinRange.map(y => quarters.reduce((sum, q, qi) => parseInt(q, 10) === y ? sum + (src?.data?.[qi] || 0) : sum, 0)),
+                        };
+                      });
+                      return (
+                        <>
+                          <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Asylum applicants · annual (NAT_QUARTERLY aggregated)</div>
+                          <GroupedBarChart periods={withinRange.map(String)} series={series} width={900} height={380} rotateTicks={withinRange.length > 10}/>
+                          <div style={{fontSize:12,color:'var(--muted-2)',marginTop:8,fontStyle:'italic',lineHeight:1.45}}>
+                            Multi-year data comes from NAT_QUARTERLY (top-20 nationalities). {missing.length ? `Not in top-20: ${missing.join(', ')} — not shown. Switch dataset or remove for a cleaner chart.` : ''}
+                          </div>
+                        </>
+                      );
+                    }
+                  }
+                  // Fallback — single-year snapshot from NAT_FULL.
                   const rows = selectedNats
                     .map(n => ({ name: n, v: natFullRows.find(r => r.name === n)?.v ?? 0 }))
                     .sort((a,b) => b.v - a.v);
@@ -1101,15 +1177,13 @@ function BuildView({ setRoute }) {
                       />
                     );
                   } else if (chartType === 'bar') {
-                    const latestIdx = natQ.quarters.length - 1;
-                    const latestQ = natQ.quarters[latestIdx];
-                    const rows = series
-                      .map(s => ({ name: s.name, v: s.data[latestIdx] || 0 }))
-                      .sort((a,b) => b.v - a.v);
+                    // Grouped bars per quarter, one bar per nationality — shows the
+                    // cross-quarter trajectory instead of collapsing to a single
+                    // latest-quarter snapshot.
                     chart = (
                       <>
-                        <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Latest quarter · {latestQ}</div>
-                        <BarChart data={rows} width={800} height={Math.max(220, rows.length*30+16)} color="var(--accent)"/>
+                        <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Asylum applicants · by quarter</div>
+                        <GroupedBarChart periods={natQ.quarters} series={series} width={900} height={380} rotateTicks={natQ.quarters.length > 6}/>
                       </>
                     );
                   } else {
@@ -1224,6 +1298,7 @@ function BuildView({ setRoute }) {
                   showLabels={showLabels}
                   width={800} height={340}
                   source="Home Office Immigration Statistics"
+                  everyYear={isAnnual}
                 />
                 {overlayViews.map(({opt, data}) => (
                   <div key={opt.id} style={{marginTop:24,paddingTop:20,borderTop:'1px dotted var(--rule-2)'}}>
@@ -1235,6 +1310,7 @@ function BuildView({ setRoute }) {
                       showLabels={showLabels}
                       width={800} height={220}
                       title={opt.label} subtitle="Comparison series"
+                      everyYear={isAnnual}
                     />
                   </div>
                 ))}

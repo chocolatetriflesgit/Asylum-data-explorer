@@ -296,7 +296,7 @@ function FlowView({ setRoute }) {
       </div>
       {system.hasLatest && (
         <div style={{marginBottom:10,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent-warn)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:940}}>
-          <strong style={{fontWeight:500}}>The fourth column is an indicative proxy using cohort outcome changes; it is not an appeals dataset.</strong> The Home Office has not republished appeals statistics since their case-working system migration. Hatched ribbons and dashed nodes mark it as modelled, not measured.
+          <strong style={{fontWeight:500}}>The fourth column is an indicative proxy using cohort outcome changes; it is not an appeals dataset.</strong> The Home Office has not republished appeals statistics since their case-working system migration. Paler ribbons and dashed node outlines mark this column as modelled, not measured.
         </div>
       )}
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
@@ -312,13 +312,16 @@ function FlowView({ setRoute }) {
       <div style={{marginTop:12,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:900}}>
         {system.hasLatest ? (
           <>
-            <strong style={{fontWeight:500}}>About the fourth column.</strong> "Latest outcome" pools the initial-vs-latest delta from Asy_D04 across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The beige "Still pending" band holds claims that have not yet reached a final outcome — many are still awaiting an initial decision or an appeal hearing. Hatching and dashed outlines remind the reader that this column is modelled from cohort movement, not direct appeals data, which the Home Office has not republished since its case-working system migration (Asy_D04 Cover_sheet, Note 5).
+            <strong style={{fontWeight:500}}>About the fourth column.</strong> "Latest outcome" pools the initial-vs-latest delta from Asy_D04 across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The beige "Still pending" band holds claims that have not yet reached a final outcome — many are still awaiting an initial decision or an appeal hearing. Dashed outlines remind the reader that this column is modelled from cohort movement, not direct appeals data, which the Home Office has not republished since its case-working system migration (Asy_D04 Cover_sheet, Note 5).
           </>
         ) : (
           <>
             <strong style={{fontWeight:500}}>Appeal outcomes not shown.</strong> The Home Office has not yet republished appeal-specific data since migrating case-working systems (Asy_D04 Cover_sheet, Note 5). The closest defensible proxy is the <em>initial vs latest</em> outcome delta in the cohort file — which will land as a real fourth column here when the cohort-outcome ingest is wired in. Entry routes come from Asy_D01a (date of asylum claim) and the Application → Initial decision split uses shares from Asy_D02.
           </>
         )}
+        <div style={{marginTop:10,paddingTop:10,borderTop:'1px dotted var(--rule-2)'}}>
+          <strong style={{fontWeight:500}}>About the "Granted → Refused" ribbon.</strong> That transition is <em>modelled, not measured</em>. Each initial outcome is partitioned proportionally across the four latest-outcome buckets, so a small ribbon from "Granted" into "Refused" appears even though real granted-to-refused transitions are rare in absolute terms. In practice they can occur through Home Office <strong>cessation or revocation</strong> under Article 1C of the 1951 Refugee Convention (for example when the country-of-origin risk ends, or where status is revoked for conduct reasons), through <strong>Home Office appeals</strong> to the Upper Tribunal that overturn a grant, through <strong>administrative review</strong> reversals, or — very rarely — through <strong>fraud-led revocation</strong>. The ribbon's width here is a product of the proportional routing described in the caveat above, and will be replaced once Asy_D04 republishes real appeals data.
+        </div>
       </div>
 
       {/* Nationality breakdown — existing chart, now below the system view */}
@@ -339,9 +342,6 @@ function FlowView({ setRoute }) {
       <div style={{marginTop:8,fontSize:11.5,color:'var(--muted-2)',lineHeight:1.5,maxWidth:780}}>
         Decision outcomes are estimated by applying each nationality's initial-decision grant rate to its applicant volume. The refused/withdrawn split uses the overall ratio from <em>Initial decisions on asylum applications</em> (Asy_D02). Left and right totals are identical by construction. <strong style={{fontWeight:500,color:'var(--ink-2)'}}>Note:</strong> "Granted (initial)" refers to grants at initial decision only — appeal grants, which overturn a further ~15–20% of refused cases, are not included as cohort-level appeal data is not published.
       </div>
-
-      {/* Boats-by-nationality strip — top-5 + Other from Irr_02b (Finding 28). */}
-      <IrrBoatsByNationality/>
 
       {/* B5 cohort ribbon — one panel per year-of-claim. */}
       <div style={{marginTop:48,marginBottom:8}}>
@@ -388,152 +388,6 @@ function FlowView({ setRoute }) {
         </button>
       </div>
     </main>
-  );
-}
-
-// Finding 28 · Small-boat arrivals by nationality, top-5 + Other, across
-// full years in IRR_BOATS_BY_NATIONALITY (Irr_02b / Irr_02b).
-function buildIrrTop5ByYear() {
-  const rows = (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && Array.isArray(IRR_BOATS_BY_NATIONALITY))
-    ? IRR_BOATS_BY_NATIONALITY : [];
-  if (!rows.length) return { years: [], palette: [], matrix: [], latestPartialYear: null };
-
-  // Partition: full years for the stacked bars, flag any partial year.
-  const fullYears = [...new Set(rows.filter(r => !r.partial && !r.meta).map(r => r.year))].sort();
-  const partialYears = [...new Set(rows.filter(r => r.partial && !r.meta).map(r => r.year))].sort();
-  const latestPartialYear = partialYears.length ? partialYears[partialYears.length - 1] : null;
-
-  if (!fullYears.length) return { years: [], palette: [], matrix: [], latestPartialYear };
-
-  // Top-5 set = highest-volume nationalities summed across the full-year window,
-  // excluding the source's own "All other nationalities" aggregate and
-  // "Not currently recorded" so we don't double-count them.
-  const totals = new Map();
-  for (const r of rows) {
-    if (r.meta) continue;            // skip source's own aggregates
-    if (!fullYears.includes(r.year)) continue;
-    totals.set(r.nationality, (totals.get(r.nationality) || 0) + r.count);
-  }
-  const top5 = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
-  const palette = [...top5, 'Other'];
-
-  // Matrix of counts: rows=palette entries, cols=years (full years only).
-  const matrix = palette.map(name => fullYears.map(y => {
-    if (name === 'Other') {
-      // Everything in-year minus the top-5 — includes source-side "All other
-      // nationalities" and "Not currently recorded".
-      let yearTotal = 0, topCount = 0;
-      for (const r of rows) {
-        if (r.year !== y) continue;
-        if (r.meta === 'total') continue;
-        if (r.meta === 'other' || r.meta === 'unrecorded') { yearTotal += r.count; continue; }
-        yearTotal += r.count;
-        if (top5.includes(r.nationality)) topCount += r.count;
-      }
-      return yearTotal - topCount;
-    }
-    const row = rows.find(r => r.year === y && r.nationality === name);
-    return row ? row.count : 0;
-  }));
-
-  return { years: fullYears, palette, matrix, latestPartialYear };
-}
-
-function IrrBoatsByNationality() {
-  const { years, palette, matrix, latestPartialYear } = React.useMemo(buildIrrTop5ByYear, []);
-  const meta = typeof IRR_BOATS_META !== 'undefined' ? IRR_BOATS_META : null;
-
-  if (!years.length) {
-    return (
-      <div style={{marginTop:48}}>
-        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality</div>
-        <div style={{border:'1px dashed var(--rule)',background:'var(--bg-2)',padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:13}}>
-          Small boats by nationality data unavailable.
-        </div>
-      </div>
-    );
-  }
-
-  const W = 1000, H = 240, M = { top: 16, right: 140, bottom: 28, left: 56 };
-  const innerW = W - M.left - M.right;
-  const innerH = H - M.top - M.bottom;
-  const barW = innerW / years.length * 0.7;
-  const gap = innerW / years.length * 0.3;
-
-  const totals = years.map((_, yi) => palette.reduce((s, _n, pi) => s + (matrix[pi][yi] || 0), 0));
-  const yMax = Math.max(...totals, 1);
-  // Palette tokens echo FLOW_NAT_PALETTE (5 colours) + muted for Other.
-  const colors = ['#1c5c3d','#c44a2a','#2a5c8b','#8b6c1c','#6b2a8b','#888888'];
-
-  const nf = (n) => n.toLocaleString('en-GB');
-
-  return (
-    <div style={{marginTop:48}}>
-      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality · Irr_02b</div>
-      <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>
-        Top-five nationalities crossing in small boats
-      </h2>
-      <p style={{fontSize:14,color:'var(--ink-2)',maxWidth:720,margin:'0 0 12px',lineHeight:1.5}}>
-        Full calendar years only; the top-five set is chosen by pooled volume across {years[0]}–{years[years.length-1]}. Everything else — including the Home Office's own &ldquo;All other nationalities&rdquo; and &ldquo;Not currently recorded&rdquo; rows — falls into <em>Other</em>.
-      </p>
-      <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'16px 20px 12px'}}>
-        <svg width={W} height={H} role="img" aria-label="Small-boat arrivals by nationality, stacked by year">
-          {/* y-axis */}
-          <line x1={M.left} y1={M.top} x2={M.left} y2={M.top + innerH} stroke="var(--rule-2)"/>
-          {[0, 0.5, 1].map((t, i) => {
-            const v = Math.round(yMax * (1 - t));
-            const y = M.top + innerH * t;
-            return (
-              <g key={i}>
-                <line x1={M.left} y1={y} x2={M.left + innerW} y2={y} stroke="var(--rule-2)" strokeDasharray={t === 1 ? '0' : '2 3'}/>
-                <text x={M.left - 6} y={y + 4} textAnchor="end" style={{fontFamily:'var(--mono)',fontSize:10,fill:'var(--muted)'}}>{nf(v)}</text>
-              </g>
-            );
-          })}
-          {/* bars */}
-          {years.map((y, yi) => {
-            const x = M.left + (yi + 0.5) * (innerW / years.length) - barW / 2;
-            let acc = 0;
-            return (
-              <g key={y}>
-                {palette.map((name, pi) => {
-                  const v = matrix[pi][yi] || 0;
-                  if (v <= 0) return null;
-                  const h = (v / yMax) * innerH;
-                  const y0 = M.top + innerH - acc - h;
-                  acc += h;
-                  return (
-                    <rect key={name} x={x} y={y0} width={barW} height={h}
-                          fill={colors[pi]} stroke="#fff" strokeWidth={0.5}>
-                      <title>{`${y} · ${name}: ${nf(v)}`}</title>
-                    </rect>
-                  );
-                })}
-                <text x={x + barW/2} y={M.top + innerH + 16} textAnchor="middle"
-                      style={{fontFamily:'var(--mono)',fontSize:10.5,fill:'var(--muted)'}}>{y}</text>
-              </g>
-            );
-          })}
-          {/* legend */}
-          {palette.map((name, pi) => (
-            <g key={name} transform={`translate(${M.left + innerW + 16}, ${M.top + pi * 18})`}>
-              <rect x={0} y={0} width={12} height={12} fill={colors[pi]}/>
-              <text x={18} y={10} style={{fontFamily:'var(--serif)',fontSize:12,fill:'var(--ink-2)'}}>{name}</text>
-            </g>
-          ))}
-        </svg>
-        {latestPartialYear != null ? (
-          <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:6,lineHeight:1.5}}>
-            {latestPartialYear} excluded from the chart — it is a partial year in the latest release.
-          </div>
-        ) : null}
-        {meta?.asOf ? (
-          <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:2,lineHeight:1.5}}>
-            {meta.asOf}
-          </div>
-        ) : null}
-      </div>
-    </div>
   );
 }
 

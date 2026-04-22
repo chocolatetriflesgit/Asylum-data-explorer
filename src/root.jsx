@@ -61,7 +61,7 @@ function TweakPanel({ tweaks, setTweaks, open, onClose }) {
 }
 
 function App() {
-  const [route, setRoute] = uSR({ name: 'index' });
+  const [route, setRoute] = uSR({ name: 'dashboard' });
   const [search, setSearch] = uSR(false);
   const [method, setMethod] = uSR(false);
   const [tweaks, setTweaks] = uSR(TWEAK_DEFAULTS);

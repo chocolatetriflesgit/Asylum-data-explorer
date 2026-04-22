@@ -146,6 +146,7 @@
     .build-controls { position: static !important; max-height: none !important; overflow-y: visible !important; }
     .log-entry      { grid-template-columns: 1fr !important; gap: 4px !important; }
     .atlas-layout   { grid-template-columns: 1fr !important; gap: 16px !important; }
+    .atlas-picker-row { grid-template-columns: 1fr !important; gap: 16px !important; }
     .tweak-panel {
       position: fixed !important; bottom: 0 !important; right: 0 !important; left: 0 !important;
       min-width: 0 !important; width: 100% !important;
@@ -987,6 +988,8 @@ function LineChart({
   overlayStroke='var(--accent-warn)',
   overlayLabel='',        // short label for the overlay series (rendered at end of line)
   compact=false,
+  everyYear=false,        // force a tick at every data point (no stride-thinning)
+  rotateTicks=false,      // rotate x-tick labels -30° (useful when dense)
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
@@ -1101,29 +1104,36 @@ function LineChart({
         ))}
         {/* X-axis labels */}
         {d.map((p, i) => ({p, i}))
-          .filter(({i}) => i % Math.max(1, Math.ceil(d.length / 8)) === 0 || i === d.length - 1)
-          .map(({p, i}) => (
-            <text key={`xt-${i}`} x={x(p.y)} y={H - pad.b + 18} textAnchor="middle" fontSize={fs} fill="var(--muted)"
-              style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>
-              {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
-            </text>
-          ))}
+          .filter(({i}) => everyYear || i % Math.max(1, Math.ceil(d.length / 8)) === 0 || i === d.length - 1)
+          .map(({p, i}) => {
+            const tx = x(p.y), ty = H - pad.b + 18;
+            const rot = rotateTicks || (everyYear && d.length > 10);
+            return (
+              <text key={`xt-${i}`} x={tx} y={ty}
+                textAnchor={rot ? 'end' : 'middle'}
+                transform={rot ? `rotate(-30 ${tx} ${ty})` : undefined}
+                fontSize={fs} fill="var(--muted)"
+                style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>
+                {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
+              </text>
+            );
+          })}
         <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="var(--rule-2)"/>
         {/* Axis titles — placed immediately adjacent to each axis */}
         {yLabel && (
           <text
             x={14} y={pad.t + ih / 2}
             transform={`rotate(-90 14 ${pad.t + ih / 2})`}
-            textAnchor="middle" fontSize={fs} fill="var(--muted)"
-            style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
+            textAnchor="middle" fontSize={compact ? 24 : 13} fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily: 'var(--serif)'}}>
             {yLabel}
           </text>
         )}
         {xLabel && (
           <text
             x={pad.l + iw / 2} y={H - 6}
-            textAnchor="middle" fontSize={fs} fill="var(--muted)"
-            style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
+            textAnchor="middle" fontSize={compact ? 24 : 13} fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily: 'var(--serif)'}}>
             {xLabel}
           </text>
         )}
@@ -1159,10 +1169,21 @@ function LineChart({
             <circle cx={x(p.y)} cy={y(p.v)} r="14" fill="transparent"
               onMouseMove={e => show(e, <span><b>{p.label ?? p.y}</b> · <span className="tnum">{fmtN(p.v)}</span></span>)}
               onMouseLeave={hide} style={{cursor: 'crosshair'}}/>
-            {showLabels && (
-              <text x={x(p.y)} y={y(p.v) - 10} textAnchor="middle" fontSize="10.5" fill="var(--ink-2)"
-                style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>{fmtK(p.v)}</text>
-            )}
+            {showLabels && (() => {
+              // Offset above or below based on local slope so labels don't sit on the line.
+              const prev = d[i-1], next = d[i+1];
+              const slopePrev = prev ? (p.v - prev.v) : 0;
+              const slopeNext = next ? (next.v - p.v) : 0;
+              const rising = (slopePrev + slopeNext) >= 0;
+              // Alternate above/below on flat segments to avoid stacking.
+              const flat = prev && next && slopePrev === 0 && slopeNext === 0;
+              const below = flat ? (i % 2 === 1) : !rising;
+              const dy = below ? 16 : -10;
+              return (
+                <text x={x(p.y)} y={y(p.v) + dy} textAnchor="middle" fontSize="12" fontWeight={500} fill="var(--ink-2)"
+                  style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>{fmtK(p.v)}</text>
+              );
+            })()}
           </g>
         ))}
         {/* Annotations */}
@@ -1298,13 +1319,13 @@ function YoYCumulative({
         {yLabel && (
           <text x={18} y={pad.t + ih / 2}
             transform={`rotate(-90 18 ${pad.t + ih / 2})`}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabel}</text>
+            textAnchor="middle" fontSize="13" fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{yLabel}</text>
         )}
         {xLabel && (
           <text x={pad.l + iw / 2} y={H - 6}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
+            textAnchor="middle" fontSize="13" fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{xLabel}</text>
         )}
         {/* Prior-year lines — hover raises opacity + stroke width */}
         {lines.filter(l => !l.isLatest).map(l => {
@@ -1628,13 +1649,13 @@ function SeasonalHeatMap({
         {yLabel && (
           <text x={18} y={pad.t + ih / 2}
             transform={`rotate(-90 18 ${pad.t + ih / 2})`}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabel}</text>
+            textAnchor="middle" fontSize="13" fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{yLabel}</text>
         )}
         {xLabel && (
           <text x={pad.l + iw / 2} y={H - 6}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
+            textAnchor="middle" fontSize="13" fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{xLabel}</text>
         )}
         {/* Heat cells */}
         {years.map((yr, yi) => {
@@ -1687,10 +1708,14 @@ function SeasonalHeatMap({
 // ─────────────────────────────────────────────────────────────
 // Multi-line chart
 // ─────────────────────────────────────────────────────────────
-const MULTI_COLORS = ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)', 'var(--accent-gold)', 'var(--muted)'];
-function MultiLineChart({ years, series, width=720, height=300, showLabels=false, legend=false, yLabel=null, breakY=null, yearRange=null }) {
+const MULTI_COLORS = [
+  'var(--accent)', 'var(--accent-warn)', 'var(--accent-2)', 'var(--accent-gold)',
+  'var(--ink-2)', 'var(--muted-2)',
+  '#6b2a8b', '#1c5c3d', '#c44a2a', '#2a5c8b', '#8b1f4a', '#2a8b6b'
+];
+function MultiLineChart({ years, series, width=720, height=300, showLabels=false, legend=false, yLabel=null, breakY=null, yearRange=null, rotateTicks=false }) {
   const { show, hide, node } = useTooltip();
-  const pad = { t: 16, r: legend ? 24 : 120, b: 32, l: 48 };
+  const pad = { t: 16, r: legend ? 24 : 120, b: 32, l: yLabel ? 64 : 48 };
   const W = width, H = height;
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   // Slice both years and each series in lock-step when a range is supplied.
@@ -1733,7 +1758,10 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
     for (let v=bHi; v<=Math.ceil(yMax/1000)*1000; v+=hiStep) upper.push(v);
     yTicks = [...new Set([...lower, ...upper])];
   } else {
-    yTicks = [0, yMax*0.25, yMax*0.5, yMax*0.75, yMax].map(v=>Math.round(v/1000)*1000).filter((v,i,a)=>a.indexOf(v)===i);
+    // Scale rounding step with yMax so percentage-range charts (0–100) get
+    // distinct ticks instead of five entries all snapping to 0.
+    const step = Math.max(1, Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(yMax, 1))) - 1)));
+    yTicks = [0, yMax*0.25, yMax*0.5, yMax*0.75, yMax].map(v=>Math.round(v/step)*step).filter((v,i,a)=>a.indexOf(v)===i);
   }
 
   return (
@@ -1758,11 +1786,23 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
             <text x={pad.l-10} y={y(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
           </g>
         ))}
-        {activeYears.map((yr,i)=>(
-          <text key={yr} x={x(i)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
-        ))}
+        {activeYears.map((yr,i)=>{
+          const tx = x(i), ty = H-pad.b+18;
+          const rot = rotateTicks || activeYears.length > 10;
+          return (
+            <text key={yr} x={tx} y={ty}
+              textAnchor={rot ? 'end' : 'middle'}
+              transform={rot ? `rotate(-30 ${tx} ${ty})` : undefined}
+              fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+          );
+        })}
         <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
-        {yLabel && <text x={pad.l} y={pad.t - 4} textAnchor="start" fontSize="10" fill="var(--muted)" style={{fontFamily:'var(--serif)'}}>{yLabel}</text>}
+        {yLabel && (
+          <text x={18} y={pad.t + ih/2}
+            transform={`rotate(-90 18 ${pad.t + ih/2})`}
+            textAnchor="middle" fontSize="13" fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{yLabel}</text>
+        )}
         {/* Lines rendered first so break band can mask them */}
         {activeSeries.map((s,si)=>{
           const color = MULTI_COLORS[si % MULTI_COLORS.length];
@@ -1813,9 +1853,19 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
                 </g>
               ))}
               {!legend && lastNonNull >= 0 && <text x={x(lastNonNull)+10} y={y(s.data[lastNonNull])+4} fontSize="12" fill={color} style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{s.name}</text>}
-              {showLabels && s.data.map((v,i)=> v == null ? null : (
-                <text key={`lbl-${i}`} x={x(i)} y={y(v)-8} textAnchor="middle" fontSize="10" fill={color} style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
-              ))}
+              {showLabels && s.data.map((v,i)=> {
+                if (v == null) return null;
+                const prev = s.data[i-1], next = s.data[i+1];
+                const slopePrev = prev != null ? (v - prev) : 0;
+                const slopeNext = next != null ? (next - v) : 0;
+                const rising = (slopePrev + slopeNext) >= 0;
+                const flat = prev != null && next != null && slopePrev === 0 && slopeNext === 0;
+                const below = flat ? (i % 2 === 1) : !rising;
+                const dy = below ? 14 : -8;
+                return (
+                  <text key={`lbl-${i}`} x={x(i)} y={y(v)+dy} textAnchor="middle" fontSize="12" fontWeight={500} fill={color} style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
+                );
+              })}
             </g>
           );
         })}
@@ -1925,19 +1975,19 @@ function DualAxisChart({
         {yLabelLeft && (
           <text x={14} y={pad.t + ih/2}
             transform={`rotate(-90 14 ${pad.t + ih/2})`}
-            textAnchor="middle" fontSize={fs} fill={leftStroke}
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabelLeft}</text>
+            textAnchor="middle" fontSize={compact ? 24 : 13} fontWeight={500} fill={leftStroke}
+            style={{fontFamily:'var(--serif)'}}>{yLabelLeft}</text>
         )}
         {yLabelRight && (
           <text x={W-14} y={pad.t + ih/2}
             transform={`rotate(90 ${W-14} ${pad.t + ih/2})`}
-            textAnchor="middle" fontSize={fs} fill={rightStroke}
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabelRight}</text>
+            textAnchor="middle" fontSize={compact ? 24 : 13} fontWeight={500} fill={rightStroke}
+            style={{fontFamily:'var(--serif)'}}>{yLabelRight}</text>
         )}
         {xLabel && (
           <text x={pad.l + iw/2} y={H-6}
-            textAnchor="middle" fontSize={fs} fill="var(--muted)"
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
+            textAnchor="middle" fontSize={compact ? 24 : 13} fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{xLabel}</text>
         )}
         {/* Left series — solid */}
         {lPts && <polyline points={lPts} fill="none" stroke={leftStroke} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"/>}
@@ -2589,7 +2639,7 @@ function ZoomControls({ zoom, style = {} }) {
 // Falls back to the schematic RegionWorldMap if WORLD_MAP hasn't been
 // generated (i.e. scripts/build_world_map.py hasn't been run).
 // ─────────────────────────────────────────────────────────────
-function WorldMapChoropleth({ data, width=720, height=380 }) {
+function WorldMapChoropleth({ data, countryData, width=720, height=380 }) {
   const worldMap = (typeof window !== 'undefined' && window.WORLD_MAP) ? window.WORLD_MAP : null;
   const zoom = useMapZoom(width, height);
   if (!worldMap) return <RegionWorldMap data={data} width={width} height={height}/>;
@@ -2597,11 +2647,32 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
   const byRegion = Object.fromEntries(data.map(d => [d.name, d.v]));
   const total = data.reduce((s, d) => s + d.v, 0);
   const vMax = Math.max(...data.map(d => d.v), 1);
+  // Country-level lookup for the second tooltip line.
+  const byCountry = Object.fromEntries(
+    (Array.isArray(countryData) ? countryData : []).map(r => [r.name, r.v])
+  );
+  const overallTotal = (Array.isArray(countryData) && countryData.length)
+    ? countryData.reduce((s, r) => s + (r.v || 0), 0)
+    : total;
   // sqrt compresses the long tail so mid-range regions reach the middle stops
   // of the palette instead of all collapsing into the lightest band.
   const fillFor = v => {
     if (!(v > 0)) return ATLAS_PALETTE[0];
     return atlasPaletteColor(Math.sqrt(v / vMax));
+  };
+  // Two-line tooltip: region totals on top, country detail below.
+  const tipFor = (c, regionTotal) => {
+    const regPct = overallTotal ? (regionTotal/overallTotal*100) : 0;
+    const cVal = byCountry[c.name];
+    const cPct = (cVal != null && overallTotal) ? (cVal/overallTotal*100) : null;
+    return (
+      <div>
+        <div><b>{c.region}</b> · <span className="tnum">{fmtN(regionTotal)}</span>{c.region !== 'Other / Unclassified' ? <> · {regPct.toFixed(1)}%</> : null}</div>
+        <div style={{marginTop:2,fontSize:'0.92em',color:'var(--muted)'}}>
+          {c.name}{cVal != null ? <> · <span className="tnum">{fmtN(cVal)}</span>{cPct != null ? ` · ${cPct.toFixed(2)}%` : ''}</> : ' · no data'}
+        </div>
+      </div>
+    );
   };
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
@@ -2611,14 +2682,13 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
         <g>
           {worldMap.map((c, i) => {
             const regionTotal = byRegion[c.region] ?? 0;
-            const pct = total ? (regionTotal/total*100) : 0;
             // Natural Earth uses '-99' for disputed / unrecognised territories, so
             // ISO alone isn't unique. Compose with name + index for a stable key.
             return (
               <path key={`${c.iso || ''}-${c.name}-${i}`} d={c.d}
                 fill={fillFor(regionTotal)}
                 stroke="var(--rule-2)" strokeWidth={0.4}
-                onMouseMove={e => show(e, <span><b>{c.name}</b> · {c.region}{c.region !== 'Other / Unclassified' ? <> · region total <span className="tnum">{fmtN(regionTotal)}</span> · {pct.toFixed(1)}%</> : null}</span>)}
+                onMouseMove={e => show(e, tipFor(c, regionTotal))}
                 onMouseLeave={hide}/>
             );
           })}
@@ -2729,15 +2799,8 @@ function SankeyChart({ nodes, links, width = 820, height = 500, compact = false 
     <figure className="chart-wrap" style={{ position: 'relative', margin: 0 }}>
       <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}
            onClick={() => setPinnedId(null)}>
-        {/* Hatch pattern applied to any node or link whose figure is
-            modelled (estimated) rather than measured. Kept as a single
-            defs block so all dashed segments share a visual idiom. */}
-        <defs>
-          <pattern id="sankeyHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
-            <rect width="6" height="6" fill="transparent"/>
-            <line x1="0" y1="0" x2="0" y2="6" stroke="currentColor" strokeWidth="2" strokeOpacity="0.55"/>
-          </pattern>
-        </defs>
+        {/* Modelled (estimated) ribbons read as provisional through the
+            pale fill + dashed node outline below — no moiré hatch overlay. */}
         {renderedLinks.map(lk => {
           const active = isLinkActive(lk);
           const base = lk.dashed ? 0.18 : 0.35;
@@ -2747,10 +2810,6 @@ function SankeyChart({ nodes, links, width = 820, height = 500, compact = false 
                 fill={lk.color} fillOpacity={active ? base : 0.06}
                 onMouseMove={e => show(e, lk.tt)} onMouseLeave={hide}
                 style={{ cursor: 'default', transition: 'fill-opacity .12s' }}/>
-              {lk.dashed ? (
-                <path d={lk.d} fill="url(#sankeyHatch)" fillOpacity={active ? 0.9 : 0.2}
-                  style={{ pointerEvents: 'none' }}/>
-              ) : null}
             </g>
           );
         })}
@@ -2845,10 +2904,12 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
   const rows = Math.ceil(data.length / cols);
   const cellW = (width - gap*(cols-1)) / cols;
   const ribbonH = 14;
-  // Extra bottom padding so annotations drawn beneath ribbons don't clip
-  // into the next cohort row.
-  const extraBelow = 22;
-  const height = rows * (rowHeight + gap) + extraBelow;
+  // Annotations render in their own strip below the latest-phase ribbon with
+  // a leader line, so they never overlap ribbon rects.
+  const annStripY = 20 + 2 * (ribbonH + 8) + 8; // 8px gap after latest ribbon
+  const effRowHeight = Math.max(rowHeight, annStripY + 22);
+  const extraBelow = 14;
+  const height = rows * (effRowHeight + gap) + extraBelow;
   // Quick lookup: annotations keyed as `${year}|${phase}`.
   const annByKey = {};
   (annotations || []).forEach(a => {
@@ -2870,16 +2931,22 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
       <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block',overflow:'visible'}}>
         {data.map((row, i) => {
           const r = Math.floor(i/cols), c = i%cols;
-          const x0 = c*(cellW+gap), y0 = r*(rowHeight+gap);
+          const x0 = c*(cellW+gap), y0 = r*(effRowHeight+gap);
           const isHL = highlightYear != null && row.year === highlightYear;
           const hasAnyHL = highlightYear != null;
           // Dim non-highlighted cohorts when a highlight is active so the
           // pre-selected cohort reads as the focus of the panel.
           const groupOpacity = !hasAnyHL ? 1 : (isHL ? 1 : 0.45);
+          // Pick one annotation per cell (latest takes precedence over initial)
+          // and record which phase it attaches to so we can draw a leader line.
+          const annLatest = annByKey[row.year + '|latest'];
+          const annInitial = annByKey[row.year + '|initial'];
+          const annText = annLatest || annInitial || null;
+          const annPhaseIdx = annLatest ? 1 : (annInitial ? 0 : null);
           return (
             <g key={row.year} transform={`translate(${x0},${y0})`} style={{opacity: groupOpacity, transition: 'opacity 220ms ease'}}>
               {isHL && (
-                <rect x={-6} y={-6} width={cellW+12} height={rowHeight+6}
+                <rect x={-6} y={-6} width={cellW+12} height={effRowHeight+6}
                       fill="none" stroke="var(--accent)" strokeWidth={1.25}
                       style={{pointerEvents:'none'}}/>
               )}
@@ -2890,19 +2957,27 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
                   <text x={-4} y={ribbonH-3} textAnchor="end" fontSize={10} fill="var(--muted)" style={{fontFamily:'var(--serif)'}}>{phase === 'initial' ? 'At first decision' : 'Latest'}</text>
                   {stack(row, phase).map(seg => (
                     <rect key={seg.b} x={seg.x} y={0} width={Math.max(0, seg.w-0.5)} height={ribbonH}
-                      fill={COHORT_COLORS[seg.b]}
+                      fill={COHORT_COLORS[seg.b]} fillOpacity={0.85}
                       onMouseMove={e=>show(e, <span><b>Cohort {row.year}</b> · {phase} · {COHORT_LABELS[seg.b]} <span className="tnum">{fmtN(seg.v)}</span></span>)}
                       onMouseLeave={hide}
                       style={{cursor:'crosshair'}}/>
                   ))}
-                  {annByKey[row.year + '|' + phase] && (
-                    <text x={cellW} y={ribbonH+12} textAnchor="end" fontSize={10} fill="var(--accent)"
-                          style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>
-                      {annByKey[row.year + '|' + phase]}
-                    </text>
-                  )}
                 </g>
               ))}
+              {annText && (
+                <g style={{pointerEvents:'none'}}>
+                  <line
+                    x1={cellW/2}
+                    y1={20 + annPhaseIdx*(ribbonH+8) + ribbonH}
+                    x2={cellW/2}
+                    y2={annStripY - 3}
+                    stroke="var(--accent)" strokeWidth={0.75} strokeOpacity={0.6}/>
+                  <text x={cellW/2} y={annStripY + 9} textAnchor="middle" fontSize={10} fill="var(--accent)"
+                        style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>
+                    {annText}
+                  </text>
+                </g>
+              )}
             </g>
           );
         })}
@@ -2921,14 +2996,13 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
 }
 
 // ─────────────────────────────────────────────────────────────
-// Annual backlog waterfall (B4). Per year: inflow (new claims),
-// outflow (decided this year), residual (still pending at year
-// end, carried forward to next year).
+// Annual backlog waterfall. Per year block: opening stock (prior
+// year-end), + new applications, − completed cases, closing stock.
+// Readers' eye traces opening → up → down → closing.
 //
 // `data` shape: [{year, inflow, decided, pending}], sorted by year.
-// Bars are drawn relative to the running pending stock.
 // ─────────────────────────────────────────────────────────────
-function BacklogWaterfall({ data, width=820, height=320 }) {
+function BacklogWaterfall({ data, width=1000, height=340 }) {
   if (!Array.isArray(data) || data.length === 0) {
     return (
       <figure className="chart-wrap" style={{margin:0,padding:'24px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',color:'var(--muted)',fontFamily:'var(--serif)',fontSize:13}}>
@@ -2938,59 +3012,291 @@ function BacklogWaterfall({ data, width=820, height=320 }) {
     );
   }
   const { show, hide, node: ttNode } = useTooltip();
-  const pad = { t: 16, r: 24, b: 36, l: 56 };
+  const pad = { t: 22, r: 24, b: 44, l: 64 };
   const iw = width - pad.l - pad.r, ih = height - pad.t - pad.b;
-  const stocks = data.map(d => d.pending || 0);
-  const yMax = Math.max(...stocks, 1) * 1.1;
-  const bw = Math.max(12, (iw / data.length) * 0.55);
-  const xC = i => pad.l + ((i + 0.5) / data.length) * iw;
+  const N = data.length;
+  const yearBlockW = iw / N;
+  const barGap = 8;
+  const yearGap = 24;
+  const innerYearW = Math.max(40, yearBlockW - yearGap);
+  const barW = Math.max(6, (innerYearW - 3 * barGap) / 4);
+  // yMax covers opening, peak (opening+inflow), and closing across all years.
+  const peaks = [];
+  data.forEach((d, i) => {
+    const prev = i > 0 ? (data[i-1].pending || 0) : 0;
+    peaks.push(prev, prev + (d.inflow || 0), d.pending || 0);
+  });
+  const yMax = Math.max(...peaks, 1) * 1.1;
   const yPx = v => pad.t + (1 - v / yMax) * ih;
+  const yBase = yPx(0);
+  const ticks = 5;
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
       <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block',overflow:'visible'}}>
-        <line x1={pad.l} x2={width-pad.r} y1={height-pad.b} y2={height-pad.b} stroke="var(--rule-2)"/>
+        {/* y gridlines + labels */}
+        {Array.from({length: ticks + 1}, (_, k) => k / ticks).map(t => {
+          const v = yMax * t;
+          return (
+            <g key={t}>
+              <line x1={pad.l} x2={width-pad.r} y1={yPx(v)} y2={yPx(v)} stroke="var(--rule)"/>
+              <text x={pad.l - 8} y={yPx(v) + 4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
+            </g>
+          );
+        })}
+        <line x1={pad.l} x2={width-pad.r} y1={yBase} y2={yBase} stroke="var(--rule-2)"/>
+
         {data.map((d, i) => {
           const prev = i > 0 ? (data[i-1].pending || 0) : 0;
           const curr = d.pending || 0;
-          const rise = Math.max(0, curr - prev);
-          const fall = Math.max(0, prev - curr);
-          const cx = xC(i);
-          // Three visual segments: prev-level bar, rise (red/up), fall (green/down).
-          const yPrev = yPx(prev), yCurr = yPx(curr);
+          const inflow = d.inflow || 0;
+          const outflow = d.decided != null ? d.decided : Math.max(0, prev + inflow - curr);
+          const blockX = pad.l + i * yearBlockW + (yearGap / 2);
+          const bx0 = blockX;                         // opening
+          const bx1 = bx0 + barW + barGap;            // inflow
+          const bx2 = bx1 + barW + barGap;            // outflow
+          const bx3 = bx2 + barW + barGap;            // closing
+          const yOpen  = yPx(prev);
+          const yPeak  = yPx(prev + inflow);
+          const yClose = yPx(curr);
+          const centerX = blockX + innerYearW / 2;
           return (
             <g key={d.year}
-               onMouseMove={e=>show(e, <span><b>{d.year}</b> · in <span className="tnum">{fmtN(d.inflow||0)}</span> · out <span className="tnum">{fmtN(d.decided||0)}</span> · pending <span className="tnum">{fmtN(curr)}</span></span>)}
+               onMouseMove={e=>show(e, <span><b>{d.year}</b> · opening <span className="tnum">{fmtN(prev)}</span> · new applications <span className="tnum">{fmtN(inflow)}</span> · completed <span className="tnum">{fmtN(outflow)}</span> · year-end <span className="tnum">{fmtN(curr)}</span></span>)}
                onMouseLeave={hide}
                style={{cursor:'crosshair'}}>
-              {/* Base */}
-              <rect x={cx - bw/2} y={yPx(Math.min(prev, curr))}
-                width={bw} height={Math.max(0, height - pad.b - yPx(Math.min(prev, curr)))}
-                fill="var(--bg-3)"/>
-              {/* Rise / fall */}
-              {rise > 0 && (
-                <rect x={cx - bw/2} y={yCurr} width={bw} height={yPrev - yCurr} fill="var(--accent-warn)" opacity={0.85}/>
+              {/* Opening stock (prior year-end carried in) */}
+              {prev > 0 && (
+                <rect x={bx0} y={yOpen} width={barW} height={yBase - yOpen} fill="var(--bg-3)"/>
               )}
-              {fall > 0 && (
-                <rect x={cx - bw/2} y={yPrev} width={bw} height={yCurr - yPrev} fill="var(--accent-2)" opacity={0.85}/>
+              {/* Inflow — stacked above opening, up to peak */}
+              {inflow > 0 && (
+                <rect x={bx1} y={yPeak} width={barW} height={yOpen - yPeak} fill="var(--accent-warn)" fillOpacity={0.85}/>
               )}
-              <text x={cx} y={height-pad.b+18} textAnchor="middle" fontSize={11} fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{d.year}</text>
-              <text x={cx} y={yCurr - 6} textAnchor="middle" fontSize={10.5} fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(curr)}</text>
+              {/* Outflow — peak down to closing */}
+              {outflow > 0 && (
+                <rect x={bx2} y={yPeak} width={barW} height={yClose - yPeak} fill="var(--accent-2)" fillOpacity={0.85}/>
+              )}
+              {/* Closing stock (year-end, carried forward) */}
+              {curr > 0 && (
+                <rect x={bx3} y={yClose} width={barW} height={yBase - yClose} fill="var(--bg-3)"/>
+              )}
+              {/* Connectors — dashed, guide the eye across the flow */}
+              <line x1={bx0+barW} x2={bx1} y1={yOpen}  y2={yOpen}  stroke="var(--muted-2)" strokeDasharray="2 3" strokeWidth={0.8}/>
+              <line x1={bx1+barW} x2={bx2} y1={yPeak}  y2={yPeak}  stroke="var(--muted-2)" strokeDasharray="2 3" strokeWidth={0.8}/>
+              <line x1={bx2+barW} x2={bx3} y1={yClose} y2={yClose} stroke="var(--muted-2)" strokeDasharray="2 3" strokeWidth={0.8}/>
+              {/* Closing value label */}
+              <text x={bx3 + barW/2} y={yClose - 5} textAnchor="middle" fontSize={10.5} fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(curr)}</text>
+              {/* Year label */}
+              <text x={centerX} y={height - pad.b + 18} textAnchor="middle" fontSize={12} fontWeight={500} fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{d.year}</text>
             </g>
           );
         })}
       </svg>
-      <figcaption style={{marginTop:8,fontSize:12,color:'var(--muted)',display:'flex',gap:16}}>
+      <figcaption style={{marginTop:10,fontSize:12,color:'var(--muted)',display:'flex',gap:18,flexWrap:'wrap'}}>
         <span style={{display:'inline-flex',alignItems:'center',gap:6}}>
-          <span style={{width:11,height:11,background:'var(--accent-warn)',display:'inline-block',borderRadius:2}}/> Pending rose</span>
+          <span style={{width:11,height:11,background:'var(--accent-warn)',display:'inline-block',borderRadius:2,opacity:0.85}}/> New cases awaiting initial decision</span>
         <span style={{display:'inline-flex',alignItems:'center',gap:6}}>
-          <span style={{width:11,height:11,background:'var(--accent-2)',display:'inline-block',borderRadius:2}}/> Pending fell</span>
+          <span style={{width:11,height:11,background:'var(--accent-2)',display:'inline-block',borderRadius:2,opacity:0.85}}/> Cases decided, withdrawn, or closed</span>
+        <span style={{display:'inline-flex',alignItems:'center',gap:6}}>
+          <span style={{width:11,height:11,background:'var(--bg-3)',display:'inline-block',borderRadius:2}}/> Year-end backlog</span>
       </figcaption>
+      <div style={{marginTop:6,fontSize:11.5,color:'var(--muted-2)',fontStyle:'italic',lineHeight:1.5,maxWidth:760}}>
+        Each year opens at the prior year's backlog, adds new applications, and subtracts completed cases (decisions, withdrawals, admin closures). The final bar is the year-end backlog carried into the next year.
+      </div>
       {ttNode}
     </figure>
   );
 }
 
-Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, fmtShortDate, SourceStrip, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor, SankeyChart, YoYCumulative, SeasonalHeatMap, GrantRateSmallMultiples, CohortRibbon, BacklogWaterfall });
+// TopFiveStackedBars — extracted from flow-view.jsx IrrBoatsByNationality.
+// Takes IRR_BOATS_BY_NATIONALITY rows and renders a stacked-by-year column
+// chart of the top-5 nationalities plus Other, full years only.
+function buildTopFiveStackedByYear(rows) {
+  rows = Array.isArray(rows) ? rows : [];
+  if (!rows.length) return { years: [], palette: [], matrix: [], latestPartialYear: null };
+  const fullYears = [...new Set(rows.filter(r => !r.partial && !r.meta).map(r => r.year))].sort();
+  const partialYears = [...new Set(rows.filter(r => r.partial && !r.meta).map(r => r.year))].sort();
+  const latestPartialYear = partialYears.length ? partialYears[partialYears.length - 1] : null;
+  if (!fullYears.length) return { years: [], palette: [], matrix: [], latestPartialYear };
+  const totals = new Map();
+  for (const r of rows) {
+    if (r.meta) continue;
+    if (!fullYears.includes(r.year)) continue;
+    totals.set(r.nationality, (totals.get(r.nationality) || 0) + r.count);
+  }
+  const top5 = [...totals.entries()].sort((a,b) => b[1]-a[1]).slice(0,5).map(e => e[0]);
+  const palette = [...top5, 'Other'];
+  const matrix = palette.map(name => fullYears.map(y => {
+    if (name === 'Other') {
+      let yearTotal = 0, topCount = 0;
+      for (const r of rows) {
+        if (r.year !== y) continue;
+        if (r.meta === 'total') continue;
+        if (r.meta === 'other' || r.meta === 'unrecorded') { yearTotal += r.count; continue; }
+        yearTotal += r.count;
+        if (top5.includes(r.nationality)) topCount += r.count;
+      }
+      return yearTotal - topCount;
+    }
+    const row = rows.find(r => r.year === y && r.nationality === name);
+    return row ? row.count : 0;
+  }));
+  return { years: fullYears, palette, matrix, latestPartialYear };
+}
+
+function TopFiveStackedBars({ data, width = 1000, height = 240, asOf = null }) {
+  const rows = Array.isArray(data) ? data : ((typeof window !== 'undefined' && window.IRR_BOATS_BY_NATIONALITY) || []);
+  const { years, palette, matrix, latestPartialYear } = React.useMemo(() => buildTopFiveStackedByYear(rows), [rows]);
+  if (!years.length) {
+    return (
+      <div style={{border:'1px dashed var(--rule)',background:'var(--bg-2)',padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:13}}>
+        Small boats by nationality data unavailable.
+      </div>
+    );
+  }
+  const W = width, H = height;
+  const M = { top: 16, right: 140, bottom: 28, left: 56 };
+  const innerW = W - M.left - M.right;
+  const innerH = H - M.top - M.bottom;
+  const barW = innerW / years.length * 0.7;
+  const totals = years.map((_, yi) => palette.reduce((s, _n, pi) => s + (matrix[pi][yi] || 0), 0));
+  const yMax = Math.max(...totals, 1);
+  const colors = ['#1c5c3d','#c44a2a','#2a5c8b','#8b6c1c','#6b2a8b','#888888'];
+  const nf = (n) => n.toLocaleString('en-GB');
+  return (
+    <div>
+      <svg width={W} height={H} role="img" aria-label="Small-boat arrivals by nationality, stacked by year">
+        <line x1={M.left} y1={M.top} x2={M.left} y2={M.top + innerH} stroke="var(--rule-2)"/>
+        {[0, 0.5, 1].map((t, i) => {
+          const v = Math.round(yMax * (1 - t));
+          const y = M.top + innerH * t;
+          return (
+            <g key={i}>
+              <line x1={M.left} y1={y} x2={M.left + innerW} y2={y} stroke="var(--rule-2)" strokeDasharray={t === 1 ? '0' : '2 3'}/>
+              <text x={M.left - 6} y={y + 4} textAnchor="end" style={{fontFamily:'var(--mono)',fontSize:10,fill:'var(--muted)'}}>{nf(v)}</text>
+            </g>
+          );
+        })}
+        {years.map((y, yi) => {
+          const x = M.left + (yi + 0.5) * (innerW / years.length) - barW / 2;
+          let acc = 0;
+          return (
+            <g key={y}>
+              {palette.map((name, pi) => {
+                const v = matrix[pi][yi] || 0;
+                if (v <= 0) return null;
+                const h = (v / yMax) * innerH;
+                const y0 = M.top + innerH - acc - h;
+                acc += h;
+                return (
+                  <rect key={name} x={x} y={y0} width={barW} height={h} fill={colors[pi]} stroke="#fff" strokeWidth={0.5}>
+                    <title>{`${y} · ${name}: ${nf(v)}`}</title>
+                  </rect>
+                );
+              })}
+              <text x={x + barW/2} y={M.top + innerH + 16} textAnchor="middle" style={{fontFamily:'var(--mono)',fontSize:10.5,fill:'var(--muted)'}}>{y}</text>
+            </g>
+          );
+        })}
+        {palette.map((name, pi) => (
+          <g key={name} transform={`translate(${M.left + innerW + 16}, ${M.top + pi * 18})`}>
+            <rect x={0} y={0} width={12} height={12} fill={colors[pi]}/>
+            <text x={18} y={10} style={{fontFamily:'var(--serif)',fontSize:12,fill:'var(--ink-2)'}}>{name}</text>
+          </g>
+        ))}
+      </svg>
+      {latestPartialYear != null ? (
+        <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:6,lineHeight:1.5}}>
+          {latestPartialYear} excluded from the chart — it is a partial year in the latest release.
+        </div>
+      ) : null}
+      {asOf ? (
+        <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:2,lineHeight:1.5}}>{asOf}</div>
+      ) : null}
+    </div>
+  );
+}
+
+// GroupedBarChart — clustered bars; one cluster per period, one bar per series.
+// Used by Build view when the primary dataset is nationalities and the chart
+// type is "bar": each year (or quarter) becomes a cluster of per-nationality
+// bars so the reader can compare nationalities across time.
+function GroupedBarChart({ periods, series, width = 820, height = 360, palette, rotateTicks = false, yLabel = '', showLegend = true }) {
+  const pal = Array.isArray(palette) && palette.length ? palette : MULTI_COLORS;
+  if (!Array.isArray(periods) || !periods.length || !Array.isArray(series) || !series.length) {
+    return (
+      <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:13,border:'1px dashed var(--rule)',background:'var(--bg-2)'}}>
+        No data to plot — try a different time range or fewer filters.
+      </div>
+    );
+  }
+  const M = { top: 16, right: showLegend ? 140 : 24, bottom: rotateTicks ? 64 : 38, left: 58 };
+  const innerW = width - M.left - M.right;
+  const innerH = height - M.top - M.bottom;
+  const nS = series.length;
+  const clusterW = innerW / periods.length * 0.82;
+  const gap = innerW / periods.length * 0.18;
+  const barW = Math.max(3, (clusterW - (nS - 1) * 2) / nS);
+  let yMax = 0;
+  for (const s of series) for (const v of (s.data || [])) if (v > yMax) yMax = v;
+  yMax = yMax || 1;
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const nf = (n) => (n == null ? '' : Number(n).toLocaleString('en-GB'));
+  return (
+    <figure style={{margin:0}}>
+      <svg width={width} height={height} role="img" aria-label="Grouped bar chart">
+        {yLabel ? <text x={14} y={M.top + innerH/2} textAnchor="middle" transform={`rotate(-90, 14, ${M.top + innerH/2})`} fontSize={13} fontWeight={500} fill="var(--ink-2)">{yLabel}</text> : null}
+        {/* gridlines + y-axis ticks */}
+        {ticks.map((t, i) => {
+          const y = M.top + innerH * (1 - t);
+          const v = Math.round(yMax * t);
+          return (
+            <g key={i}>
+              <line x1={M.left} y1={y} x2={M.left + innerW} y2={y} stroke="var(--rule-2)" strokeDasharray={t === 0 ? '0' : '2 3'}/>
+              <text x={M.left - 8} y={y + 4} textAnchor="end" fontSize={11} fontFamily="var(--mono)" fill="var(--muted)">{nf(v)}</text>
+            </g>
+          );
+        })}
+        {/* clusters */}
+        {periods.map((p, pi) => {
+          const cx = M.left + (pi + 0.5) * (innerW / periods.length);
+          const xStart = cx - clusterW/2;
+          return (
+            <g key={p}>
+              {series.map((s, si) => {
+                const v = s.data?.[pi] || 0;
+                if (v <= 0) return null;
+                const h = (v / yMax) * innerH;
+                const x = xStart + si * (barW + 2);
+                const y = M.top + innerH - h;
+                return (
+                  <rect key={s.name} x={x} y={y} width={barW} height={h}
+                        fill={s.color || pal[si % pal.length]} stroke="#fff" strokeWidth={0.5}>
+                    <title>{`${p} · ${s.name}: ${nf(v)}`}</title>
+                  </rect>
+                );
+              })}
+              {rotateTicks ? (
+                <text x={cx} y={M.top + innerH + 14} textAnchor="end" transform={`rotate(-30, ${cx}, ${M.top + innerH + 14})`} fontSize={11} fontFamily="var(--mono)" fill="var(--muted)">{p}</text>
+              ) : (
+                <text x={cx} y={M.top + innerH + 16} textAnchor="middle" fontSize={11} fontFamily="var(--mono)" fill="var(--muted)">{p}</text>
+              )}
+            </g>
+          );
+        })}
+        {/* legend */}
+        {showLegend && series.map((s, si) => (
+          <g key={s.name} transform={`translate(${M.left + innerW + 16}, ${M.top + si * 18})`}>
+            <rect x={0} y={0} width={12} height={12} fill={s.color || pal[si % pal.length]}/>
+            <text x={18} y={10} fontFamily="var(--serif)" fontSize={12} fill="var(--ink-2)">{s.name}</text>
+          </g>
+        ))}
+      </svg>
+    </figure>
+  );
+}
+
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, fmtShortDate, SourceStrip, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor, SankeyChart, YoYCumulative, SeasonalHeatMap, GrantRateSmallMultiples, CohortRibbon, BacklogWaterfall, TopFiveStackedBars, GroupedBarChart, buildTopFiveStackedByYear });
 
 
 /* --- src/app.jsx --- */
@@ -3004,8 +3310,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 // ─────────────────────────────────────────────────────────────
 // Masthead — thin dated stripe above the main header nav.
-// Shows: Vol (years-since-launch) · Issue (ISO week of latest data point)
-// · "data through <date>" (latest live data point across all feeds).
+// Shows "data through <date>" (latest live data point across all feeds).
 // ─────────────────────────────────────────────────────────────
 function latestDataThrough() {
   const w = (typeof window !== 'undefined') ? window : {};
@@ -3025,23 +3330,13 @@ function fmtMasthead(d) {
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
-function isoWeek(d) {
-  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-  return Math.ceil((((t - yearStart) / 86400000) + 1) / 7);
-}
 function Masthead() {
   const latest = latestDataThrough();
   if (!latest) return null;
   const d = latest.d;
-  const vol = Math.max(1, d.getUTCFullYear() - 2025); // Vol I = 2026
-  const wk = isoWeek(d);
-  const toRoman = n => ['','I','II','III','IV','V','VI','VII','VIII','IX','X'][n] || String(n);
   return (
     <div style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
-      <div className="masthead-inner" style={{maxWidth:1240,margin:'0 auto',padding:'4px 48px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:16}}>
-        <span className="uc" style={{color:'var(--muted)'}}>Vol {toRoman(vol)} · Issue {wk}</span>
+      <div className="masthead-inner" style={{maxWidth:1240,margin:'0 auto',padding:'4px 48px',display:'flex',justifyContent:'flex-end',alignItems:'center',gap:16}}>
         <span className="uc" style={{color:'var(--muted)'}}>Data through {fmtMasthead(d)}</span>
       </div>
     </div>
@@ -3818,6 +4113,20 @@ function DashboardView({ setRoute }) {
         </section>
       )}
 
+      {/* Time range filter — placed above the hero so the slider governs every
+          statistic and chart on the page. Sticky so it stays visible on scroll. */}
+      <div id="dash-range" className="range-filter-bar" style={{position:'sticky',top:0,zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'0 0 24px',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
+        <div className="filter-range-wrap" style={{flex:'0 1 540px',minWidth:300}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
+            <span className="tick tick-accent"/>Time range
+          </div>
+          <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
+        </div>
+        <div className="filter-range-hint" style={{flex:'1 1 260px',maxWidth:360,fontSize:12.5,color:'var(--muted)',fontStyle:'italic',lineHeight:1.5,paddingTop:22}}>
+          Drag the handles to change the years covered by every statistic and chart below. Use the presets for common ranges.
+        </div>
+      </div>
+
       {/* Hero KPI row — four promoted statistics with sparklines.
           Deliberately large and quiet: this is what a casual visitor should
           see first. The full 15-card grid sits underneath, collapsed. */}
@@ -4005,19 +4314,6 @@ function DashboardView({ setRoute }) {
         </div>
       </details>
 
-      {/* Time range filter (sticky so it stays visible while scrolling) */}
-      <div id="dash-range" className="range-filter-bar" style={{position:'sticky',top:0,zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'20px 0',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
-        <div className="filter-range-wrap" style={{flex:'0 1 540px',minWidth:300}}>
-          <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
-            <span className="tick tick-accent"/>Time range
-          </div>
-          <FilterRange range={range} setRange={setRange} min={2014} max={DATA_MAX_YEAR}/>
-        </div>
-        <div className="filter-range-hint" style={{flex:'1 1 260px',maxWidth:360,fontSize:12.5,color:'var(--muted)',fontStyle:'italic',lineHeight:1.5,paddingTop:22}}>
-          Drag the handles to change the years covered by every statistic and chart below. Use the presets for common ranges.
-        </div>
-      </div>
-
       {/* Section focus nav */}
       <div className="focus-nav" style={{display:'flex',alignItems:'center',gap:10,margin:'0 0 28px',paddingTop:20,paddingBottom:20,borderBottom:'1px solid var(--rule)',flexWrap:'wrap'}}>
         <span className="uc" style={{color:'var(--muted)',marginRight:4}}>Show only</span>
@@ -4043,23 +4339,16 @@ function DashboardView({ setRoute }) {
       {(focus === 'all' || focus === 'applications') && (
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Applications and journeys" title="Volume and composition" accent="var(--accent-warn)" cadence="Annual · boats weekly"/>
-          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:20}}>
-            <DashFrame number="01" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}
-              setRoute={setRoute} forkPreset={{ d:'applications', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
-              <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={720} height={280}
-                compact={compact} yLabel="Applications" xLabel="Year"
-                annotations={[
-                  range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
-                ].filter(Boolean)}
-                source="Home Office · Asy_D01"
-                asOf={srcAsOf.Asy_D01} nextUpdate={srcAsOf.Asy_D01_next}/>
-            </DashFrame>
-            <DashFrame number="02" kickerColor="var(--accent-2)" title="Small-boat arrivals · year-to-date comparison" sub="Cumulative crossings by day of year"
+          {/* Fig.01 — YoY cumulative crossings, promoted to hero width on the
+              left; a narrative panel on the right leads with the current YTD
+              number and year-over-year delta. */}
+          <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20}}>
+            <DashFrame number="01" kickerColor="var(--accent-2)" title="Small-boat arrivals · year-to-date comparison" sub="Cumulative crossings by day of year"
               setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'daily' }}>
               {(() => {
                 if (typeof BOATS_YOY !== 'undefined' && BOATS_YOY && Object.keys(BOATS_YOY).length) {
                   return (
-                    <YoYCumulative series={BOATS_YOY} width={520} height={280}
+                    <YoYCumulative series={BOATS_YOY} width={740} height={340}
                       yearRange={range}
                       yLabel="Cumulative migrants" xLabel="Day of year"
                       caption="Each line traces cumulative small-boat arrivals through the year. The current-year line stops at the most recent published week — no interpolation past that point. Hover a line to bring it forward."
@@ -4072,11 +4361,73 @@ function DashboardView({ setRoute }) {
                   : ASYLUM_ANNUAL.filter(d => d.boats != null).map(d => ({ y: d.y, v: d.boats }));
                 return (
                   <LineChart data={boatsAnnual} yearRange={range}
-                    compact={compact} stroke="var(--accent-warn)" width={520} height={280}
+                    compact={compact} stroke="var(--accent-warn)" width={740} height={340}
                     source="Home Office · SB_01"
                     asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
                 );
               })()}
+            </DashFrame>
+            {(() => {
+              const W = (typeof window !== 'undefined') ? window : {};
+              const yoy = W.BOATS_YOY || {};
+              const yrs = Object.keys(yoy).sort();
+              const latestYr = yrs[yrs.length - 1];
+              const priorYr = yrs[yrs.length - 2];
+              const latestArr = latestYr ? yoy[latestYr] : [];
+              let ytd = null, ytdDay = null;
+              for (let i = latestArr.length - 1; i >= 0; i--) {
+                if (latestArr[i] != null) { ytd = latestArr[i]; ytdDay = i + 1; break; }
+              }
+              const priorArr = priorYr ? yoy[priorYr] : [];
+              const priorPoint = (ytdDay != null && priorArr[ytdDay - 1] != null) ? priorArr[ytdDay - 1] : null;
+              const delta = (ytd != null && priorPoint) ? ((ytd - priorPoint) / priorPoint * 100) : null;
+              const dayLabel = (() => {
+                if (ytdDay == null || !latestYr) return '';
+                const d = new Date(Date.UTC(+latestYr, 0, 1));
+                d.setUTCDate(d.getUTCDate() + (ytdDay - 1));
+                return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+              })();
+              return (
+                <div style={{background:'var(--bg-3)',borderLeft:'2px solid var(--accent)',padding:'24px 26px'}}>
+                  <div style={{fontFamily:'var(--serif)',fontSize:17,fontWeight:500,color:'var(--ink)',marginBottom:14}}>
+                    What the numbers mean
+                  </div>
+                  {ytd != null && (
+                    <div style={{fontFamily:'var(--serif)',fontSize:38,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">
+                      {fmtN(ytd)}
+                    </div>
+                  )}
+                  <div style={{fontSize:12.5,color:'var(--muted)',margin:'8px 0 14px',fontStyle:'italic'}}>
+                    Cumulative {latestYr ?? ''} arrivals{dayLabel ? ` · through ${dayLabel}` : ''}
+                  </div>
+                  {delta != null && priorYr && (
+                    <p style={{fontSize:14.5,lineHeight:1.6,color:'var(--ink-2)',margin:'0 0 12px',textWrap:'pretty'}}>
+                      That's <strong style={{fontWeight:500,color: delta >= 0 ? 'var(--accent-warn)' : 'var(--accent-2)'}}>{delta >= 0 ? '+' : ''}{delta.toFixed(1)}%</strong> compared with the same point in {priorYr}.
+                    </p>
+                  )}
+                  <p style={{fontSize:14,lineHeight:1.55,color:'var(--ink-2)',margin:'0 0 10px',textWrap:'pretty'}}>
+                    The line stops at the latest published week. Earlier years run for the full calendar year; the gap between curves at the right-hand edge is the year-on-year difference at that point.
+                  </p>
+                  <p style={{fontSize:13,lineHeight:1.55,color:'var(--muted)',margin:0,fontStyle:'italic',textWrap:'pretty'}}>
+                    Small-boat arrivals are strongly seasonal — nearly every curve is almost flat from January to March, then rises from April and peaks late summer.
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Fig.02 — Asylum applications, now sitting below the promoted YoY hero. */}
+          <div style={{marginTop:20}}>
+            <DashFrame number="02" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}
+              setRoute={setRoute} forkPreset={{ d:'applications', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
+              <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={1100} height={300}
+                compact={compact} yLabel="Applications" xLabel="Year"
+                annotations={[
+                  range[0] <= 2023 && range[1] >= 2023 && { y:2023, label:'84,425', dx:-90, dy:-14 }
+                ].filter(Boolean)}
+                source="Home Office · Asy_D01"
+                asOf={srcAsOf.Asy_D01} nextUpdate={srcAsOf.Asy_D01_next}
+                everyYear={true}/>
             </DashFrame>
           </div>
           {/* Seasonal heat-map — one row per year, 52 weekly cells.
@@ -4103,11 +4454,10 @@ function DashboardView({ setRoute }) {
             return <div style={{marginTop:20}}><ChannelDeathsCard/></div>;
           })()}
           <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
-            <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top five nationalities"
-              sub={`2020–${(typeof NAT_SERIES_META !== 'undefined' ? NAT_SERIES_META.year_end : NAT_SERIES.years[NAT_SERIES.years.length-1])}`}
-              setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'line', g:'annual', nats:'Pakistan,Afghanistan,Iran,Eritrea,Syria' }}>
-              {(() => { const ns = (typeof NAT_SERIES_LATEST !== 'undefined') ? NAT_SERIES_LATEST : NAT_SERIES;
-                return <MultiLineChart years={ns.years} series={ns.series} yearRange={range} width={760} height={260}/>; })()}
+            <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top-five nationalities · small-boat arrivals"
+              sub={`Full years · IRR_BOATS_BY_NATIONALITY (Irr_02b)`}
+              setRoute={setRoute} forkPreset={{ d:'nationalities_boats', ct:'bar', g:'annual' }}>
+              <TopFiveStackedBars data={typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' ? IRR_BOATS_BY_NATIONALITY : []} width={760} height={260} asOf={typeof IRR_BOATS_META !== 'undefined' ? IRR_BOATS_META?.asOf : null}/>
             </DashFrame>
             <DashFrame number="05" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}
               setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'bar', g:'annual' }}>
@@ -4207,7 +4557,7 @@ function DashboardView({ setRoute }) {
           {natFull && (
             <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.35fr 1fr',gap:20,alignItems:'start'}}>
               <DashFrame number="10" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
-                <WorldMapChoropleth data={groupNatByRegion(natFull)} width={720} height={420}/>
+                <WorldMapChoropleth data={groupNatByRegion(natFull)} countryData={natFull} width={720} height={420}/>
               </DashFrame>
               <DashFrame number="11" kickerColor="var(--accent-gold)" title="Applicants by region — detail" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
                 <RegionTable data={groupNatByRegion(natFull)} rows={natFull}/>
@@ -4318,6 +4668,19 @@ function DashboardView({ setRoute }) {
               <p style={{fontSize:14.5,lineHeight:1.6,color:'var(--ink-2)',margin:'0 0 14px',textWrap:'pretty'}}>
                 ACRS and ARAP continue to dominate — both are the legacy of the 2021 Afghan evacuation. The Ukraine schemes are winding down as their successor, the <em>Ukraine Permission Extension</em>, moves people onto domestic visas.
               </p>
+              <p style={{fontSize:13,lineHeight:1.55,color:'var(--muted)',margin:'0 0 12px',fontStyle:'italic',textWrap:'pretty'}}>
+                ARAP is closed to new applicants; ARC (Afghan Resettlement component) is closed to all applications.
+              </p>
+              <details style={{marginTop:4,fontSize:13,color:'var(--ink-2)'}}>
+                <summary style={{cursor:'pointer',color:'var(--muted)',fontFamily:'var(--serif)',fontStyle:'italic'}}>Scheme references</summary>
+                <ul style={{listStyle:'none',padding:'10px 0 0',margin:0,display:'flex',flexDirection:'column',gap:7,lineHeight:1.5}}>
+                  <li><strong>ARAP</strong> — <a href="https://www.gov.uk/government/publications/afghan-relocations-and-assistance-policy/afghan-relocations-and-assistance-policy-information-and-guidance" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>Afghan Relocations and Assistance Policy guidance</a> <span style={{color:'var(--muted-2)'}}>(closed to new applicants)</span></li>
+                  <li><strong>UKRS</strong> — <a href="https://assets.publishing.service.gov.uk/media/611cd056d3bf7f63b45df0ed/Resettlement_Policy_Guidance_2021.pdf" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>UK Resettlement Policy Guidance 2021</a></li>
+                  <li><strong>Community Sponsorship</strong> — <a href="https://www.gov.uk/government/publications/apply-for-full-community-sponsorship/community-sponsorship-guidance-for-prospective-sponsors" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>CS scheme guidance</a></li>
+                  <li><strong>Mandate Scheme</strong> — <a href="https://assets.publishing.service.gov.uk/media/611cd056d3bf7f63b45df0ed/Resettlement_Policy_Guidance_2021.pdf" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>Resettlement Policy Guidance 2021</a></li>
+                  <li><strong>ARC</strong> — <a href="https://www.gov.uk/guidance/afghan-resettlement-programme#full-publication-update-history" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)'}}>Afghan Resettlement Programme update history</a> <span style={{color:'var(--muted-2)'}}>(closed to all applications)</span></li>
+                </ul>
+              </details>
               <div style={{marginTop:20,paddingTop:18,borderTop:'1px dotted var(--rule-2)',display:'flex',justifyContent:'space-between',fontSize:12.5,color:'var(--muted)'}}>
                 <span className="uc"><span className="tick tick-accent"/>Read: Resettlement explained</span>
                 <span className="ulh" style={{color:'var(--accent)',cursor:'pointer'}}>Full story →</span>
@@ -4512,13 +4875,51 @@ function SupportTiersCard({ tiers }) {
   ];
   const total = tiers.total || rows.reduce((s,r)=>s+r.v,0);
   const palette = ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)'];
+
+  // Measure container so we can draw SVG arrows from each bar segment's midpoint
+  // down to its corresponding number-block column midpoint.
+  const wrapRef = uRD(null);
+  const [w, setW] = uSD(0);
+  uED(() => {
+    if (!wrapRef.current) return;
+    const update = () => setW(wrapRef.current ? wrapRef.current.getBoundingClientRect().width : 0);
+    update();
+    const ro = (typeof ResizeObserver !== 'undefined') ? new ResizeObserver(update) : null;
+    if (ro) ro.observe(wrapRef.current);
+    window.addEventListener('resize', update);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', update); };
+  }, []);
+
+  // Segment midpoints (0..1) along the stacked bar
+  let acc = 0;
+  const segMids = rows.map(r => { const frac = r.v / total; const mid = acc + frac/2; acc += frac; return mid; });
+  const colMids = [1/6, 3/6, 5/6];
+  const arrowH = 26;
+
   return (
-    <div>
-      <div style={{display:'flex',width:'100%',height:14,border:'1px solid var(--rule)',background:'var(--bg-2)',marginBottom:18}}>
+    <div ref={wrapRef}>
+      <div style={{display:'flex',width:'100%',height:14,border:'1px solid var(--rule)',background:'var(--bg-2)'}}>
         {rows.map((r,i) => (
           <div key={r.key} style={{width:`${(r.v/total)*100}%`,background:palette[i]}} title={`${r.label}: ${r.v.toLocaleString()}`}/>
         ))}
       </div>
+      {w > 0 ? (
+        <svg width={w} height={arrowH} style={{display:'block'}} aria-hidden="true">
+          {rows.map((r,i) => {
+            const x1 = segMids[i] * w;
+            const x2 = colMids[i] * w;
+            const y2 = arrowH - 4;
+            return (
+              <g key={r.key}>
+                <line x1={x1} y1={0} x2={x2} y2={y2} stroke="var(--muted)" strokeWidth={1.25}/>
+                <polyline points={`${x2-4},${y2-5} ${x2},${y2} ${x2+4},${y2-5}`} fill="none" stroke="var(--muted)" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round"/>
+              </g>
+            );
+          })}
+        </svg>
+      ) : (
+        <div style={{height:18}}/>
+      )}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:18}}>
         {rows.map((r,i) => (
           <div key={r.key} style={{borderTop:`2px solid ${palette[i]}`,paddingTop:12}}>
@@ -5196,12 +5597,23 @@ const DATASET_OPTIONS = [
     // in NAT_FULL, and the chart pulls its data from there (annual snapshot)
     // or NAT_QUARTERLY (last 8 quarters, top-20 only) when available.
     id: 'nationalities_custom',
-    label: 'Nationalities (pick any)',
+    label: 'Nationalities of asylum applicants',
     render: 'custom-multi',
     color: 'var(--accent)',
     supportsGranularity: ['annual', 'quarterly'],
     // Dummy series so the "Compare with" picker has something safe if this
     // option is picked there too (unlikely — it's filtered out below).
+    series: [],
+  },
+  {
+    // Nationalities of small-boat arrivals — fed by IRR_BOATS_BY_NATIONALITY
+    // (Irr_02b). Rendered as a GroupedBarChart at bar granularity; everything
+    // else falls back to the same handler so selection UX stays consistent.
+    id: 'nationalities_boats',
+    label: 'Nationalities of small-boat arrivals',
+    render: 'custom-multi-boats',
+    color: 'var(--accent-warn)',
+    supportsGranularity: ['annual'],
     series: [],
   },
   {
@@ -5378,6 +5790,7 @@ function BuildView({ setRoute }) {
     { label: 'Small-boat arrivals by week',   cfg: { ds:'boats', chartType:'line', granularity:'weekly' } },
     { label: 'Applications, 2014–today',      cfg: { ds:'applications', chartType:'line', granularity:'annual', range:[2014, DATA_MAX_YEAR] } },
     { label: 'Top 5 nationalities over time', cfg: { ds:'nationalities_custom', chartType:'line', granularity:'annual', selectedNats:['Pakistan','Afghanistan','Iran','Eritrea','Syria'] } },
+    { label: 'Boat arrivals · top nationalities', cfg: { ds:'nationalities_boats', chartType:'bar', granularity:'annual', selectedNats:['Afghanistan','Iran','Iraq','Syria','Eritrea'] } },
     { label: 'Grant rate · top 5',            cfg: { ds:'grant_rate', selectedNats:['Afghanistan','Syria','Iran','Eritrea','Sudan'], range:[2016, DATA_MAX_YEAR] } },
     { label: 'Backlog since 2018',            cfg: { ds:'backlog', chartType:'line', granularity:'annual', range:[2018, DATA_MAX_YEAR] } },
     { label: 'Resettlement by scheme',        cfg: { ds:'resettlement', chartType:'stacked' } },
@@ -5477,6 +5890,7 @@ function BuildView({ setRoute }) {
     || DATASET_OPTIONS.find(o => o && o.id === 'applications');
   const isMultiPrim = prim.render === 'multi';
   const isCustomNat = prim.render === 'custom-multi';
+  const isCustomNatBoats = prim.render === 'custom-multi-boats';
   const isGrantRate = prim.render === 'grant-rate';
   const isReturnsDetail = prim.render === 'returns-detail';
 
@@ -5489,8 +5903,8 @@ function BuildView({ setRoute }) {
 
   uE2(() => { if (disabledTypes.has(chartType)) setChartType('bar'); }, [chartType, disabledTypes]);
 
-  const overlayOpts = (!isMultiPrim && !isCustomNat && !isGrantRate)
-    ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && o.id !== ds)
+  const overlayOpts = (!isMultiPrim && !isCustomNat && !isCustomNatBoats && !isGrantRate)
+    ? overlays.map(id => DATASET_OPTIONS.find(o => o.id === id)).filter(o => o && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && o.render !== 'custom-multi-boats' && o.id !== ds)
     : [];
   // sec kept for bar/stacked chart-type code paths that still render a single secondary.
   const sec = overlayOpts[0] ?? null;
@@ -5499,7 +5913,7 @@ function BuildView({ setRoute }) {
   const effGran = supportsGran ? (granList.includes(granularity) ? granularity : granList[0]) : 'annual';
   const isAnnual = effGran === 'annual';
 
-  const primData = (isCustomNat || isGrantRate) ? [] : getGranularSeries(prim, effGran);
+  const primData = (isCustomNat || isCustomNatBoats || isGrantRate) ? [] : getGranularSeries(prim, effGran);
   const secData  = sec ? sec.series : null;
 
   // Custom-nationalities picker data derived from NAT_FULL (any of 187) +
@@ -5511,12 +5925,17 @@ function BuildView({ setRoute }) {
   // NAT_GRANT_ANNUAL for the grant-rate picker.
   const natGrant = typeof NAT_GRANT_ANNUAL !== 'undefined' ? NAT_GRANT_ANNUAL : null;
   const natGrantNames = uM2(() => natGrant ? natGrant.series.map(s => s.name) : [], [natGrant]);
+  // Nationalities present in IRR_BOATS_BY_NATIONALITY — used by the boats picker.
+  const boatsNatNames = uM2(() => {
+    const rows = (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && Array.isArray(IRR_BOATS_BY_NATIONALITY)) ? IRR_BOATS_BY_NATIONALITY : [];
+    return [...new Set(rows.filter(r => !r.meta && r.nationality).map(r => r.nationality))].sort();
+  }, []);
   const filteredNatNames = uM2(() => {
     const q = natQuery.trim().toLowerCase();
-    const names = isGrantRate ? natGrantNames : natFullRows.map(r => r.name);
+    const names = isCustomNatBoats ? boatsNatNames : (isGrantRate ? natGrantNames : natFullRows.map(r => r.name));
     if (!q) return names;
     return names.filter(n => n.toLowerCase().includes(q));
-  }, [natFullRows, natGrantNames, natQuery, isGrantRate]);
+  }, [natFullRows, natGrantNames, boatsNatNames, natQuery, isGrantRate, isCustomNatBoats]);
   const toggleNat = (name) => setSelectedNats(sel =>
     sel.includes(name) ? sel.filter(n => n !== name) : [...sel, name]
   );
@@ -5538,7 +5957,7 @@ function BuildView({ setRoute }) {
 
   const OVERLAY_CAP = 6;
   const overlayCandidates = DATASET_OPTIONS
-    .filter(o => o.id !== ds && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && !overlays.includes(o.id));
+    .filter(o => o.id !== ds && !o.divider && !o.snapshot && o.render !== 'multi' && o.render !== 'custom-multi' && o.render !== 'custom-multi-boats' && !overlays.includes(o.id));
 
   return (
     <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 80px'}}>
@@ -5586,7 +6005,7 @@ function BuildView({ setRoute }) {
             </div>
           </div>
 
-          {(isCustomNat || isGrantRate) && (
+          {(isCustomNat || isCustomNatBoats || isGrantRate) && (
             <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
               <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
                 <span>2 · Nationalities</span>
@@ -5605,7 +6024,7 @@ function BuildView({ setRoute }) {
                   ))}
                 </div>
               )}
-              <input type="search" placeholder={isGrantRate ? `Search ${natGrantNames.length} nationalities…` : 'Search 187 nationalities…'} value={natQuery}
+              <input type="search" placeholder={isGrantRate ? `Search ${natGrantNames.length} nationalities…` : isCustomNatBoats ? `Search ${boatsNatNames.length} boat-arrival nationalities…` : 'Search 187 nationalities…'} value={natQuery}
                 onChange={e=>setNatQuery(e.target.value)}
                 style={{width:'100%',fontSize:12.5,padding:'6px 8px',fontFamily:'var(--serif)',border:'1px solid var(--rule-2)',background:'#fff',marginBottom:8}}/>
               <div style={{maxHeight:180,overflowY:'auto',marginRight:-6,paddingRight:6,borderTop:'1px dotted var(--rule-2)'}}>
@@ -5615,20 +6034,22 @@ function BuildView({ setRoute }) {
                   <label key={n} className="chk" style={{display:'flex',alignItems:'center',padding:'4px 0',fontSize:12.5,gap:6}}>
                     <input type="checkbox" checked={selectedNats.includes(n)} onChange={()=>toggleNat(n)} style={{appearance:'auto',width:13,height:13}}/>
                     <span style={{flex:1}}>{n}</span>
-                    {natQNames.has(n) && <span title="Quarterly trend available" style={{fontSize:10,color:'var(--accent-2)',fontFamily:'var(--mono)'}}>Q</span>}
+                    {isCustomNat && natQNames.has(n) && <span title="Quarterly trend available" style={{fontSize:10,color:'var(--accent-2)',fontFamily:'var(--mono)'}}>Q</span>}
                   </label>
                 ))}
               </div>
               <div style={{fontSize:11,color:'var(--muted-2)',marginTop:8,fontStyle:'italic',lineHeight:1.45}}>
                 {isGrantRate
                   ? `${natGrantNames.length} nationalities with at least 200 decisions and 5 years of data. Grant rate = (refugee + humanitarian protection) / total initial decisions.`
+                  : isCustomNatBoats
+                  ? `${boatsNatNames.length} nationalities appear in IRR_BOATS_BY_NATIONALITY (Irr_02b). Annual, full calendar years only.`
                   : <>Rows marked <span className="mono" style={{color:'var(--accent-2)'}}>Q</span> have 8-quarter trend data (NAT_QUARTERLY, top-20). Others show a single annual point from {natFullYear ?? 'latest'}.</>
                 }
               </div>
             </div>
           )}
 
-          {!isMultiPrim && !isCustomNat && (
+          {!isMultiPrim && !isCustomNat && !isCustomNatBoats && !isGrantRate && (
             <div style={{marginBottom:22,paddingTop:18,borderTop:'1px solid var(--rule)'}}>
               <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'flex',justifyContent:'space-between'}}>
                 <span>2 · Overlays</span>
@@ -5817,6 +6238,33 @@ function BuildView({ setRoute }) {
                   </>
                 );
               })()
+            ) : isCustomNatBoats ? (
+              selectedNats.length === 0 ? (
+                <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
+                  Pick one or more nationalities from the list to render a chart.
+                </div>
+              ) : (() => {
+                const rows = (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && Array.isArray(IRR_BOATS_BY_NATIONALITY)) ? IRR_BOATS_BY_NATIONALITY : [];
+                const years = [...new Set(rows.filter(r => !r.partial && !r.meta).map(r => r.year))].sort();
+                const withinRange = years.filter(y => y >= range[0] && y <= range[1]);
+                const series = selectedNats.map(n => ({
+                  name: n,
+                  data: withinRange.map(y => {
+                    const row = rows.find(r => r.year === y && r.nationality === n && !r.meta);
+                    return row ? row.count : 0;
+                  }),
+                }));
+                const partialYears = [...new Set(rows.filter(r => r.partial && !r.meta).map(r => r.year))];
+                return (
+                  <>
+                    <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Small-boat arrivals · full calendar years</div>
+                    <GroupedBarChart periods={withinRange.map(String)} series={series} width={900} height={380} rotateTicks={withinRange.length > 10}/>
+                    <div style={{fontSize:12,color:'var(--muted-2)',marginTop:8,fontStyle:'italic',lineHeight:1.45}}>
+                      Source: Home Office · IRR_BOATS_BY_NATIONALITY (Irr_02b). {partialYears.length ? `Partial year${partialYears.length > 1 ? 's' : ''} excluded: ${partialYears.join(', ')}.` : ''}
+                    </div>
+                  </>
+                );
+              })()
             ) : isCustomNat ? (
               selectedNats.length === 0 ? (
                 <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
@@ -5824,6 +6272,35 @@ function BuildView({ setRoute }) {
                 </div>
               ) : (effGran === 'annual' || !natQ) ? (
                 (() => {
+                  // Annual bar — use NAT_QUARTERLY aggregated to annual where possible so
+                  // the reader sees nationalities side-by-side across years, not just one
+                  // snapshot. Falls back to a single-year bar for non-top-20 nationalities.
+                  if (chartType === 'bar' && natQ) {
+                    const usable = selectedNats.filter(n => natQNames.has(n));
+                    const missing = selectedNats.filter(n => !natQNames.has(n));
+                    if (usable.length) {
+                      const quarters = natQ.quarters;
+                      const years = [...new Set(quarters.map(q => parseInt(q, 10)))].sort();
+                      const withinRange = years.filter(y => y >= range[0] && y <= range[1]);
+                      const series = usable.map(n => {
+                        const src = natQ.series.find(s => s.name === n);
+                        return {
+                          name: n,
+                          data: withinRange.map(y => quarters.reduce((sum, q, qi) => parseInt(q, 10) === y ? sum + (src?.data?.[qi] || 0) : sum, 0)),
+                        };
+                      });
+                      return (
+                        <>
+                          <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Asylum applicants · annual (NAT_QUARTERLY aggregated)</div>
+                          <GroupedBarChart periods={withinRange.map(String)} series={series} width={900} height={380} rotateTicks={withinRange.length > 10}/>
+                          <div style={{fontSize:12,color:'var(--muted-2)',marginTop:8,fontStyle:'italic',lineHeight:1.45}}>
+                            Multi-year data comes from NAT_QUARTERLY (top-20 nationalities). {missing.length ? `Not in top-20: ${missing.join(', ')} — not shown. Switch dataset or remove for a cleaner chart.` : ''}
+                          </div>
+                        </>
+                      );
+                    }
+                  }
+                  // Fallback — single-year snapshot from NAT_FULL.
                   const rows = selectedNats
                     .map(n => ({ name: n, v: natFullRows.find(r => r.name === n)?.v ?? 0 }))
                     .sort((a,b) => b.v - a.v);
@@ -5873,15 +6350,13 @@ function BuildView({ setRoute }) {
                       />
                     );
                   } else if (chartType === 'bar') {
-                    const latestIdx = natQ.quarters.length - 1;
-                    const latestQ = natQ.quarters[latestIdx];
-                    const rows = series
-                      .map(s => ({ name: s.name, v: s.data[latestIdx] || 0 }))
-                      .sort((a,b) => b.v - a.v);
+                    // Grouped bars per quarter, one bar per nationality — shows the
+                    // cross-quarter trajectory instead of collapsing to a single
+                    // latest-quarter snapshot.
                     chart = (
                       <>
-                        <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Latest quarter · {latestQ}</div>
-                        <BarChart data={rows} width={800} height={Math.max(220, rows.length*30+16)} color="var(--accent)"/>
+                        <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Asylum applicants · by quarter</div>
+                        <GroupedBarChart periods={natQ.quarters} series={series} width={900} height={380} rotateTicks={natQ.quarters.length > 6}/>
                       </>
                     );
                   } else {
@@ -5996,6 +6471,7 @@ function BuildView({ setRoute }) {
                   showLabels={showLabels}
                   width={800} height={340}
                   source="Home Office Immigration Statistics"
+                  everyYear={isAnnual}
                 />
                 {overlayViews.map(({opt, data}) => (
                   <div key={opt.id} style={{marginTop:24,paddingTop:20,borderTop:'1px dotted var(--rule-2)'}}>
@@ -6007,6 +6483,7 @@ function BuildView({ setRoute }) {
                       showLabels={showLabels}
                       width={800} height={220}
                       title={opt.label} subtitle="Comparison series"
+                      everyYear={isAnnual}
                     />
                   </div>
                 ))}
@@ -6223,22 +6700,6 @@ function pathCentroid(d) {
   return [pts.reduce((s,p)=>s+p[0],0)/pts.length, pts.reduce((s,p)=>s+p[1],0)/pts.length];
 }
 
-// Bounding box of a path's M/L commands. Returns [xMin, yMin, w, h] or null.
-// Used by flyToBox so large countries (Russia, Canada) fit fully inside the
-// zoomed viewport — a fixed centroid zoom left them clipped.
-function pathBBox(d) {
-  const re = /[ML]\s*([-\d.]+)[,\s]([-\d.]+)/g;
-  let xMin = Infinity, yMin = Infinity, xMax = -Infinity, yMax = -Infinity, m, any = false;
-  while ((m = re.exec(d))) {
-    const x = +m[1], y = +m[2];
-    if (x < xMin) xMin = x; if (y < yMin) yMin = y;
-    if (x > xMax) xMax = x; if (y > yMax) yMax = y;
-    any = true;
-  }
-  if (!any) return null;
-  return [xMin, yMin, Math.max(1e-6, xMax - xMin), Math.max(1e-6, yMax - yMin)];
-}
-
 const ATLAS_METRIC_OPTIONS = [
   { id: 'applicants',   label: 'Applicants' },
   { id: 'grant_rate',   label: 'Grant rate' },
@@ -6281,7 +6742,7 @@ function tercileBin(v, cuts) {
   return 2;
 }
 
-function AtlasChoropleth({ countryValues, selectedName, compareName, onSelect, metricLabel = 'applicants', bivariate=false, width=820, height=440, zoom }) {
+function AtlasChoropleth({ countryValues, selectedNames = [], onSelect, metricLabel = 'applicants', bivariate=false, width=820, height=540, zoom }) {
   const worldMap = (typeof WORLD_MAP !== 'undefined') ? WORLD_MAP : null;
   if (!worldMap) {
     return <div style={{padding:40,color:'var(--muted)',fontStyle:'italic'}}>World map not loaded.</div>;
@@ -6323,13 +6784,12 @@ function AtlasChoropleth({ countryValues, selectedName, compareName, onSelect, m
             const nat = resolveNat(c.name);
             const raw = nat ? countryValues[nat] : null;
             const v = bivariate ? raw : (raw ?? 0);
-            const isSel = nat && nat === selectedName;
-            const isCmp = nat && nat === compareName;
+            const isSel = nat && selectedNames.includes(nat);
             return (
               <path key={`${c.iso || ''}-${c.name}-${i}`} d={c.d}
                 fill={fillFor(v)}
-                stroke={isSel ? '#e91e63' : isCmp ? '#f59e0b' : 'var(--rule-2)'} strokeWidth={isSel || isCmp ? 2.5 : 0.4}
-                onClick={e => { if (!zoom.didDrag() && nat) onSelect(nat, e.shiftKey); }}
+                stroke={isSel ? '#e91e63' : 'var(--rule-2)'} strokeWidth={isSel ? 2.5 : 0.4}
+                onClick={() => { if (!zoom.didDrag() && nat) onSelect(nat); }}
                 style={{cursor: nat ? (zoom.zoomed ? 'grab' : 'pointer') : 'default'}}>
                 <title>{titleFor(c.name, v)}</title>
               </path>
@@ -6366,8 +6826,6 @@ function AtlasLegend({ countryValues, metricLabel = 'Applicants', bivariate=fals
         <div style={{display:'flex',alignItems:'center',gap:6,marginTop:10,fontSize:10.5,color:'var(--muted-2)'}}>
           <span style={{display:'inline-block',width:16,height:10,border:'2px solid #e91e63',background:'transparent'}}/>
           Selected
-          <span style={{display:'inline-block',width:16,height:10,border:'2px solid #f59e0b',background:'transparent',marginLeft:10}}/>
-          Compare
         </div>
       </div>
     );
@@ -6404,8 +6862,6 @@ function AtlasLegend({ countryValues, metricLabel = 'Applicants', bivariate=fals
         <div style={{display:'flex',alignItems:'center',gap:6,marginTop:10,fontSize:10.5,color:'var(--muted-2)'}}>
           <span style={{display:'inline-block',width:16,height:10,border:'2px solid #e91e63',background:'transparent'}}/>
           Selected
-          <span style={{display:'inline-block',width:16,height:10,border:'2px solid #f59e0b',background:'transparent',marginLeft:10}}/>
-          Compare (shift-click)
         </div>
       </div>
     </div>
@@ -6413,104 +6869,126 @@ function AtlasLegend({ countryValues, metricLabel = 'Applicants', bivariate=fals
 }
 
 function AtlasKPI({ label, value, sub }) {
+  // Returns/age-dispute subs commonly render long compound strings like
+  // "Enforced 4,512 · Voluntary 1,233" — split on " · " onto separate lines so
+  // the 4-up KPI grid doesn't wrap awkwardly.
+  const subLines = typeof sub === 'string' ? sub.split(' · ') : (sub ? [sub] : []);
   return (
-    <div style={{border:'1px solid var(--rule)',padding:'14px 16px',background:'#fff'}}>
-      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:4}}>{label}</div>
-      <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:26,fontWeight:500,color:'var(--ink)',letterSpacing:-0.3}}>{value}</div>
-      {sub && <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:4}}>{sub}</div>}
+    <div style={{border:'1px solid var(--rule)',padding:'16px 18px',background:'#fff',minHeight:118,display:'flex',flexDirection:'column'}}>
+      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>{label}</div>
+      <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:26,fontWeight:500,color:'var(--ink)',letterSpacing:-0.3,lineHeight:1.1}}>{value}</div>
+      {subLines.length > 0 && (
+        <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:6,lineHeight:1.45}}>
+          {subLines.map((s, i) => (
+            <div key={i}>{s}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// Gather the stat tuple for a single country name so AtlasDetail can
-// render one or two countries through the same lookups.
-function useCountryFacts(name) {
-  return uMA(() => {
-    if (!name) return null;
-    const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
-    const returns = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
-    const ageDisputes = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
-    const natQ = typeof NAT_QUARTERLY !== 'undefined' ? NAT_QUARTERLY : null;
-    const grantData = typeof NAT_GRANT_ANNUAL !== 'undefined' ? NAT_GRANT_ANNUAL : null;
-    return {
-      apps: natFull.find(r => r.name === name) || null,
-      qRow: natQ?.series?.find(s => s.name === name) || null,
-      ret: returns.find(r => r.name === name) || null,
-      ad: ageDisputes.find(r => r.name === name) || null,
-      grantSeries: grantData?.series?.find(s => s.name === name) || null,
-    };
-  }, [name]);
-}
-
-function AtlasDetail({ name, compareName, onClearCompare, setRoute }) {
-  const [showLabels, setShowLabels] = uSA(false);
-  if (!name) {
+function AtlasSelectedTable({ selectedNats, onRemove }) {
+  const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
+  const natMeta = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META : null;
+  const returns = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
+  const ageDisputes = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
+  const facts = selectedNats.map(name => ({
+    name,
+    apps: natFull.find(r => r.name === name) || null,
+    ret: returns.find(r => r.name === name) || null,
+    ad: ageDisputes.find(r => r.name === name) || null,
+  }));
+  const fmt = n => n != null ? n.toLocaleString() : '—';
+  if (!selectedNats.length) {
     return (
-      <div style={{padding:'60px 24px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',border:'1px dashed var(--rule-2)'}}>
-        Click a country on the map to see details. Shift-click to compare.
+      <div style={{background:'#fff',border:'1px dashed var(--rule-2)',padding:'24px 16px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:12.5,height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        No countries selected. Pick one on the map or from the list on the left — selections appear here.
       </div>
     );
   }
+  return (
+    <div style={{background:'#fff',border:'1px solid var(--rule-2)',overflow:'hidden',display:'flex',flexDirection:'column'}}>
+      <div className="uc" style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'8px 12px',borderBottom:'1px solid var(--rule-2)',fontSize:10.5,color:'var(--muted)',background:'var(--bg-2)'}}>
+        <span>Selected · {selectedNats.length} {selectedNats.length === 1 ? 'country' : 'countries'}</span>
+        <span style={{letterSpacing:0,textTransform:'none',fontStyle:'italic',fontSize:10.5,color:'var(--muted-2)'}}>{natMeta ? `latest complete year · ${natMeta.year}` : 'latest complete year'}</span>
+      </div>
+      <div style={{overflowX:'auto',overflowY:'auto',maxHeight:320}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12.5,fontFamily:'var(--serif)'}}>
+          <thead>
+            <tr style={{color:'var(--muted)',textAlign:'left'}}>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,borderBottom:'1px solid var(--rule-2)'}}>Country</th>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Applicants</th>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Grant</th>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Returns</th>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Age disputes</th>
+              <th style={{padding:'8px 6px',borderBottom:'1px solid var(--rule-2)'}}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {facts.map(f => (
+              <tr key={f.name} style={{borderBottom:'1px dotted var(--rule-2)'}}>
+                <td style={{padding:'8px 10px',color:'var(--ink)'}}>{f.name}</td>
+                <td className="tnum" style={{padding:'8px 10px',textAlign:'right'}}>{fmt(f.apps?.v)}</td>
+                <td className="tnum" style={{padding:'8px 10px',textAlign:'right'}}>{f.apps?.grant != null ? `${Math.round(f.apps.grant*100)}%` : '—'}</td>
+                <td className="tnum" style={{padding:'8px 10px',textAlign:'right'}}>{fmt(f.ret?.total)}</td>
+                <td className="tnum" style={{padding:'8px 10px',textAlign:'right'}}>{fmt(f.ad?.raised)}</td>
+                <td style={{padding:'8px 6px',textAlign:'right'}}>
+                  <button onClick={()=>onRemove(f.name)} title={`Remove ${f.name}`}
+                    style={{color:'var(--muted)',fontSize:14,background:'transparent',border:'none',cursor:'pointer',padding:'0 4px'}}>×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AtlasDetail({ selectedNats, setRoute }) {
+  const [showLabels, setShowLabels] = uSA(false);
+  if (!selectedNats.length) {
+    return null;
+  }
   const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
-  const natMeta = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META : null;
   const natQ = typeof NAT_QUARTERLY !== 'undefined' ? NAT_QUARTERLY : null;
-  const returns = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
-  const ageDisputes = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
-
   const grantData = typeof NAT_GRANT_ANNUAL !== 'undefined' ? NAT_GRANT_ANNUAL : null;
-  const grantSeries = grantData?.series?.find(s => s.name === name);
+  const boatsRows = typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' ? IRR_BOATS_BY_NATIONALITY : [];
 
-  const apps = natFull.find(r => r.name === name);
-  const qRow = natQ?.series?.find(s => s.name === name);
-  const ret = returns.find(r => r.name === name);
-  const ad = ageDisputes.find(r => r.name === name);
+  const facts = selectedNats.map(name => ({
+    name,
+    apps: natFull.find(r => r.name === name) || null,
+    qRow: natQ?.series?.find(s => s.name === name) || null,
+    grantSeries: grantData?.series?.find(s => s.name === name) || null,
+  }));
 
-  const grantPct = apps && apps.grant != null ? `${Math.round(apps.grant * 100)}%` : '—';
-  const applicants = apps ? apps.v.toLocaleString() : '—';
-  const retTotal = ret ? ret.total.toLocaleString() : '—';
-  const adRaised = ad ? ad.raised.toLocaleString() : '—';
+  const qFacts = facts.filter(f => f.qRow);
+  const missingQ = facts.filter(f => !f.qRow);
+  const grantFacts = facts.filter(f => f.grantSeries && grantData);
+  const missingGrant = facts.filter(f => !f.grantSeries && grantData);
 
-  const cmpFacts = useCountryFacts(compareName);
-  const cmpApps = cmpFacts?.apps;
-  const cmpRet = cmpFacts?.ret;
-  const cmpAd = cmpFacts?.ad;
+  const boatYears = boatsRows.length ? Array.from(new Set(boatsRows.filter(r => !r.partial).map(r => r.year))).sort((a,b)=>a-b) : [];
+  const boatSeries = facts.map(f => {
+    if (!boatYears.length) return null;
+    const byYear = Object.fromEntries(
+      boatsRows.filter(r => r.nationality === f.name && !r.partial).map(r => [r.year, r.count])
+    );
+    const data = boatYears.map(y => byYear[y] ?? null);
+    if (data.every(v => v == null || v === 0)) return null;
+    return { name: f.name, data };
+  }).filter(Boolean);
 
   return (
     <div style={{border:'1px solid var(--rule)',background:'var(--bg-2)',padding:'20px 22px'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule-2)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule-2)',flexWrap:'wrap',rowGap:4,columnGap:16}}>
         <h2 style={{fontFamily:'var(--serif)',fontSize:24,fontWeight:500,margin:0,letterSpacing:-0.3,color:'var(--ink)'}}>
-          {name}
-          {compareName ? <span style={{color:'var(--muted-2)',fontWeight:400}}> vs <span style={{color:'var(--accent-gold)'}}>{compareName}</span></span> : null}
+          {selectedNats.length === 1 ? selectedNats[0] : `${selectedNats.length} countries overlaid`}
         </h2>
-        <div className="uc" style={{color:'var(--muted)',fontSize:10.5}}>Latest complete year</div>
+        <div className="uc" style={{color:'var(--muted)',fontSize:10.5}}>Trends</div>
       </div>
-      {compareName ? (
-        <div style={{marginBottom:14,padding:'10px 12px',border:'1px solid var(--rule-2)',background:'#fff'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-            <div className="uc" style={{fontSize:10.5,color:'var(--muted)'}}>Compare · {name} vs {compareName}</div>
-            <button className="ulh" onClick={onClearCompare} style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0,textTransform:'none'}}>Clear ×</button>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,fontSize:12}}>
-            <div style={{paddingRight:10,borderRight:'1px dotted var(--rule-2)'}}>
-              <div style={{fontFamily:'var(--serif)',fontSize:15,color:'var(--accent)',marginBottom:4}}>{name}</div>
-              <div className="tnum">{apps ? apps.v.toLocaleString() : '—'} applicants · {apps && apps.grant != null ? `${Math.round(apps.grant*100)}% grant` : 'no grant'}</div>
-              <div className="tnum" style={{color:'var(--muted-2)'}}>{ret ? ret.total.toLocaleString() : '—'} returns · {ad ? ad.raised.toLocaleString() : '—'} age disputes</div>
-            </div>
-            <div style={{paddingLeft:10}}>
-              <div style={{fontFamily:'var(--serif)',fontSize:15,color:'var(--accent-gold)',marginBottom:4}}>{compareName}</div>
-              <div className="tnum">{cmpApps ? cmpApps.v.toLocaleString() : '—'} applicants · {cmpApps && cmpApps.grant != null ? `${Math.round(cmpApps.grant*100)}% grant` : 'no grant'}</div>
-              <div className="tnum" style={{color:'var(--muted-2)'}}>{cmpRet ? cmpRet.total.toLocaleString() : '—'} returns · {cmpAd ? cmpAd.raised.toLocaleString() : '—'} age disputes</div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:10,marginBottom:16}}>
-        <AtlasKPI label="Applicants" value={applicants} sub={natMeta ? `${natMeta.year} · NAT_FULL` : null}/>
-        <AtlasKPI label="Grant rate" value={grantPct} sub="Initial decisions"/>
-        <AtlasKPI label="Returns" value={retTotal} sub={ret ? `Enforced ${ret.enforced.toLocaleString()} · Voluntary ${ret.voluntary.toLocaleString()}` : null}/>
-        <AtlasKPI label="Age disputes raised" value={adRaised} sub={ad ? `Resolved <18: ${ad.resolved_under_18}` : 'No data'}/>
-      </div>
-      {qRow ? (
+
+      {qFacts.length > 0 ? (
         <div style={{background:'#fff',padding:'14px 16px',border:'1px solid var(--rule-2)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
             <div className="uc" style={{color:'var(--muted)',fontSize:10.5}}>Applicants · last 8 quarters</div>
@@ -6520,18 +6998,22 @@ function AtlasDetail({ name, compareName, onClearCompare, setRoute }) {
           </div>
           <MultiLineChart
             years={natQ.quarters}
-            series={compareName && cmpFacts?.qRow
-              ? [{ name, data: qRow.data }, { name: compareName, data: cmpFacts.qRow.data }]
-              : [{ name, data: qRow.data }]}
-            width={720} height={180}
+            series={qFacts.map(f => ({ name: f.name, data: f.qRow.data }))}
+            width={720} height={qFacts.length > 2 ? 340 : 280}
             showLabels={showLabels}
+            legend={qFacts.length > 1}
             yLabel="applicants"
           />
+          {missingQ.length > 0 && (
+            <div style={{marginTop:8,fontSize:11,color:'var(--muted-2)',fontStyle:'italic',lineHeight:1.45}}>
+              No quarterly trend for: {missingQ.map(f => f.name).join(', ')}. Only the top-20 nationalities by applicant volume have a full quarterly series published.
+            </div>
+          )}
         </div>
       ) : (
         <div style={{padding:'18px 20px',color:'var(--ink-2)',fontSize:13,lineHeight:1.55,background:'#fff',border:'1px dotted var(--rule-2)'}}>
           <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8,fontStyle:'normal'}}>No quarterly trend</div>
-          The Home Office publishes a full quarterly time series only for the 20 nationalities with the largest applicant volumes. For other countries, only the most recent annual and quarterly totals are released, so a full trend can't be drawn here. Asylum applicants are not published at a daily or weekly granularity either, so the series can't be reconstructed from finer-grained data.
+          None of the selected countries appear in the top-20 quarterly series. The Home Office publishes a full quarterly time series only for the 20 nationalities with the largest applicant volumes. For other countries, only the most recent annual and quarterly totals are released.
           {' '}
           <a href="https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables"
              target="_blank" rel="noopener"
@@ -6540,37 +7022,54 @@ function AtlasDetail({ name, compareName, onClearCompare, setRoute }) {
           </a>.
         </div>
       )}
-      {grantSeries && grantData ? (
+
+      {grantData && grantFacts.length > 0 ? (
         <div style={{background:'#fff',padding:'14px 16px',border:'1px solid var(--rule-2)',marginTop:10}}>
           <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8}}>
             Grant rate · {grantData.years[0]}–{grantData.years[grantData.years.length - 1]} · % of initial decisions granted
           </div>
           <MultiLineChart
             years={grantData.years}
-            series={compareName && cmpFacts?.grantSeries
-              ? [
-                  { name, data: grantSeries.data.map(v => v != null ? Math.round(v * 100) : null) },
-                  { name: compareName, data: cmpFacts.grantSeries.data.map(v => v != null ? Math.round(v * 100) : null) },
-                ]
-              : [{ name, data: grantSeries.data.map(v => v != null ? Math.round(v * 100) : null) }]}
-            width={720} height={140}
+            series={grantFacts.map(f => ({
+              name: f.name,
+              data: f.grantSeries.data.map(v => v != null ? Math.round(v * 100) : null),
+            }))}
+            width={720} height={grantFacts.length > 2 ? 320 : 260}
             showLabels={showLabels}
-            yLabel="%"
+            legend={grantFacts.length > 1}
+            yLabel="% granted"
+          />
+          {missingGrant.length > 0 && (
+            <div style={{marginTop:8,fontSize:11,color:'var(--muted-2)',fontStyle:'italic',lineHeight:1.45}}>
+              No grant-rate trend for: {missingGrant.map(f => f.name).join(', ')} (fewer than 200 total decisions, or fewer than 5 years with data).
+            </div>
+          )}
+        </div>
+      ) : grantData ? (
+        <div style={{padding:'14px 16px',color:'var(--muted-2)',fontStyle:'italic',fontSize:13,background:'#fff',border:'1px dotted var(--rule-2)',marginTop:10}}>
+          No grant-rate trend for the selected countries (fewer than 200 total decisions, or fewer than 5 years with data).
+        </div>
+      ) : null}
+
+      {boatSeries.length > 0 && (
+        <div style={{background:'#fff',padding:'14px 16px',border:'1px solid var(--rule-2)',marginTop:10}}>
+          <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:8}}>
+            Small-boat arrivals · {boatYears[0]}–{boatYears[boatYears.length - 1]} · annual (full years only)
+          </div>
+          <MultiLineChart
+            years={boatYears}
+            series={boatSeries}
+            width={720} height={boatSeries.length > 2 ? 320 : 260}
+            showLabels={showLabels}
+            legend={boatSeries.length > 1}
+            yLabel="arrivals"
           />
         </div>
-      ) : (
-        <div style={{padding:'14px 16px',color:'var(--muted-2)',fontStyle:'italic',fontSize:13,background:'#fff',border:'1px dotted var(--rule-2)',marginTop:10}}>
-          No grant-rate trend (fewer than 200 total decisions, or fewer than 5 years with data).
-        </div>
       )}
-      {!apps && !ret && !ad && (
-        <div style={{marginTop:12,fontSize:12,color:'var(--muted-2)',fontStyle:'italic'}}>
-          No applicants, returns, or age-dispute records for this country in the latest data.
-        </div>
-      )}
+
       <div style={{marginTop:14,display:'flex',gap:14,fontSize:12}}>
         <button className="ulh" style={{color:'var(--accent)'}}
-          onClick={()=>setRoute({name:'build', preselectNat: name})}>
+          onClick={()=>setRoute({name:'build', preselectNat: selectedNats[0]})}>
           Compare in Build a chart →
         </button>
       </div>
@@ -6599,35 +7098,24 @@ function topQoQMover() {
 }
 
 function AtlasView({ setRoute }) {
-  const defaultSelection = uMA(() => topQoQMover(), []);
-  const [selected, setSelected] = uSA(defaultSelection);
-  const [compareWith, setCompareWith] = uSA(null);
+  const defaultSelection = uMA(() => {
+    const top = topQoQMover();
+    return top ? [top] : [];
+  }, []);
+  const [selectedNats, setSelectedNats] = uSA(defaultSelection);
   const [metric, setMetric] = uSA('applicants');
-  const [countryQuery, setCountryQuery] = uSA('');
+  const [natQuery, setNatQuery] = uSA('');
   const zoom = useMapZoom(720, 335);
 
-  const flyToCountry = nat => {
-    const wm = typeof WORLD_MAP !== 'undefined' ? WORLD_MAP : [];
-    const entry = wm.find(c => resolveNat(c.name) === nat);
-    if (entry) {
-      const bb = pathBBox(entry.d);
-      if (bb) zoom.flyToBox(bb[0], bb[1], bb[2], bb[3]);
-    }
+  const toggleNat = nat => {
+    setSelectedNats(prev => {
+      if (prev.includes(nat)) return prev.filter(n => n !== nat);
+      return [...prev, nat];
+    });
   };
 
-  const handleSelect = (nat, shift=false) => {
-    setCountryQuery('');
-    if (shift && selected && nat !== selected) {
-      // Shift-click on a different country adds/replaces the comparison.
-      setCompareWith(nat);
-      flyToCountry(nat);
-      return;
-    }
-    // Plain click: replace primary, clear comparison when the user picks
-    // a country that already was the comparison (preventing duplicate).
-    if (nat === compareWith) setCompareWith(null);
-    setSelected(nat);
-    flyToCountry(nat);
+  const handleSelect = nat => {
+    toggleNat(nat);
   };
 
   const countryValues = uMA(() => {
@@ -6720,49 +7208,78 @@ function AtlasView({ setRoute }) {
           );
         })}
       </div>
-      <div className="atlas-layout" style={{display:'grid',gridTemplateColumns:'minmax(0,1.4fr) minmax(360px,1fr)',gap:28,alignItems:'start'}}>
+      <div className="atlas-layout" style={{display:'flex',flexDirection:'column',gap:28}}>
         <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'12px'}}>
-          <AtlasChoropleth countryValues={countryValues} selectedName={selected} compareName={compareWith} onSelect={handleSelect} metricLabel={metricLabel.toLowerCase()} bivariate={bivariate} zoom={zoom}/>
+          <AtlasChoropleth countryValues={countryValues} selectedNames={selectedNats} onSelect={handleSelect} metricLabel={metricLabel.toLowerCase()} bivariate={bivariate} zoom={zoom}/>
           <AtlasLegend countryValues={countryValues} metricLabel={metricLabel} bivariate={bivariate}/>
           <div style={{marginTop:12,paddingTop:10,borderTop:'1px dotted var(--rule-2)'}}>
-            <div style={{position:'relative',marginBottom:8}}>
-              <input type="search" value={countryQuery} onChange={e=>setCountryQuery(e.target.value)}
-                placeholder="Search countries…"
-                style={{width:'100%',fontSize:12.5,padding:'6px 8px',fontFamily:'var(--serif)',border:'1px solid var(--rule-2)',background:'#fff',boxSizing:'border-box'}}/>
-              {countryQuery.trim() && (() => {
-                const q = countryQuery.trim().toLowerCase();
-                const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
-                const matches = natFull.filter(r => r.name.toLowerCase().includes(q)).slice(0, 12);
-                if (!matches.length) return null;
-                return (
-                  <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--rule-2)',borderTop:'none',maxHeight:160,overflowY:'auto',zIndex:10}}>
-                    {matches.map(r => (
-                      <button key={r.name} onClick={()=>handleSelect(r.name)}
-                        style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',fontSize:12.5,fontFamily:'var(--serif)',background:'transparent',border:'none',borderBottom:'1px dotted var(--rule-2)',cursor:'pointer',color:'var(--ink-2)'}}>
-                        {r.name}
-                      </button>
-                    ))}
+            {(() => {
+              const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
+              const allNames = natFull.map(r => r.name).sort((a, b) => a.localeCompare(b));
+              const q = natQuery.trim().toLowerCase();
+              const filtered = q ? allNames.filter(n => n.toLowerCase().includes(q)) : allNames;
+              return (
+                <div className="atlas-picker-row" style={{display:'grid',gridTemplateColumns:'minmax(280px, 1fr) 1.6fr',gap:18,alignItems:'start'}}>
+                  <div>
+                    <div className="uc" style={{color:'var(--muted)',fontSize:10.5,display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8}}>
+                      <span>Countries</span>
+                      <span style={{display:'flex',gap:10,alignItems:'baseline'}}>
+                        {selectedNats.length > 0 && (
+                          <button onClick={()=>setSelectedNats([])}
+                            style={{fontSize:11,color:'var(--accent)',background:'transparent',border:'1px solid var(--accent)',padding:'2px 8px',textTransform:'none',letterSpacing:0,fontFamily:'var(--serif)',cursor:'pointer'}}>
+                            Clear all
+                          </button>
+                        )}
+                        <span style={{color:'var(--muted-2)'}} className="tnum">{selectedNats.length} picked</span>
+                      </span>
+                    </div>
+                    {selectedNats.length > 0 && (
+                      <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:10}}>
+                        {selectedNats.map(n => (
+                          <button key={n} onClick={()=>toggleNat(n)}
+                            style={{fontSize:11,padding:'3px 8px 3px 10px',background:'var(--bg-2)',border:'1px solid var(--rule-2)',color:'var(--ink-2)',fontFamily:'var(--serif)',cursor:'pointer'}}>
+                            {n} <span style={{color:'var(--muted)',marginLeft:4}}>×</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <input type="search" value={natQuery} onChange={e=>setNatQuery(e.target.value)}
+                      placeholder={`Search ${allNames.length} countries…`}
+                      style={{width:'100%',fontSize:12.5,padding:'6px 8px',fontFamily:'var(--serif)',border:'1px solid var(--rule-2)',background:'#fff',marginBottom:8,boxSizing:'border-box'}}/>
+                    <div style={{maxHeight:180,overflowY:'auto',marginRight:-6,paddingRight:6,borderTop:'1px dotted var(--rule-2)'}}>
+                      {filtered.length === 0 ? (
+                        <div style={{fontSize:12,color:'var(--muted-2)',padding:'8px 0',fontStyle:'italic'}}>No matches.</div>
+                      ) : filtered.map(n => (
+                        <label key={n} className="chk" style={{display:'flex',alignItems:'center',padding:'4px 0',fontSize:12.5,gap:6,cursor:'pointer'}}>
+                          <input type="checkbox" checked={selectedNats.includes(n)} onChange={()=>toggleNat(n)} style={{appearance:'auto',width:13,height:13}}/>
+                          <span style={{flex:1}}>{n}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <details style={{marginTop:10}}>
+                      <summary style={{cursor:'pointer',fontSize:11,color:'var(--muted)',fontStyle:'italic'}}>Common choices ▾</summary>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:8}}>
+                        {topCountries.map(c => (
+                          <button key={c.name} onClick={()=>toggleNat(c.name)}
+                            style={{fontSize:11.5,padding:'2px 8px',background: selectedNats.includes(c.name) ? 'var(--accent)' : 'var(--bg-2)',
+                                    color: selectedNats.includes(c.name) ? '#fff' : 'var(--ink-2)',
+                                    border:'1px solid var(--rule-2)',fontFamily:'var(--serif)',cursor:'pointer'}}>
+                            {c.name}
+                          </button>
+                        ))}
+                      </div>
+                    </details>
+                    <div style={{marginTop:8,fontSize:10.5,color:'var(--muted-2)',fontStyle:'italic'}}>
+                      Click a country on the map to toggle it on or off, or tick multiple from the list. Every selected country is overlaid on each chart below.
+                    </div>
                   </div>
-                );
-              })()}
-            </div>
-            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-              <span className="uc" style={{fontSize:10.5,color:'var(--muted)',marginRight:8,alignSelf:'center'}}>Jump to:</span>
-              {topCountries.map(c => (
-                <button key={c.name} onClick={e=>handleSelect(c.name, e.shiftKey)}
-                  style={{fontSize:11.5,padding:'2px 8px',background: selected===c.name ? 'var(--accent)' : compareWith===c.name ? 'var(--accent-gold)' : 'var(--bg-2)',
-                          color: (selected===c.name || compareWith===c.name) ? '#fff' : 'var(--ink-2)',
-                          border:'1px solid var(--rule-2)',fontFamily:'var(--serif)'}}>
-                  {c.name}
-                </button>
-              ))}
-            </div>
-            <div style={{marginTop:8,fontSize:10.5,color:'var(--muted-2)',fontStyle:'italic'}}>
-              Shift-click a country to compare it with the current selection.
-            </div>
+                  <AtlasSelectedTable selectedNats={selectedNats} onRemove={toggleNat}/>
+                </div>
+              );
+            })()}
           </div>
         </div>
-        <AtlasDetail name={selected} compareName={compareWith} onClearCompare={()=>setCompareWith(null)} setRoute={setRoute}/>
+        <AtlasDetail selectedNats={selectedNats} setRoute={setRoute}/>
       </div>
     </main>
   );
@@ -7070,7 +7587,7 @@ function FlowView({ setRoute }) {
       </div>
       {system.hasLatest && (
         <div style={{marginBottom:10,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent-warn)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:940}}>
-          <strong style={{fontWeight:500}}>The fourth column is an indicative proxy using cohort outcome changes; it is not an appeals dataset.</strong> The Home Office has not republished appeals statistics since their case-working system migration. Hatched ribbons and dashed nodes mark it as modelled, not measured.
+          <strong style={{fontWeight:500}}>The fourth column is an indicative proxy using cohort outcome changes; it is not an appeals dataset.</strong> The Home Office has not republished appeals statistics since their case-working system migration. Paler ribbons and dashed node outlines mark this column as modelled, not measured.
         </div>
       )}
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
@@ -7086,13 +7603,16 @@ function FlowView({ setRoute }) {
       <div style={{marginTop:12,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:900}}>
         {system.hasLatest ? (
           <>
-            <strong style={{fontWeight:500}}>About the fourth column.</strong> "Latest outcome" pools the initial-vs-latest delta from Asy_D04 across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The beige "Still pending" band holds claims that have not yet reached a final outcome — many are still awaiting an initial decision or an appeal hearing. Hatching and dashed outlines remind the reader that this column is modelled from cohort movement, not direct appeals data, which the Home Office has not republished since its case-working system migration (Asy_D04 Cover_sheet, Note 5).
+            <strong style={{fontWeight:500}}>About the fourth column.</strong> "Latest outcome" pools the initial-vs-latest delta from Asy_D04 across cohort years. It captures appeal overturns, late withdrawals, and administrative reclassifications in one figure. The beige "Still pending" band holds claims that have not yet reached a final outcome — many are still awaiting an initial decision or an appeal hearing. Dashed outlines remind the reader that this column is modelled from cohort movement, not direct appeals data, which the Home Office has not republished since its case-working system migration (Asy_D04 Cover_sheet, Note 5).
           </>
         ) : (
           <>
             <strong style={{fontWeight:500}}>Appeal outcomes not shown.</strong> The Home Office has not yet republished appeal-specific data since migrating case-working systems (Asy_D04 Cover_sheet, Note 5). The closest defensible proxy is the <em>initial vs latest</em> outcome delta in the cohort file — which will land as a real fourth column here when the cohort-outcome ingest is wired in. Entry routes come from Asy_D01a (date of asylum claim) and the Application → Initial decision split uses shares from Asy_D02.
           </>
         )}
+        <div style={{marginTop:10,paddingTop:10,borderTop:'1px dotted var(--rule-2)'}}>
+          <strong style={{fontWeight:500}}>About the "Granted → Refused" ribbon.</strong> That transition is <em>modelled, not measured</em>. Each initial outcome is partitioned proportionally across the four latest-outcome buckets, so a small ribbon from "Granted" into "Refused" appears even though real granted-to-refused transitions are rare in absolute terms. In practice they can occur through Home Office <strong>cessation or revocation</strong> under Article 1C of the 1951 Refugee Convention (for example when the country-of-origin risk ends, or where status is revoked for conduct reasons), through <strong>Home Office appeals</strong> to the Upper Tribunal that overturn a grant, through <strong>administrative review</strong> reversals, or — very rarely — through <strong>fraud-led revocation</strong>. The ribbon's width here is a product of the proportional routing described in the caveat above, and will be replaced once Asy_D04 republishes real appeals data.
+        </div>
       </div>
 
       {/* Nationality breakdown — existing chart, now below the system view */}
@@ -7113,9 +7633,6 @@ function FlowView({ setRoute }) {
       <div style={{marginTop:8,fontSize:11.5,color:'var(--muted-2)',lineHeight:1.5,maxWidth:780}}>
         Decision outcomes are estimated by applying each nationality's initial-decision grant rate to its applicant volume. The refused/withdrawn split uses the overall ratio from <em>Initial decisions on asylum applications</em> (Asy_D02). Left and right totals are identical by construction. <strong style={{fontWeight:500,color:'var(--ink-2)'}}>Note:</strong> "Granted (initial)" refers to grants at initial decision only — appeal grants, which overturn a further ~15–20% of refused cases, are not included as cohort-level appeal data is not published.
       </div>
-
-      {/* Boats-by-nationality strip — top-5 + Other from Irr_02b (Finding 28). */}
-      <IrrBoatsByNationality/>
 
       {/* B5 cohort ribbon — one panel per year-of-claim. */}
       <div style={{marginTop:48,marginBottom:8}}>
@@ -7162,152 +7679,6 @@ function FlowView({ setRoute }) {
         </button>
       </div>
     </main>
-  );
-}
-
-// Finding 28 · Small-boat arrivals by nationality, top-5 + Other, across
-// full years in IRR_BOATS_BY_NATIONALITY (Irr_02b / Irr_02b).
-function buildIrrTop5ByYear() {
-  const rows = (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && Array.isArray(IRR_BOATS_BY_NATIONALITY))
-    ? IRR_BOATS_BY_NATIONALITY : [];
-  if (!rows.length) return { years: [], palette: [], matrix: [], latestPartialYear: null };
-
-  // Partition: full years for the stacked bars, flag any partial year.
-  const fullYears = [...new Set(rows.filter(r => !r.partial && !r.meta).map(r => r.year))].sort();
-  const partialYears = [...new Set(rows.filter(r => r.partial && !r.meta).map(r => r.year))].sort();
-  const latestPartialYear = partialYears.length ? partialYears[partialYears.length - 1] : null;
-
-  if (!fullYears.length) return { years: [], palette: [], matrix: [], latestPartialYear };
-
-  // Top-5 set = highest-volume nationalities summed across the full-year window,
-  // excluding the source's own "All other nationalities" aggregate and
-  // "Not currently recorded" so we don't double-count them.
-  const totals = new Map();
-  for (const r of rows) {
-    if (r.meta) continue;            // skip source's own aggregates
-    if (!fullYears.includes(r.year)) continue;
-    totals.set(r.nationality, (totals.get(r.nationality) || 0) + r.count);
-  }
-  const top5 = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
-  const palette = [...top5, 'Other'];
-
-  // Matrix of counts: rows=palette entries, cols=years (full years only).
-  const matrix = palette.map(name => fullYears.map(y => {
-    if (name === 'Other') {
-      // Everything in-year minus the top-5 — includes source-side "All other
-      // nationalities" and "Not currently recorded".
-      let yearTotal = 0, topCount = 0;
-      for (const r of rows) {
-        if (r.year !== y) continue;
-        if (r.meta === 'total') continue;
-        if (r.meta === 'other' || r.meta === 'unrecorded') { yearTotal += r.count; continue; }
-        yearTotal += r.count;
-        if (top5.includes(r.nationality)) topCount += r.count;
-      }
-      return yearTotal - topCount;
-    }
-    const row = rows.find(r => r.year === y && r.nationality === name);
-    return row ? row.count : 0;
-  }));
-
-  return { years: fullYears, palette, matrix, latestPartialYear };
-}
-
-function IrrBoatsByNationality() {
-  const { years, palette, matrix, latestPartialYear } = React.useMemo(buildIrrTop5ByYear, []);
-  const meta = typeof IRR_BOATS_META !== 'undefined' ? IRR_BOATS_META : null;
-
-  if (!years.length) {
-    return (
-      <div style={{marginTop:48}}>
-        <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality</div>
-        <div style={{border:'1px dashed var(--rule)',background:'var(--bg-2)',padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:13}}>
-          Small boats by nationality data unavailable.
-        </div>
-      </div>
-    );
-  }
-
-  const W = 1000, H = 240, M = { top: 16, right: 140, bottom: 28, left: 56 };
-  const innerW = W - M.left - M.right;
-  const innerH = H - M.top - M.bottom;
-  const barW = innerW / years.length * 0.7;
-  const gap = innerW / years.length * 0.3;
-
-  const totals = years.map((_, yi) => palette.reduce((s, _n, pi) => s + (matrix[pi][yi] || 0), 0));
-  const yMax = Math.max(...totals, 1);
-  // Palette tokens echo FLOW_NAT_PALETTE (5 colours) + muted for Other.
-  const colors = ['#1c5c3d','#c44a2a','#2a5c8b','#8b6c1c','#6b2a8b','#888888'];
-
-  const nf = (n) => n.toLocaleString('en-GB');
-
-  return (
-    <div style={{marginTop:48}}>
-      <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>Small boats · by nationality · Irr_02b</div>
-      <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>
-        Top-five nationalities crossing in small boats
-      </h2>
-      <p style={{fontSize:14,color:'var(--ink-2)',maxWidth:720,margin:'0 0 12px',lineHeight:1.5}}>
-        Full calendar years only; the top-five set is chosen by pooled volume across {years[0]}–{years[years.length-1]}. Everything else — including the Home Office's own &ldquo;All other nationalities&rdquo; and &ldquo;Not currently recorded&rdquo; rows — falls into <em>Other</em>.
-      </p>
-      <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'16px 20px 12px'}}>
-        <svg width={W} height={H} role="img" aria-label="Small-boat arrivals by nationality, stacked by year">
-          {/* y-axis */}
-          <line x1={M.left} y1={M.top} x2={M.left} y2={M.top + innerH} stroke="var(--rule-2)"/>
-          {[0, 0.5, 1].map((t, i) => {
-            const v = Math.round(yMax * (1 - t));
-            const y = M.top + innerH * t;
-            return (
-              <g key={i}>
-                <line x1={M.left} y1={y} x2={M.left + innerW} y2={y} stroke="var(--rule-2)" strokeDasharray={t === 1 ? '0' : '2 3'}/>
-                <text x={M.left - 6} y={y + 4} textAnchor="end" style={{fontFamily:'var(--mono)',fontSize:10,fill:'var(--muted)'}}>{nf(v)}</text>
-              </g>
-            );
-          })}
-          {/* bars */}
-          {years.map((y, yi) => {
-            const x = M.left + (yi + 0.5) * (innerW / years.length) - barW / 2;
-            let acc = 0;
-            return (
-              <g key={y}>
-                {palette.map((name, pi) => {
-                  const v = matrix[pi][yi] || 0;
-                  if (v <= 0) return null;
-                  const h = (v / yMax) * innerH;
-                  const y0 = M.top + innerH - acc - h;
-                  acc += h;
-                  return (
-                    <rect key={name} x={x} y={y0} width={barW} height={h}
-                          fill={colors[pi]} stroke="#fff" strokeWidth={0.5}>
-                      <title>{`${y} · ${name}: ${nf(v)}`}</title>
-                    </rect>
-                  );
-                })}
-                <text x={x + barW/2} y={M.top + innerH + 16} textAnchor="middle"
-                      style={{fontFamily:'var(--mono)',fontSize:10.5,fill:'var(--muted)'}}>{y}</text>
-              </g>
-            );
-          })}
-          {/* legend */}
-          {palette.map((name, pi) => (
-            <g key={name} transform={`translate(${M.left + innerW + 16}, ${M.top + pi * 18})`}>
-              <rect x={0} y={0} width={12} height={12} fill={colors[pi]}/>
-              <text x={18} y={10} style={{fontFamily:'var(--serif)',fontSize:12,fill:'var(--ink-2)'}}>{name}</text>
-            </g>
-          ))}
-        </svg>
-        {latestPartialYear != null ? (
-          <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:6,lineHeight:1.5}}>
-            {latestPartialYear} excluded from the chart — it is a partial year in the latest release.
-          </div>
-        ) : null}
-        {meta?.asOf ? (
-          <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:2,lineHeight:1.5}}>
-            {meta.asOf}
-          </div>
-        ) : null}
-      </div>
-    </div>
   );
 }
 
@@ -7425,7 +7796,7 @@ function TweakPanel({ tweaks, setTweaks, open, onClose }) {
 }
 
 function App() {
-  const [route, setRoute] = uSR({ name: 'index' });
+  const [route, setRoute] = uSR({ name: 'dashboard' });
   const [search, setSearch] = uSR(false);
   const [method, setMethod] = uSR(false);
   const [tweaks, setTweaks] = uSR(TWEAK_DEFAULTS);

@@ -130,6 +130,8 @@ function LineChart({
   overlayStroke='var(--accent-warn)',
   overlayLabel='',        // short label for the overlay series (rendered at end of line)
   compact=false,
+  everyYear=false,        // force a tick at every data point (no stride-thinning)
+  rotateTicks=false,      // rotate x-tick labels -30° (useful when dense)
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
@@ -244,29 +246,36 @@ function LineChart({
         ))}
         {/* X-axis labels */}
         {d.map((p, i) => ({p, i}))
-          .filter(({i}) => i % Math.max(1, Math.ceil(d.length / 8)) === 0 || i === d.length - 1)
-          .map(({p, i}) => (
-            <text key={`xt-${i}`} x={x(p.y)} y={H - pad.b + 18} textAnchor="middle" fontSize={fs} fill="var(--muted)"
-              style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>
-              {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
-            </text>
-          ))}
+          .filter(({i}) => everyYear || i % Math.max(1, Math.ceil(d.length / 8)) === 0 || i === d.length - 1)
+          .map(({p, i}) => {
+            const tx = x(p.y), ty = H - pad.b + 18;
+            const rot = rotateTicks || (everyYear && d.length > 10);
+            return (
+              <text key={`xt-${i}`} x={tx} y={ty}
+                textAnchor={rot ? 'end' : 'middle'}
+                transform={rot ? `rotate(-30 ${tx} ${ty})` : undefined}
+                fontSize={fs} fill="var(--muted)"
+                style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>
+                {xLabelFmt ? xLabelFmt(p.y, i, p) : (p.label ?? p.y)}
+              </text>
+            );
+          })}
         <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="var(--rule-2)"/>
         {/* Axis titles — placed immediately adjacent to each axis */}
         {yLabel && (
           <text
             x={14} y={pad.t + ih / 2}
             transform={`rotate(-90 14 ${pad.t + ih / 2})`}
-            textAnchor="middle" fontSize={fs} fill="var(--muted)"
-            style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
+            textAnchor="middle" fontSize={compact ? 24 : 13} fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily: 'var(--serif)'}}>
             {yLabel}
           </text>
         )}
         {xLabel && (
           <text
             x={pad.l + iw / 2} y={H - 6}
-            textAnchor="middle" fontSize={fs} fill="var(--muted)"
-            style={{fontFamily: 'var(--serif)', fontStyle: 'italic'}}>
+            textAnchor="middle" fontSize={compact ? 24 : 13} fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily: 'var(--serif)'}}>
             {xLabel}
           </text>
         )}
@@ -302,10 +311,21 @@ function LineChart({
             <circle cx={x(p.y)} cy={y(p.v)} r="14" fill="transparent"
               onMouseMove={e => show(e, <span><b>{p.label ?? p.y}</b> · <span className="tnum">{fmtN(p.v)}</span></span>)}
               onMouseLeave={hide} style={{cursor: 'crosshair'}}/>
-            {showLabels && (
-              <text x={x(p.y)} y={y(p.v) - 10} textAnchor="middle" fontSize="10.5" fill="var(--ink-2)"
-                style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>{fmtK(p.v)}</text>
-            )}
+            {showLabels && (() => {
+              // Offset above or below based on local slope so labels don't sit on the line.
+              const prev = d[i-1], next = d[i+1];
+              const slopePrev = prev ? (p.v - prev.v) : 0;
+              const slopeNext = next ? (next.v - p.v) : 0;
+              const rising = (slopePrev + slopeNext) >= 0;
+              // Alternate above/below on flat segments to avoid stacking.
+              const flat = prev && next && slopePrev === 0 && slopeNext === 0;
+              const below = flat ? (i % 2 === 1) : !rising;
+              const dy = below ? 16 : -10;
+              return (
+                <text x={x(p.y)} y={y(p.v) + dy} textAnchor="middle" fontSize="12" fontWeight={500} fill="var(--ink-2)"
+                  style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>{fmtK(p.v)}</text>
+              );
+            })()}
           </g>
         ))}
         {/* Annotations */}
@@ -441,13 +461,13 @@ function YoYCumulative({
         {yLabel && (
           <text x={18} y={pad.t + ih / 2}
             transform={`rotate(-90 18 ${pad.t + ih / 2})`}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabel}</text>
+            textAnchor="middle" fontSize="13" fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{yLabel}</text>
         )}
         {xLabel && (
           <text x={pad.l + iw / 2} y={H - 6}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
+            textAnchor="middle" fontSize="13" fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{xLabel}</text>
         )}
         {/* Prior-year lines — hover raises opacity + stroke width */}
         {lines.filter(l => !l.isLatest).map(l => {
@@ -771,13 +791,13 @@ function SeasonalHeatMap({
         {yLabel && (
           <text x={18} y={pad.t + ih / 2}
             transform={`rotate(-90 18 ${pad.t + ih / 2})`}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabel}</text>
+            textAnchor="middle" fontSize="13" fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{yLabel}</text>
         )}
         {xLabel && (
           <text x={pad.l + iw / 2} y={H - 6}
-            textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
+            textAnchor="middle" fontSize="13" fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{xLabel}</text>
         )}
         {/* Heat cells */}
         {years.map((yr, yi) => {
@@ -830,10 +850,14 @@ function SeasonalHeatMap({
 // ─────────────────────────────────────────────────────────────
 // Multi-line chart
 // ─────────────────────────────────────────────────────────────
-const MULTI_COLORS = ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)', 'var(--accent-gold)', 'var(--muted)'];
-function MultiLineChart({ years, series, width=720, height=300, showLabels=false, legend=false, yLabel=null, breakY=null, yearRange=null }) {
+const MULTI_COLORS = [
+  'var(--accent)', 'var(--accent-warn)', 'var(--accent-2)', 'var(--accent-gold)',
+  'var(--ink-2)', 'var(--muted-2)',
+  '#6b2a8b', '#1c5c3d', '#c44a2a', '#2a5c8b', '#8b1f4a', '#2a8b6b'
+];
+function MultiLineChart({ years, series, width=720, height=300, showLabels=false, legend=false, yLabel=null, breakY=null, yearRange=null, rotateTicks=false }) {
   const { show, hide, node } = useTooltip();
-  const pad = { t: 16, r: legend ? 24 : 120, b: 32, l: 48 };
+  const pad = { t: 16, r: legend ? 24 : 120, b: 32, l: yLabel ? 64 : 48 };
   const W = width, H = height;
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   // Slice both years and each series in lock-step when a range is supplied.
@@ -876,7 +900,10 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
     for (let v=bHi; v<=Math.ceil(yMax/1000)*1000; v+=hiStep) upper.push(v);
     yTicks = [...new Set([...lower, ...upper])];
   } else {
-    yTicks = [0, yMax*0.25, yMax*0.5, yMax*0.75, yMax].map(v=>Math.round(v/1000)*1000).filter((v,i,a)=>a.indexOf(v)===i);
+    // Scale rounding step with yMax so percentage-range charts (0–100) get
+    // distinct ticks instead of five entries all snapping to 0.
+    const step = Math.max(1, Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(yMax, 1))) - 1)));
+    yTicks = [0, yMax*0.25, yMax*0.5, yMax*0.75, yMax].map(v=>Math.round(v/step)*step).filter((v,i,a)=>a.indexOf(v)===i);
   }
 
   return (
@@ -901,11 +928,23 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
             <text x={pad.l-10} y={y(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
           </g>
         ))}
-        {activeYears.map((yr,i)=>(
-          <text key={yr} x={x(i)} y={H-pad.b+18} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
-        ))}
+        {activeYears.map((yr,i)=>{
+          const tx = x(i), ty = H-pad.b+18;
+          const rot = rotateTicks || activeYears.length > 10;
+          return (
+            <text key={yr} x={tx} y={ty}
+              textAnchor={rot ? 'end' : 'middle'}
+              transform={rot ? `rotate(-30 ${tx} ${ty})` : undefined}
+              fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+          );
+        })}
         <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--rule-2)"/>
-        {yLabel && <text x={pad.l} y={pad.t - 4} textAnchor="start" fontSize="10" fill="var(--muted)" style={{fontFamily:'var(--serif)'}}>{yLabel}</text>}
+        {yLabel && (
+          <text x={18} y={pad.t + ih/2}
+            transform={`rotate(-90 18 ${pad.t + ih/2})`}
+            textAnchor="middle" fontSize="13" fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{yLabel}</text>
+        )}
         {/* Lines rendered first so break band can mask them */}
         {activeSeries.map((s,si)=>{
           const color = MULTI_COLORS[si % MULTI_COLORS.length];
@@ -956,9 +995,19 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
                 </g>
               ))}
               {!legend && lastNonNull >= 0 && <text x={x(lastNonNull)+10} y={y(s.data[lastNonNull])+4} fontSize="12" fill={color} style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{s.name}</text>}
-              {showLabels && s.data.map((v,i)=> v == null ? null : (
-                <text key={`lbl-${i}`} x={x(i)} y={y(v)-8} textAnchor="middle" fontSize="10" fill={color} style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
-              ))}
+              {showLabels && s.data.map((v,i)=> {
+                if (v == null) return null;
+                const prev = s.data[i-1], next = s.data[i+1];
+                const slopePrev = prev != null ? (v - prev) : 0;
+                const slopeNext = next != null ? (next - v) : 0;
+                const rising = (slopePrev + slopeNext) >= 0;
+                const flat = prev != null && next != null && slopePrev === 0 && slopeNext === 0;
+                const below = flat ? (i % 2 === 1) : !rising;
+                const dy = below ? 14 : -8;
+                return (
+                  <text key={`lbl-${i}`} x={x(i)} y={y(v)+dy} textAnchor="middle" fontSize="12" fontWeight={500} fill={color} style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
+                );
+              })}
             </g>
           );
         })}
@@ -1068,19 +1117,19 @@ function DualAxisChart({
         {yLabelLeft && (
           <text x={14} y={pad.t + ih/2}
             transform={`rotate(-90 14 ${pad.t + ih/2})`}
-            textAnchor="middle" fontSize={fs} fill={leftStroke}
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabelLeft}</text>
+            textAnchor="middle" fontSize={compact ? 24 : 13} fontWeight={500} fill={leftStroke}
+            style={{fontFamily:'var(--serif)'}}>{yLabelLeft}</text>
         )}
         {yLabelRight && (
           <text x={W-14} y={pad.t + ih/2}
             transform={`rotate(90 ${W-14} ${pad.t + ih/2})`}
-            textAnchor="middle" fontSize={fs} fill={rightStroke}
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{yLabelRight}</text>
+            textAnchor="middle" fontSize={compact ? 24 : 13} fontWeight={500} fill={rightStroke}
+            style={{fontFamily:'var(--serif)'}}>{yLabelRight}</text>
         )}
         {xLabel && (
           <text x={pad.l + iw/2} y={H-6}
-            textAnchor="middle" fontSize={fs} fill="var(--muted)"
-            style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>{xLabel}</text>
+            textAnchor="middle" fontSize={compact ? 24 : 13} fontWeight={500} fill="var(--ink-2)"
+            style={{fontFamily:'var(--serif)'}}>{xLabel}</text>
         )}
         {/* Left series — solid */}
         {lPts && <polyline points={lPts} fill="none" stroke={leftStroke} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"/>}
@@ -1732,7 +1781,7 @@ function ZoomControls({ zoom, style = {} }) {
 // Falls back to the schematic RegionWorldMap if WORLD_MAP hasn't been
 // generated (i.e. scripts/build_world_map.py hasn't been run).
 // ─────────────────────────────────────────────────────────────
-function WorldMapChoropleth({ data, width=720, height=380 }) {
+function WorldMapChoropleth({ data, countryData, width=720, height=380 }) {
   const worldMap = (typeof window !== 'undefined' && window.WORLD_MAP) ? window.WORLD_MAP : null;
   const zoom = useMapZoom(width, height);
   if (!worldMap) return <RegionWorldMap data={data} width={width} height={height}/>;
@@ -1740,11 +1789,32 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
   const byRegion = Object.fromEntries(data.map(d => [d.name, d.v]));
   const total = data.reduce((s, d) => s + d.v, 0);
   const vMax = Math.max(...data.map(d => d.v), 1);
+  // Country-level lookup for the second tooltip line.
+  const byCountry = Object.fromEntries(
+    (Array.isArray(countryData) ? countryData : []).map(r => [r.name, r.v])
+  );
+  const overallTotal = (Array.isArray(countryData) && countryData.length)
+    ? countryData.reduce((s, r) => s + (r.v || 0), 0)
+    : total;
   // sqrt compresses the long tail so mid-range regions reach the middle stops
   // of the palette instead of all collapsing into the lightest band.
   const fillFor = v => {
     if (!(v > 0)) return ATLAS_PALETTE[0];
     return atlasPaletteColor(Math.sqrt(v / vMax));
+  };
+  // Two-line tooltip: region totals on top, country detail below.
+  const tipFor = (c, regionTotal) => {
+    const regPct = overallTotal ? (regionTotal/overallTotal*100) : 0;
+    const cVal = byCountry[c.name];
+    const cPct = (cVal != null && overallTotal) ? (cVal/overallTotal*100) : null;
+    return (
+      <div>
+        <div><b>{c.region}</b> · <span className="tnum">{fmtN(regionTotal)}</span>{c.region !== 'Other / Unclassified' ? <> · {regPct.toFixed(1)}%</> : null}</div>
+        <div style={{marginTop:2,fontSize:'0.92em',color:'var(--muted)'}}>
+          {c.name}{cVal != null ? <> · <span className="tnum">{fmtN(cVal)}</span>{cPct != null ? ` · ${cPct.toFixed(2)}%` : ''}</> : ' · no data'}
+        </div>
+      </div>
+    );
   };
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
@@ -1754,14 +1824,13 @@ function WorldMapChoropleth({ data, width=720, height=380 }) {
         <g>
           {worldMap.map((c, i) => {
             const regionTotal = byRegion[c.region] ?? 0;
-            const pct = total ? (regionTotal/total*100) : 0;
             // Natural Earth uses '-99' for disputed / unrecognised territories, so
             // ISO alone isn't unique. Compose with name + index for a stable key.
             return (
               <path key={`${c.iso || ''}-${c.name}-${i}`} d={c.d}
                 fill={fillFor(regionTotal)}
                 stroke="var(--rule-2)" strokeWidth={0.4}
-                onMouseMove={e => show(e, <span><b>{c.name}</b> · {c.region}{c.region !== 'Other / Unclassified' ? <> · region total <span className="tnum">{fmtN(regionTotal)}</span> · {pct.toFixed(1)}%</> : null}</span>)}
+                onMouseMove={e => show(e, tipFor(c, regionTotal))}
                 onMouseLeave={hide}/>
             );
           })}
@@ -1872,15 +1941,8 @@ function SankeyChart({ nodes, links, width = 820, height = 500, compact = false 
     <figure className="chart-wrap" style={{ position: 'relative', margin: 0 }}>
       <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}
            onClick={() => setPinnedId(null)}>
-        {/* Hatch pattern applied to any node or link whose figure is
-            modelled (estimated) rather than measured. Kept as a single
-            defs block so all dashed segments share a visual idiom. */}
-        <defs>
-          <pattern id="sankeyHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
-            <rect width="6" height="6" fill="transparent"/>
-            <line x1="0" y1="0" x2="0" y2="6" stroke="currentColor" strokeWidth="2" strokeOpacity="0.55"/>
-          </pattern>
-        </defs>
+        {/* Modelled (estimated) ribbons read as provisional through the
+            pale fill + dashed node outline below — no moiré hatch overlay. */}
         {renderedLinks.map(lk => {
           const active = isLinkActive(lk);
           const base = lk.dashed ? 0.18 : 0.35;
@@ -1890,10 +1952,6 @@ function SankeyChart({ nodes, links, width = 820, height = 500, compact = false 
                 fill={lk.color} fillOpacity={active ? base : 0.06}
                 onMouseMove={e => show(e, lk.tt)} onMouseLeave={hide}
                 style={{ cursor: 'default', transition: 'fill-opacity .12s' }}/>
-              {lk.dashed ? (
-                <path d={lk.d} fill="url(#sankeyHatch)" fillOpacity={active ? 0.9 : 0.2}
-                  style={{ pointerEvents: 'none' }}/>
-              ) : null}
             </g>
           );
         })}
@@ -1988,10 +2046,12 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
   const rows = Math.ceil(data.length / cols);
   const cellW = (width - gap*(cols-1)) / cols;
   const ribbonH = 14;
-  // Extra bottom padding so annotations drawn beneath ribbons don't clip
-  // into the next cohort row.
-  const extraBelow = 22;
-  const height = rows * (rowHeight + gap) + extraBelow;
+  // Annotations render in their own strip below the latest-phase ribbon with
+  // a leader line, so they never overlap ribbon rects.
+  const annStripY = 20 + 2 * (ribbonH + 8) + 8; // 8px gap after latest ribbon
+  const effRowHeight = Math.max(rowHeight, annStripY + 22);
+  const extraBelow = 14;
+  const height = rows * (effRowHeight + gap) + extraBelow;
   // Quick lookup: annotations keyed as `${year}|${phase}`.
   const annByKey = {};
   (annotations || []).forEach(a => {
@@ -2013,16 +2073,22 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
       <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block',overflow:'visible'}}>
         {data.map((row, i) => {
           const r = Math.floor(i/cols), c = i%cols;
-          const x0 = c*(cellW+gap), y0 = r*(rowHeight+gap);
+          const x0 = c*(cellW+gap), y0 = r*(effRowHeight+gap);
           const isHL = highlightYear != null && row.year === highlightYear;
           const hasAnyHL = highlightYear != null;
           // Dim non-highlighted cohorts when a highlight is active so the
           // pre-selected cohort reads as the focus of the panel.
           const groupOpacity = !hasAnyHL ? 1 : (isHL ? 1 : 0.45);
+          // Pick one annotation per cell (latest takes precedence over initial)
+          // and record which phase it attaches to so we can draw a leader line.
+          const annLatest = annByKey[row.year + '|latest'];
+          const annInitial = annByKey[row.year + '|initial'];
+          const annText = annLatest || annInitial || null;
+          const annPhaseIdx = annLatest ? 1 : (annInitial ? 0 : null);
           return (
             <g key={row.year} transform={`translate(${x0},${y0})`} style={{opacity: groupOpacity, transition: 'opacity 220ms ease'}}>
               {isHL && (
-                <rect x={-6} y={-6} width={cellW+12} height={rowHeight+6}
+                <rect x={-6} y={-6} width={cellW+12} height={effRowHeight+6}
                       fill="none" stroke="var(--accent)" strokeWidth={1.25}
                       style={{pointerEvents:'none'}}/>
               )}
@@ -2033,19 +2099,27 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
                   <text x={-4} y={ribbonH-3} textAnchor="end" fontSize={10} fill="var(--muted)" style={{fontFamily:'var(--serif)'}}>{phase === 'initial' ? 'At first decision' : 'Latest'}</text>
                   {stack(row, phase).map(seg => (
                     <rect key={seg.b} x={seg.x} y={0} width={Math.max(0, seg.w-0.5)} height={ribbonH}
-                      fill={COHORT_COLORS[seg.b]}
+                      fill={COHORT_COLORS[seg.b]} fillOpacity={0.85}
                       onMouseMove={e=>show(e, <span><b>Cohort {row.year}</b> · {phase} · {COHORT_LABELS[seg.b]} <span className="tnum">{fmtN(seg.v)}</span></span>)}
                       onMouseLeave={hide}
                       style={{cursor:'crosshair'}}/>
                   ))}
-                  {annByKey[row.year + '|' + phase] && (
-                    <text x={cellW} y={ribbonH+12} textAnchor="end" fontSize={10} fill="var(--accent)"
-                          style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>
-                      {annByKey[row.year + '|' + phase]}
-                    </text>
-                  )}
                 </g>
               ))}
+              {annText && (
+                <g style={{pointerEvents:'none'}}>
+                  <line
+                    x1={cellW/2}
+                    y1={20 + annPhaseIdx*(ribbonH+8) + ribbonH}
+                    x2={cellW/2}
+                    y2={annStripY - 3}
+                    stroke="var(--accent)" strokeWidth={0.75} strokeOpacity={0.6}/>
+                  <text x={cellW/2} y={annStripY + 9} textAnchor="middle" fontSize={10} fill="var(--accent)"
+                        style={{fontFamily:'var(--serif)',fontStyle:'italic'}}>
+                    {annText}
+                  </text>
+                </g>
+              )}
             </g>
           );
         })}
@@ -2064,14 +2138,13 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
 }
 
 // ─────────────────────────────────────────────────────────────
-// Annual backlog waterfall (B4). Per year: inflow (new claims),
-// outflow (decided this year), residual (still pending at year
-// end, carried forward to next year).
+// Annual backlog waterfall. Per year block: opening stock (prior
+// year-end), + new applications, − completed cases, closing stock.
+// Readers' eye traces opening → up → down → closing.
 //
 // `data` shape: [{year, inflow, decided, pending}], sorted by year.
-// Bars are drawn relative to the running pending stock.
 // ─────────────────────────────────────────────────────────────
-function BacklogWaterfall({ data, width=820, height=320 }) {
+function BacklogWaterfall({ data, width=1000, height=340 }) {
   if (!Array.isArray(data) || data.length === 0) {
     return (
       <figure className="chart-wrap" style={{margin:0,padding:'24px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',color:'var(--muted)',fontFamily:'var(--serif)',fontSize:13}}>
@@ -2081,56 +2154,288 @@ function BacklogWaterfall({ data, width=820, height=320 }) {
     );
   }
   const { show, hide, node: ttNode } = useTooltip();
-  const pad = { t: 16, r: 24, b: 36, l: 56 };
+  const pad = { t: 22, r: 24, b: 44, l: 64 };
   const iw = width - pad.l - pad.r, ih = height - pad.t - pad.b;
-  const stocks = data.map(d => d.pending || 0);
-  const yMax = Math.max(...stocks, 1) * 1.1;
-  const bw = Math.max(12, (iw / data.length) * 0.55);
-  const xC = i => pad.l + ((i + 0.5) / data.length) * iw;
+  const N = data.length;
+  const yearBlockW = iw / N;
+  const barGap = 8;
+  const yearGap = 24;
+  const innerYearW = Math.max(40, yearBlockW - yearGap);
+  const barW = Math.max(6, (innerYearW - 3 * barGap) / 4);
+  // yMax covers opening, peak (opening+inflow), and closing across all years.
+  const peaks = [];
+  data.forEach((d, i) => {
+    const prev = i > 0 ? (data[i-1].pending || 0) : 0;
+    peaks.push(prev, prev + (d.inflow || 0), d.pending || 0);
+  });
+  const yMax = Math.max(...peaks, 1) * 1.1;
   const yPx = v => pad.t + (1 - v / yMax) * ih;
+  const yBase = yPx(0);
+  const ticks = 5;
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
       <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block',overflow:'visible'}}>
-        <line x1={pad.l} x2={width-pad.r} y1={height-pad.b} y2={height-pad.b} stroke="var(--rule-2)"/>
+        {/* y gridlines + labels */}
+        {Array.from({length: ticks + 1}, (_, k) => k / ticks).map(t => {
+          const v = yMax * t;
+          return (
+            <g key={t}>
+              <line x1={pad.l} x2={width-pad.r} y1={yPx(v)} y2={yPx(v)} stroke="var(--rule)"/>
+              <text x={pad.l - 8} y={yPx(v) + 4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(v)}</text>
+            </g>
+          );
+        })}
+        <line x1={pad.l} x2={width-pad.r} y1={yBase} y2={yBase} stroke="var(--rule-2)"/>
+
         {data.map((d, i) => {
           const prev = i > 0 ? (data[i-1].pending || 0) : 0;
           const curr = d.pending || 0;
-          const rise = Math.max(0, curr - prev);
-          const fall = Math.max(0, prev - curr);
-          const cx = xC(i);
-          // Three visual segments: prev-level bar, rise (red/up), fall (green/down).
-          const yPrev = yPx(prev), yCurr = yPx(curr);
+          const inflow = d.inflow || 0;
+          const outflow = d.decided != null ? d.decided : Math.max(0, prev + inflow - curr);
+          const blockX = pad.l + i * yearBlockW + (yearGap / 2);
+          const bx0 = blockX;                         // opening
+          const bx1 = bx0 + barW + barGap;            // inflow
+          const bx2 = bx1 + barW + barGap;            // outflow
+          const bx3 = bx2 + barW + barGap;            // closing
+          const yOpen  = yPx(prev);
+          const yPeak  = yPx(prev + inflow);
+          const yClose = yPx(curr);
+          const centerX = blockX + innerYearW / 2;
           return (
             <g key={d.year}
-               onMouseMove={e=>show(e, <span><b>{d.year}</b> · in <span className="tnum">{fmtN(d.inflow||0)}</span> · out <span className="tnum">{fmtN(d.decided||0)}</span> · pending <span className="tnum">{fmtN(curr)}</span></span>)}
+               onMouseMove={e=>show(e, <span><b>{d.year}</b> · opening <span className="tnum">{fmtN(prev)}</span> · new applications <span className="tnum">{fmtN(inflow)}</span> · completed <span className="tnum">{fmtN(outflow)}</span> · year-end <span className="tnum">{fmtN(curr)}</span></span>)}
                onMouseLeave={hide}
                style={{cursor:'crosshair'}}>
-              {/* Base */}
-              <rect x={cx - bw/2} y={yPx(Math.min(prev, curr))}
-                width={bw} height={Math.max(0, height - pad.b - yPx(Math.min(prev, curr)))}
-                fill="var(--bg-3)"/>
-              {/* Rise / fall */}
-              {rise > 0 && (
-                <rect x={cx - bw/2} y={yCurr} width={bw} height={yPrev - yCurr} fill="var(--accent-warn)" opacity={0.85}/>
+              {/* Opening stock (prior year-end carried in) */}
+              {prev > 0 && (
+                <rect x={bx0} y={yOpen} width={barW} height={yBase - yOpen} fill="var(--bg-3)"/>
               )}
-              {fall > 0 && (
-                <rect x={cx - bw/2} y={yPrev} width={bw} height={yCurr - yPrev} fill="var(--accent-2)" opacity={0.85}/>
+              {/* Inflow — stacked above opening, up to peak */}
+              {inflow > 0 && (
+                <rect x={bx1} y={yPeak} width={barW} height={yOpen - yPeak} fill="var(--accent-warn)" fillOpacity={0.85}/>
               )}
-              <text x={cx} y={height-pad.b+18} textAnchor="middle" fontSize={11} fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{d.year}</text>
-              <text x={cx} y={yCurr - 6} textAnchor="middle" fontSize={10.5} fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(curr)}</text>
+              {/* Outflow — peak down to closing */}
+              {outflow > 0 && (
+                <rect x={bx2} y={yPeak} width={barW} height={yClose - yPeak} fill="var(--accent-2)" fillOpacity={0.85}/>
+              )}
+              {/* Closing stock (year-end, carried forward) */}
+              {curr > 0 && (
+                <rect x={bx3} y={yClose} width={barW} height={yBase - yClose} fill="var(--bg-3)"/>
+              )}
+              {/* Connectors — dashed, guide the eye across the flow */}
+              <line x1={bx0+barW} x2={bx1} y1={yOpen}  y2={yOpen}  stroke="var(--muted-2)" strokeDasharray="2 3" strokeWidth={0.8}/>
+              <line x1={bx1+barW} x2={bx2} y1={yPeak}  y2={yPeak}  stroke="var(--muted-2)" strokeDasharray="2 3" strokeWidth={0.8}/>
+              <line x1={bx2+barW} x2={bx3} y1={yClose} y2={yClose} stroke="var(--muted-2)" strokeDasharray="2 3" strokeWidth={0.8}/>
+              {/* Closing value label */}
+              <text x={bx3 + barW/2} y={yClose - 5} textAnchor="middle" fontSize={10.5} fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(curr)}</text>
+              {/* Year label */}
+              <text x={centerX} y={height - pad.b + 18} textAnchor="middle" fontSize={12} fontWeight={500} fill="var(--ink-2)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{d.year}</text>
             </g>
           );
         })}
       </svg>
-      <figcaption style={{marginTop:8,fontSize:12,color:'var(--muted)',display:'flex',gap:16}}>
+      <figcaption style={{marginTop:10,fontSize:12,color:'var(--muted)',display:'flex',gap:18,flexWrap:'wrap'}}>
         <span style={{display:'inline-flex',alignItems:'center',gap:6}}>
-          <span style={{width:11,height:11,background:'var(--accent-warn)',display:'inline-block',borderRadius:2}}/> Pending rose</span>
+          <span style={{width:11,height:11,background:'var(--accent-warn)',display:'inline-block',borderRadius:2,opacity:0.85}}/> New cases awaiting initial decision</span>
         <span style={{display:'inline-flex',alignItems:'center',gap:6}}>
-          <span style={{width:11,height:11,background:'var(--accent-2)',display:'inline-block',borderRadius:2}}/> Pending fell</span>
+          <span style={{width:11,height:11,background:'var(--accent-2)',display:'inline-block',borderRadius:2,opacity:0.85}}/> Cases decided, withdrawn, or closed</span>
+        <span style={{display:'inline-flex',alignItems:'center',gap:6}}>
+          <span style={{width:11,height:11,background:'var(--bg-3)',display:'inline-block',borderRadius:2}}/> Year-end backlog</span>
       </figcaption>
+      <div style={{marginTop:6,fontSize:11.5,color:'var(--muted-2)',fontStyle:'italic',lineHeight:1.5,maxWidth:760}}>
+        Each year opens at the prior year's backlog, adds new applications, and subtracts completed cases (decisions, withdrawals, admin closures). The final bar is the year-end backlog carried into the next year.
+      </div>
       {ttNode}
     </figure>
   );
 }
 
-Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, fmtShortDate, SourceStrip, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor, SankeyChart, YoYCumulative, SeasonalHeatMap, GrantRateSmallMultiples, CohortRibbon, BacklogWaterfall });
+// TopFiveStackedBars — extracted from flow-view.jsx IrrBoatsByNationality.
+// Takes IRR_BOATS_BY_NATIONALITY rows and renders a stacked-by-year column
+// chart of the top-5 nationalities plus Other, full years only.
+function buildTopFiveStackedByYear(rows) {
+  rows = Array.isArray(rows) ? rows : [];
+  if (!rows.length) return { years: [], palette: [], matrix: [], latestPartialYear: null };
+  const fullYears = [...new Set(rows.filter(r => !r.partial && !r.meta).map(r => r.year))].sort();
+  const partialYears = [...new Set(rows.filter(r => r.partial && !r.meta).map(r => r.year))].sort();
+  const latestPartialYear = partialYears.length ? partialYears[partialYears.length - 1] : null;
+  if (!fullYears.length) return { years: [], palette: [], matrix: [], latestPartialYear };
+  const totals = new Map();
+  for (const r of rows) {
+    if (r.meta) continue;
+    if (!fullYears.includes(r.year)) continue;
+    totals.set(r.nationality, (totals.get(r.nationality) || 0) + r.count);
+  }
+  const top5 = [...totals.entries()].sort((a,b) => b[1]-a[1]).slice(0,5).map(e => e[0]);
+  const palette = [...top5, 'Other'];
+  const matrix = palette.map(name => fullYears.map(y => {
+    if (name === 'Other') {
+      let yearTotal = 0, topCount = 0;
+      for (const r of rows) {
+        if (r.year !== y) continue;
+        if (r.meta === 'total') continue;
+        if (r.meta === 'other' || r.meta === 'unrecorded') { yearTotal += r.count; continue; }
+        yearTotal += r.count;
+        if (top5.includes(r.nationality)) topCount += r.count;
+      }
+      return yearTotal - topCount;
+    }
+    const row = rows.find(r => r.year === y && r.nationality === name);
+    return row ? row.count : 0;
+  }));
+  return { years: fullYears, palette, matrix, latestPartialYear };
+}
+
+function TopFiveStackedBars({ data, width = 1000, height = 240, asOf = null }) {
+  const rows = Array.isArray(data) ? data : ((typeof window !== 'undefined' && window.IRR_BOATS_BY_NATIONALITY) || []);
+  const { years, palette, matrix, latestPartialYear } = React.useMemo(() => buildTopFiveStackedByYear(rows), [rows]);
+  if (!years.length) {
+    return (
+      <div style={{border:'1px dashed var(--rule)',background:'var(--bg-2)',padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:13}}>
+        Small boats by nationality data unavailable.
+      </div>
+    );
+  }
+  const W = width, H = height;
+  const M = { top: 16, right: 140, bottom: 28, left: 56 };
+  const innerW = W - M.left - M.right;
+  const innerH = H - M.top - M.bottom;
+  const barW = innerW / years.length * 0.7;
+  const totals = years.map((_, yi) => palette.reduce((s, _n, pi) => s + (matrix[pi][yi] || 0), 0));
+  const yMax = Math.max(...totals, 1);
+  const colors = ['#1c5c3d','#c44a2a','#2a5c8b','#8b6c1c','#6b2a8b','#888888'];
+  const nf = (n) => n.toLocaleString('en-GB');
+  return (
+    <div>
+      <svg width={W} height={H} role="img" aria-label="Small-boat arrivals by nationality, stacked by year">
+        <line x1={M.left} y1={M.top} x2={M.left} y2={M.top + innerH} stroke="var(--rule-2)"/>
+        {[0, 0.5, 1].map((t, i) => {
+          const v = Math.round(yMax * (1 - t));
+          const y = M.top + innerH * t;
+          return (
+            <g key={i}>
+              <line x1={M.left} y1={y} x2={M.left + innerW} y2={y} stroke="var(--rule-2)" strokeDasharray={t === 1 ? '0' : '2 3'}/>
+              <text x={M.left - 6} y={y + 4} textAnchor="end" style={{fontFamily:'var(--mono)',fontSize:10,fill:'var(--muted)'}}>{nf(v)}</text>
+            </g>
+          );
+        })}
+        {years.map((y, yi) => {
+          const x = M.left + (yi + 0.5) * (innerW / years.length) - barW / 2;
+          let acc = 0;
+          return (
+            <g key={y}>
+              {palette.map((name, pi) => {
+                const v = matrix[pi][yi] || 0;
+                if (v <= 0) return null;
+                const h = (v / yMax) * innerH;
+                const y0 = M.top + innerH - acc - h;
+                acc += h;
+                return (
+                  <rect key={name} x={x} y={y0} width={barW} height={h} fill={colors[pi]} stroke="#fff" strokeWidth={0.5}>
+                    <title>{`${y} · ${name}: ${nf(v)}`}</title>
+                  </rect>
+                );
+              })}
+              <text x={x + barW/2} y={M.top + innerH + 16} textAnchor="middle" style={{fontFamily:'var(--mono)',fontSize:10.5,fill:'var(--muted)'}}>{y}</text>
+            </g>
+          );
+        })}
+        {palette.map((name, pi) => (
+          <g key={name} transform={`translate(${M.left + innerW + 16}, ${M.top + pi * 18})`}>
+            <rect x={0} y={0} width={12} height={12} fill={colors[pi]}/>
+            <text x={18} y={10} style={{fontFamily:'var(--serif)',fontSize:12,fill:'var(--ink-2)'}}>{name}</text>
+          </g>
+        ))}
+      </svg>
+      {latestPartialYear != null ? (
+        <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:6,lineHeight:1.5}}>
+          {latestPartialYear} excluded from the chart — it is a partial year in the latest release.
+        </div>
+      ) : null}
+      {asOf ? (
+        <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:2,lineHeight:1.5}}>{asOf}</div>
+      ) : null}
+    </div>
+  );
+}
+
+// GroupedBarChart — clustered bars; one cluster per period, one bar per series.
+// Used by Build view when the primary dataset is nationalities and the chart
+// type is "bar": each year (or quarter) becomes a cluster of per-nationality
+// bars so the reader can compare nationalities across time.
+function GroupedBarChart({ periods, series, width = 820, height = 360, palette, rotateTicks = false, yLabel = '', showLegend = true }) {
+  const pal = Array.isArray(palette) && palette.length ? palette : MULTI_COLORS;
+  if (!Array.isArray(periods) || !periods.length || !Array.isArray(series) || !series.length) {
+    return (
+      <div style={{padding:'40px 20px',textAlign:'center',color:'var(--muted)',fontStyle:'italic',fontSize:13,border:'1px dashed var(--rule)',background:'var(--bg-2)'}}>
+        No data to plot — try a different time range or fewer filters.
+      </div>
+    );
+  }
+  const M = { top: 16, right: showLegend ? 140 : 24, bottom: rotateTicks ? 64 : 38, left: 58 };
+  const innerW = width - M.left - M.right;
+  const innerH = height - M.top - M.bottom;
+  const nS = series.length;
+  const clusterW = innerW / periods.length * 0.82;
+  const gap = innerW / periods.length * 0.18;
+  const barW = Math.max(3, (clusterW - (nS - 1) * 2) / nS);
+  let yMax = 0;
+  for (const s of series) for (const v of (s.data || [])) if (v > yMax) yMax = v;
+  yMax = yMax || 1;
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const nf = (n) => (n == null ? '' : Number(n).toLocaleString('en-GB'));
+  return (
+    <figure style={{margin:0}}>
+      <svg width={width} height={height} role="img" aria-label="Grouped bar chart">
+        {yLabel ? <text x={14} y={M.top + innerH/2} textAnchor="middle" transform={`rotate(-90, 14, ${M.top + innerH/2})`} fontSize={13} fontWeight={500} fill="var(--ink-2)">{yLabel}</text> : null}
+        {/* gridlines + y-axis ticks */}
+        {ticks.map((t, i) => {
+          const y = M.top + innerH * (1 - t);
+          const v = Math.round(yMax * t);
+          return (
+            <g key={i}>
+              <line x1={M.left} y1={y} x2={M.left + innerW} y2={y} stroke="var(--rule-2)" strokeDasharray={t === 0 ? '0' : '2 3'}/>
+              <text x={M.left - 8} y={y + 4} textAnchor="end" fontSize={11} fontFamily="var(--mono)" fill="var(--muted)">{nf(v)}</text>
+            </g>
+          );
+        })}
+        {/* clusters */}
+        {periods.map((p, pi) => {
+          const cx = M.left + (pi + 0.5) * (innerW / periods.length);
+          const xStart = cx - clusterW/2;
+          return (
+            <g key={p}>
+              {series.map((s, si) => {
+                const v = s.data?.[pi] || 0;
+                if (v <= 0) return null;
+                const h = (v / yMax) * innerH;
+                const x = xStart + si * (barW + 2);
+                const y = M.top + innerH - h;
+                return (
+                  <rect key={s.name} x={x} y={y} width={barW} height={h}
+                        fill={s.color || pal[si % pal.length]} stroke="#fff" strokeWidth={0.5}>
+                    <title>{`${p} · ${s.name}: ${nf(v)}`}</title>
+                  </rect>
+                );
+              })}
+              {rotateTicks ? (
+                <text x={cx} y={M.top + innerH + 14} textAnchor="end" transform={`rotate(-30, ${cx}, ${M.top + innerH + 14})`} fontSize={11} fontFamily="var(--mono)" fill="var(--muted)">{p}</text>
+              ) : (
+                <text x={cx} y={M.top + innerH + 16} textAnchor="middle" fontSize={11} fontFamily="var(--mono)" fill="var(--muted)">{p}</text>
+              )}
+            </g>
+          );
+        })}
+        {/* legend */}
+        {showLegend && series.map((s, si) => (
+          <g key={s.name} transform={`translate(${M.left + innerW + 16}, ${M.top + si * 18})`}>
+            <rect x={0} y={0} width={12} height={12} fill={s.color || pal[si % pal.length]}/>
+            <text x={18} y={10} fontFamily="var(--serif)" fontSize={12} fill="var(--ink-2)">{s.name}</text>
+          </g>
+        ))}
+      </svg>
+    </figure>
+  );
+}
+
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, fmtShortDate, SourceStrip, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor, SankeyChart, YoYCumulative, SeasonalHeatMap, GrantRateSmallMultiples, CohortRibbon, BacklogWaterfall, TopFiveStackedBars, GroupedBarChart, buildTopFiveStackedByYear });
