@@ -32,7 +32,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import re
 import sys
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -55,16 +57,42 @@ def _check_host(url: str) -> None:
         raise RuntimeError(f"refusing to call non-allowed host {host!r}")
 
 
+def _follow_batch_chain(session: requests.Session, url: str) -> requests.Response:
+    """Follow Drupal batch-export meta-refresh hops until the real CSV arrives.
+
+    IOM's /global-figures/all/csv URL triggers a Drupal Views batch export.
+    The initial response is HTML with a meta-refresh to /batch?id=X&op=do_nojs,
+    which processes rows in chunks.  Each hop is another HTML page until the
+    batch finishes and redirects to the actual CSV download.
+    """
+    parsed = urlparse(url)
+    base = f"{parsed.scheme}://{parsed.netloc}"
+    headers = {"User-Agent": USER_AGENT, "Accept": "text/csv,text/plain,*/*"}
+    for step in range(60):
+        _check_host(url)
+        resp = session.get(url, headers=headers, timeout=TIMEOUT, stream=True)
+        resp.raise_for_status()
+        ctype = resp.headers.get("Content-Type", "")
+        if "text/html" not in ctype:
+            print(f"  resolved after {step + 1} hop(s) — {ctype.split(';')[0]}")
+            return resp
+        html = resp.text  # reads full body; closes underlying socket for reuse
+        m = re.search(r'content=["\']0;\s*URL=([^"\'>\s]+)', html, re.IGNORECASE)
+        if not m:
+            raise RuntimeError(f"batch hop {step}: no meta-refresh URL in HTML")
+        next_path = m.group(1).replace("&amp;", "&")
+        url = next_path if next_path.startswith("http") else base + next_path
+        if step < 4:
+            print(f"  batch hop {step + 1}: {url}")
+        time.sleep(0.3)
+    raise RuntimeError("Drupal batch: 60 hops without receiving a CSV")
+
+
 def download(url: str, dest: Path) -> Path:
     _check_host(url)
     print(f"fetching {url} ...")
-    resp = requests.get(
-        url,
-        headers={"User-Agent": USER_AGENT, "Accept": "text/csv, */*"},
-        timeout=TIMEOUT,
-        stream=True,
-    )
-    resp.raise_for_status()
+    session = requests.Session()
+    resp = _follow_batch_chain(session, url)
     dest.parent.mkdir(parents=True, exist_ok=True)
     size = 0
     with dest.open("wb") as fh:

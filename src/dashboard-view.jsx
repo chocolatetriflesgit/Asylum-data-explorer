@@ -1113,7 +1113,7 @@ function NationalitiesTable({ data }) {
       <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center',flexWrap:'wrap'}}>
         <input type="search" value={query} onChange={e => setQuery(e.target.value)}
           placeholder="Find a nationality…"
-          style={{flex:'1 1 140px',minWidth:120,padding:'5px 10px',fontSize:12.5,border:'1px solid var(--rule)',background:'var(--bg)',color:'var(--ink)',fontFamily:'var(--serif)',outline:'none'}}/>
+          style={{flex:'1 1 140px',minWidth:120,padding:'5px 10px',fontSize:12.5,border:'1px solid var(--rule)',background:'var(--bg)',color:'var(--ink)',fontFamily:'var(--serif)'}}/>
         <select value={region} onChange={e => setRegion(e.target.value)}
           style={{padding:'5px 8px',fontSize:12,border:'1px solid var(--rule)',background:'var(--bg)',color:'var(--ink-2)',fontFamily:'var(--serif)'}}>
           <option value="all">All regions</option>

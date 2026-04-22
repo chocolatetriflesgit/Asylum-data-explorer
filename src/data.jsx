@@ -384,7 +384,7 @@ const DATASET_CONSUMERS = {
   ],
   Asy_D03: [
     { view: 'Dashboard', chart: 'Age / sex statistics block' },
-    // Not yet surfaced on the Build view.
+    { view: 'Build',     chart: 'Sex and age of applicants (multi-line / stacked)' },
   ],
   Asy_D04: [
     { view: 'Flow', chart: 'Cohort outcome ribbon' },

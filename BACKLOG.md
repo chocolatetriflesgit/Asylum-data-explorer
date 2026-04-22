@@ -44,6 +44,10 @@ python -m pytest tests/           # pipeline_integrity OUTCOME_COHORT assertions
 
 [src/views-story-build.jsx:413](src/views-story-build.jsx) `DATASET_OPTIONS` does not expose `SEX_AGE_ANNUAL`. The Dashboard has a stats block but there's no Build-view chart for picking age/sex series interactively. Either build it or scrub any residual user-facing "coming soon" hints.
 
+### 6. Atlas comparison UX — make "compare" more discoverable
+
+The current flow requires shift-click to add a comparison country ([src/atlas-view.jsx:445](src/atlas-view.jsx)), which is not obvious and unavailable on touch devices. The hint at [src/atlas-view.jsx:586](src/atlas-view.jsx) is the only affordance. Options: (a) add a "Compare with…" button in the `AtlasDetail` panel ([src/atlas-view.jsx:270](src/atlas-view.jsx)), (b) add a compare toggle to each country row in the ranked sidebar list ([src/atlas-view.jsx:577](src/atlas-view.jsx)), or (c) both. Either approach should keep shift-click working as a power-user shortcut alongside the new UI.
+
 ## Low priority
 
 ### 5. Phase 7 polish (carried over from the retired PROJECT_PLAN.md)

@@ -93,7 +93,7 @@ def build_poc(items: list[dict], this_year: int) -> list[dict]:
         except (TypeError, ValueError):
             continue
         iso = (r.get("coo_iso") or "").strip().upper()
-        if not iso or not year:
+        if not iso or len(iso) != 3 or not year:
             continue
         key = (year, iso)
         if key not in agg:
@@ -129,7 +129,7 @@ def build_apps(items: list[dict]) -> list[dict]:
         except (TypeError, ValueError):
             continue
         iso = (r.get("coo_iso") or "").strip().upper()
-        if not iso or not year:
+        if not iso or len(iso) != 3 or not year:
             continue
         applied = _to_int(r.get("applied"))
         key = (year, iso)
@@ -152,7 +152,7 @@ def build_decisions(items: list[dict]) -> list[dict]:
         except (TypeError, ValueError):
             continue
         iso = (r.get("coo_iso") or "").strip().upper()
-        if not iso or not year:
+        if not iso or len(iso) != 3 or not year:
             continue
         key = (year, iso)
         if key not in agg:

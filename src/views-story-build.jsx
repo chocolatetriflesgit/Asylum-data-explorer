@@ -278,7 +278,7 @@ function DatasetsView({ setRoute }) {
       </div>
       <div style={{display:'flex',gap:16,alignItems:'center',padding:'14px 0',borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',marginBottom:24}}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filter datasets…"
-          style={{flex:1,border:'none',outline:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:15,padding:'6px 0'}}/>
+          style={{flex:1,border:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:15,padding:'6px 0'}}/>
         <div className="seg">
           {['All','Quarterly','Monthly'].map(f=>(
             <button key={f} className={freq===f?'on':''} onClick={()=>setFreq(f)}>{f}</button>
@@ -504,6 +504,26 @@ const DATASET_OPTIONS = [
     })(),
     color: 'var(--accent-2)',
     snapshot: true,
+  },
+  {
+    id: 'sex_age',
+    label: 'Sex and age of applicants',
+    render: 'multi',
+    color: 'var(--accent)',
+    multi: (() => {
+      const sa = typeof SEX_AGE_ANNUAL !== 'undefined' ? SEX_AGE_ANNUAL : [];
+      const years = sa.map(d => d.y);
+      return {
+        years,
+        series: [
+          { name: 'Male',     data: sa.map(d => d.male) },
+          { name: 'Female',   data: sa.map(d => d.female) },
+          { name: 'Under 18', data: sa.map(d => d.under18) },
+        ],
+        colors: ['var(--accent)', 'var(--accent-warn)', 'var(--accent-2)'],
+      };
+    })(),
+    series: [],
   },
 ];
 
