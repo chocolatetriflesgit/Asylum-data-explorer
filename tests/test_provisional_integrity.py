@@ -52,10 +52,15 @@ def test_provisional_dates_are_consecutive():
 def test_provisional_meta_shape():
     g = _load_globals(PROVISIONAL_JS)
     meta = g["BOATS_PROVISIONAL_META"]
-    for key in ("fetchedAt", "source", "sourceUrl", "firstDate", "latestDate"):
+    for key in ("fetchedAt", "source", "sourceUrl", "firstDate", "latestDate", "corrections"):
         assert key in meta, f"missing META key: {key!r}"
     assert meta["firstDate"] == g["BOATS_PROVISIONAL"][0]["d"]
     assert meta["latestDate"] == g["BOATS_PROVISIONAL"][-1]["d"]
+    assert isinstance(meta["corrections"], list)
+    for c in meta["corrections"]:
+        assert set(c.keys()) == {"row", "raw", "corrected"}, c
+        dt.date.fromisoformat(c["raw"])
+        dt.date.fromisoformat(c["corrected"])
 
 
 def test_provisional_updated_at_is_fresh():

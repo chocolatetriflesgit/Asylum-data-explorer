@@ -27,6 +27,7 @@ import datetime as dt
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -74,8 +75,55 @@ def _parse_int(text: str) -> int:
     return int(s)
 
 
-def parse_last_7_days(html: str) -> tuple[list[dict], str | None]:
-    """Return ``(rows, updated_at)``. ``updated_at`` is an ISO date or None."""
+def _auto_correct_year_typos(rows: list[dict]) -> list[dict] | None:
+    """Snap obvious single-row year typos to the neighbour year.
+
+    The Home Office page has been seen to publish a correct day/month with a
+    stale year (e.g. "20 April 2025" sitting between 2026-04-19 and
+    2026-04-21). The underlying figures are almost certainly right — only
+    the label is wrong — so we rewrite the date in-place and log the change
+    so the frontend can flag it.
+
+    Returns a list of correction records when the sequence can be made
+    consecutive purely by swapping wrong years to the majority year.
+    Returns ``None`` if a gap remains after correction — caller must then
+    fail loudly with the original error, because the shape mismatch is not
+    a pure year typo.
+    """
+    dates = [dt.date.fromisoformat(r["d"]) for r in rows]
+    canonical_year = Counter(d.year for d in dates).most_common(1)[0][0]
+
+    corrections: list[dict] = []
+    for i, d in enumerate(dates):
+        if d.year == canonical_year:
+            continue
+        try:
+            alt = d.replace(year=canonical_year)
+        except ValueError:
+            continue  # e.g. Feb 29 across a non-leap year — leave it alone
+        fits_prev = i == 0 or (alt - dates[i - 1]).days == 1
+        fits_next = i == len(dates) - 1 or (dates[i + 1] - alt).days == 1
+        if fits_prev and fits_next:
+            corrections.append({
+                "row": i,
+                "raw": d.isoformat(),
+                "corrected": alt.isoformat(),
+            })
+            dates[i] = alt
+            rows[i]["d"] = alt.isoformat()
+
+    for i in range(1, len(dates)):
+        if (dates[i] - dates[i - 1]).days != 1:
+            return None
+    return corrections
+
+
+def parse_last_7_days(html: str) -> tuple[list[dict], str | None, list[dict]]:
+    """Return ``(rows, updated_at, corrections)``.
+
+    ``updated_at`` is an ISO date or None. ``corrections`` is a list of
+    year-typo fixes applied to the raw rows (empty if none were needed).
+    """
     soup = BeautifulSoup(html, "html.parser")
 
     tables = soup.find_all("table")
@@ -111,14 +159,26 @@ def parse_last_7_days(html: str) -> tuple[list[dict], str | None]:
         })
 
     # Assert dates are consecutive so the chart can safely extend a line.
+    # Year typos on the HO page (see _auto_correct_year_typos) are healed
+    # first; any remaining gap is a genuine shape change and fails loud.
     dates = [dt.date.fromisoformat(r["d"]) for r in rows]
     gaps = [
         (dates[i - 1].isoformat(), dates[i].isoformat())
         for i in range(1, len(dates))
         if (dates[i] - dates[i - 1]).days != 1
     ]
+    corrections: list[dict] = []
     if gaps:
-        raise RuntimeError(f"non-consecutive dates in last-7-days table: {gaps}")
+        corrections = _auto_correct_year_typos(rows)
+        if corrections is None:
+            raise RuntimeError(
+                f"non-consecutive dates in last-7-days table: {gaps}"
+            )
+        print(
+            f"warning: auto-corrected {len(corrections)} year typo(s) on "
+            f"the last-7-days page: {corrections}",
+            file=sys.stderr,
+        )
 
     # "Updated DD Month YYYY" caption — stored for the UI footer.
     updated_at: str | None = None
@@ -131,7 +191,7 @@ def parse_last_7_days(html: str) -> tuple[list[dict], str | None]:
                 pass
             break
 
-    return rows, updated_at
+    return rows, updated_at, corrections
 
 
 def build(html_path: Path, out_dir: Path) -> Path:
@@ -140,7 +200,7 @@ def build(html_path: Path, out_dir: Path) -> Path:
             f"{html_path} not found — run scripts/fetch_last_7_days.py first"
         )
     html = html_path.read_text(encoding="utf-8")
-    rows, updated_at = parse_last_7_days(html)
+    rows, updated_at, corrections = parse_last_7_days(html)
 
     meta = {
         "fetchedAt": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
@@ -151,6 +211,7 @@ def build(html_path: Path, out_dir: Path) -> Path:
         "latestDate": rows[-1]["d"],
         "provider": "UK Home Office",
         "licence": "Open Government Licence v3.0",
+        "corrections": corrections,
     }
 
     out_dir.mkdir(parents=True, exist_ok=True)

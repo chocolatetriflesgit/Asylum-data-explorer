@@ -220,15 +220,17 @@ function DashboardView({ setRoute }) {
   const canonicalLatest = (typeof BOATS_META !== 'undefined' && BOATS_META.latestDataPoint) || null;
   const provisionalDays = uMD(() => {
     if (!provisional) return [];
-    return provisional.map(row => {
+    const corrections = provisionalMeta?.corrections || [];
+    const correctionByRow = new Map(corrections.map(c => [c.row, c]));
+    return provisional.map((row, idx) => {
       const superseded = canonicalLatest ? row.d <= canonicalLatest : false;
       const date = new Date(row.d + 'T00:00:00Z');
       const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][date.getUTCDay()];
       const day = date.getUTCDate();
       const month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getUTCMonth()];
-      return { ...row, superseded, label: `${dayName} ${day} ${month}` };
+      return { ...row, superseded, label: `${dayName} ${day} ${month}`, correction: correctionByRow.get(idx) || null };
     });
-  }, [provisional, canonicalLatest]);
+  }, [provisional, provisionalMeta, canonicalLatest]);
   const provisionalWeekTotal = uMD(() => provisionalDays.reduce((s,d) => s + (d.m||0), 0), [provisionalDays]);
   const sameWeekLastYear = uMD(() => {
     if (!provisionalDays.length || !boatsWeekly.length) return null;
@@ -314,13 +316,20 @@ function DashboardView({ setRoute }) {
           <div className="day-strip-7" style={{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:8}}>
             {provisionalDays.map((d,i) => (
               <div key={d.d}
-                title={d.superseded
-                  ? 'Verified — this date has been incorporated into the weekly ODS time series and is no longer provisional.'
-                  : 'Provisional — not yet confirmed by the weekly ODS. May be revised when the next release publishes.'}
+                title={d.correction
+                  ? `Home Office page labelled this row "${d.correction.raw}" — adjusted to ${d.correction.corrected} to match the surrounding dates.`
+                  : (d.superseded
+                    ? 'Verified — this date has been incorporated into the weekly ODS time series and is no longer provisional.'
+                    : 'Provisional — not yet confirmed by the weekly ODS. May be revised when the next release publishes.')}
                 style={{padding:'10px 10px 12px',background:'#fff',
                   border: d.superseded ? '1px solid var(--rule)' : '1px dashed var(--accent-warn)',
                   opacity: d.superseded ? 0.5 : 1,cursor:'help'}}>
-                <div className="uc" style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0.1}}>{d.label}</div>
+                <div className="uc" style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0.1}}>
+                  {d.label}
+                  {d.correction && (
+                    <span style={{color:'var(--accent-warn)',marginLeft:3,fontWeight:500}} aria-label="Date label auto-corrected">*</span>
+                  )}
+                </div>
                 <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,lineHeight:1.1,marginTop:6,color:'var(--ink)'}}>
                   {d.m.toLocaleString()}
                 </div>
@@ -330,6 +339,23 @@ function DashboardView({ setRoute }) {
               </div>
             ))}
           </div>
+          {(provisionalMeta?.corrections || []).length > 0 && (
+            <div style={{fontSize:11.5,color:'var(--ink-2)',marginTop:10,lineHeight:1.5,borderLeft:'2px solid var(--accent-warn)',paddingLeft:10}}>
+              <span className="uc" style={{color:'var(--accent-warn)',fontSize:10.5,letterSpacing:0.1,fontWeight:500,marginRight:8}}>Date label adjusted</span>
+              <span style={{fontStyle:'italic'}}>
+                The Home Office page published{' '}
+                {(provisionalMeta.corrections).map((c, i, arr) => (
+                  <span key={c.row}>
+                    <span className="tnum">{c.raw}</span> for a row that appears next to{' '}
+                    <span className="tnum">{c.corrected}</span>
+                    {i < arr.length - 2 ? ', ' : i === arr.length - 2 ? ' and ' : ''}
+                  </span>
+                ))}
+                . The figures are shown against the neighbouring dates on the assumption that only the year label is mistaken — the underlying daily values have not been altered. Cells marked with{' '}
+                <span style={{color:'var(--accent-warn)',fontWeight:500}}>*</span>{' '}above are the affected rows.
+              </span>
+            </div>
+          )}
           <div style={{fontSize:11.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5}}>
             Figures are provisional, drawn from the Home Office{' '}
             <a href={(typeof BOATS_PROVISIONAL_META !== 'undefined' && BOATS_PROVISIONAL_META?.sourceUrl)
@@ -1287,31 +1313,31 @@ const SCHEME_INFO = {
     full: 'Afghan Relocations and Assistance Policy',
     eligibility: 'Afghans who worked for or with HM Government in Afghanistan and their families.',
     status: 'Closed to new principal applications (Dec 2024); family reunion continues.',
-    url: 'https://www.gov.uk/guidance/the-afghan-relocations-and-assistance-policy',
+    url: 'https://www.gov.uk/government/publications/afghan-relocations-and-assistance-policy/afghan-relocations-and-assistance-policy-information-and-guidance',
   },
   'UK Resettlement Scheme': {
     full: 'UK Resettlement Scheme (UKRS)',
     eligibility: 'Refugees referred by UNHCR, prioritising the most vulnerable. Replaced VPRS in 2021.',
     status: 'Open',
-    url: 'https://www.gov.uk/government/publications/uk-resettlement-scheme-factsheet',
+    url: 'https://assets.publishing.service.gov.uk/media/611cd056d3bf7f63b45df0ed/Resettlement_Policy_Guidance_2021.pdf',
   },
   'Community Sponsorship': {
     full: 'Community Sponsorship Scheme',
     eligibility: 'Refugees matched to community groups that provide housing and integration support for the first year.',
     status: 'Open',
-    url: 'https://www.gov.uk/government/publications/apply-for-full-community-sponsor-status',
+    url: 'https://www.gov.uk/government/publications/apply-for-full-community-sponsorship/community-sponsorship-guidance-for-prospective-sponsors',
   },
   'Mandate Scheme': {
     full: 'Mandate Resettlement Scheme',
     eligibility: 'Refugees anywhere in the world with a close family member settled in the UK willing to accommodate them.',
     status: 'Open',
-    url: 'https://www.gov.uk/government/publications/mandate-refugee-programme-policy-and-process',
+    url: 'https://assets.publishing.service.gov.uk/media/611cd056d3bf7f63b45df0ed/Resettlement_Policy_Guidance_2021.pdf',
   },
   'Afghan Resettlement Programme': {
     full: 'Afghan Resettlement Programme (ARP)',
     eligibility: 'Umbrella programme from 2024 consolidating ACRS and ARAP delivery. No new pathways beyond its constituents.',
     status: 'Programme ongoing',
-    url: 'https://www.gov.uk/government/publications/afghan-resettlement-programme-consolidation',
+    url: 'https://www.gov.uk/guidance/afghan-resettlement-programme#full-publication-update-history',
   },
 };
 
