@@ -93,6 +93,24 @@ function App() {
     return ()=>window.removeEventListener('keydown', k);
   }, []);
 
+  // Publish the live header height as --header-h so sticky elements inside
+  // views (e.g. the dashboard's range filter bar) can sit immediately below
+  // it instead of sliding underneath. Re-measures when the sub-nav toggles
+  // between routes, and when the window resizes.
+  uER(() => {
+    const header = document.querySelector('header');
+    if (!header) return;
+    const apply = () => {
+      const h = header.getBoundingClientRect().height;
+      if (h > 0) document.documentElement.style.setProperty('--header-h', h + 'px');
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(header);
+    window.addEventListener('resize', apply);
+    return () => { ro.disconnect(); window.removeEventListener('resize', apply); };
+  }, [route]);
+
   return (
     <>
       <Header route={route} setRoute={setRoute} onSearch={()=>setSearch(true)} onMethod={()=>setMethod(true)}/>

@@ -388,7 +388,7 @@ function DashboardView({ setRoute }) {
 
       {/* Time range filter — placed above the hero so the slider governs every
           statistic and chart on the page. Sticky so it stays visible on scroll. */}
-      <div id="dash-range" className="range-filter-bar" style={{position:'sticky',top:0,zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'0 0 24px',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
+      <div id="dash-range" className="range-filter-bar" style={{position:'sticky',top:'var(--header-h, 96px)',zIndex:6,borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',padding:'20px 24px',margin:'0 0 24px',background:'var(--bg-2)',display:'flex',alignItems:'flex-start',gap:40,flexWrap:'wrap'}}>
         <div className="filter-range-wrap" style={{flex:'0 1 540px',minWidth:300}}>
           <div className="uc" style={{color:'var(--muted)',marginBottom:6,fontSize:10.5}}>
             <span className="tick tick-accent"/>Time range
