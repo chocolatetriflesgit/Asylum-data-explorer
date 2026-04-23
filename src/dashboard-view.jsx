@@ -130,12 +130,9 @@ function DashboardView({ setRoute }) {
       .sort((a,b) => a.label.localeCompare(b.label))
       .map((row, i) => ({ ...row, y: i }));
   };
-  const interceptionsMonthly = _aggregateByMonth('e');
-  const interceptionsFirstMonth = interceptionsMonthly[0]?.label ?? null;
-  const interceptionsLastMonth = interceptionsMonthly[interceptionsMonthly.length - 1]?.label ?? null;
-  const preventionsMonthly = _aggregateByMonth('p');
-  const preventionsFirstMonth = preventionsMonthly[0]?.label ?? null;
-  const preventionsLastMonth = preventionsMonthly[preventionsMonthly.length - 1]?.label ?? null;
+  // _aggregateByMonth remains available if future panels need a monthly
+  // rollup of preventions / interception events. The dashboard itself now
+  // surfaces the ratio via InterceptionRate, which reads BOATS_WEEKLY directly.
 
   // Phase 4 placeholders — hydrate from globals when data lands.
   const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : null;
@@ -274,70 +271,91 @@ function DashboardView({ setRoute }) {
         </p>
       </div>
 
-      {/* Provisional last-7-days strip — lifted above KPI rows as the freshest data point. */}
+      {/* Provisional last-7-days strip — lifted above KPI rows as the freshest
+          data point. Laid out as two columns: the week's total + days stacked
+          vertically on the left, and a ranked comparison against the same
+          calendar week in every prior year on the right. */}
       {provisional && provisionalDays.length > 0 && (
         <section style={{marginBottom:28,padding:'18px 22px',border:'1px dashed var(--rule-2)',background:'var(--bg-2)',borderRadius:0,borderLeft:'none',borderRight:'none'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,gap:24,flexWrap:'wrap'}}>
+          <div className="provisional-grid" style={{display:'grid',gridTemplateColumns:'minmax(240px, 1fr) minmax(340px, 1.7fr)',gap:40,alignItems:'flex-start'}}>
+            {/* Left column: headline total + vertical day list */}
             <div>
-              <div className="uc" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,fontWeight:500,marginBottom:8}}>Last 7 days · provisional</div>
-              <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap'}}>
-                <div style={{fontFamily:'var(--serif)',fontSize:36,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">
-                  {provisionalWeekTotal.toLocaleString()}
-                </div>
-                {sameWeekLastYear && sameWeekLastYear.m > 0 && (() => {
-                  const diff = provisionalWeekTotal - sameWeekLastYear.m;
-                  const pct = (diff / sameWeekLastYear.m * 100).toFixed(0);
-                  return (
-                    <div style={{fontSize:13,color: diff > 0 ? 'var(--accent-warn)' : 'var(--accent-2)',fontStyle:'italic'}}>
-                      {diff>=0?'+':''}{pct}% vs same week {sameWeekLastYear.we.slice(0,4)}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,gap:16,flexWrap:'wrap'}}>
+                <div>
+                  <div className="uc" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,fontWeight:500,marginBottom:8}}>Last 7 days · provisional</div>
+                  <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap'}}>
+                    <div style={{fontFamily:'var(--serif)',fontSize:36,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">
+                      {provisionalWeekTotal.toLocaleString()}
                     </div>
-                  );
-                })()}
-              </div>
-              {/* Mini sparkline */}
-              <svg width={provisionalDays.length * 22} height={30} style={{display:'block',marginTop:8}}>
-                {(() => {
-                  const vals = provisionalDays.map(d => d.m);
-                  const maxV = Math.max(...vals, 1);
-                  return vals.map((v, i) => (
-                    <rect key={i} x={i * 22} y={30 - Math.round((v / maxV) * 24)} width={18} height={Math.round((v / maxV) * 24)}
-                      fill={provisionalDays[i].superseded ? 'var(--muted-2)' : 'var(--accent-warn)'}/>
-                  ));
-                })()}
-              </svg>
-            </div>
-            <div style={{fontSize:12,color:'var(--muted)',fontStyle:'italic',textAlign:'right',marginTop:4}}>
-              {provisionalMeta?.updatedAt
-                ? `Updated ${new Date(provisionalMeta.updatedAt+'T00:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}`
-                : ''}
-              {canonicalLatest && <div style={{marginTop:4}}>Canonical ODS through {canonicalLatest}</div>}
-            </div>
-          </div>
-          <div className="day-strip-7" style={{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:8}}>
-            {provisionalDays.map((d,i) => (
-              <div key={d.d}
-                title={d.correction
-                  ? `Home Office page labelled this row "${d.correction.raw}" — adjusted to ${d.correction.corrected} to match the surrounding dates.`
-                  : (d.superseded
-                    ? 'Verified — this date has been incorporated into the weekly ODS time series and is no longer provisional.'
-                    : 'Provisional — not yet confirmed by the weekly ODS. May be revised when the next release publishes.')}
-                style={{padding:'10px 10px 12px',background:'#fff',
-                  border: d.superseded ? '1px solid var(--rule)' : '1px dashed var(--accent-warn)',
-                  opacity: d.superseded ? 0.5 : 1,cursor:'help'}}>
-                <div className="uc" style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0.1}}>
-                  {d.label}
-                  {d.correction && (
-                    <span style={{color:'var(--accent-warn)',marginLeft:3,fontWeight:500}} aria-label="Date label auto-corrected">*</span>
-                  )}
-                </div>
-                <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,lineHeight:1.1,marginTop:6,color:'var(--ink)'}}>
-                  {d.m.toLocaleString()}
-                </div>
-                <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:4}}>
-                  {d.b} boat{d.b===1?'':'s'}{d.superseded ? ' · verified' : ''}
+                    {sameWeekLastYear && sameWeekLastYear.m > 0 && (() => {
+                      const diff = provisionalWeekTotal - sameWeekLastYear.m;
+                      const pct = (diff / sameWeekLastYear.m * 100).toFixed(0);
+                      return (
+                        <div style={{fontSize:13,color: diff > 0 ? 'var(--accent-warn)' : 'var(--accent-2)',fontStyle:'italic'}}>
+                          {diff>=0?'+':''}{pct}% vs same week {sameWeekLastYear.we.slice(0,4)}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
-            ))}
+              {/* Vertical day list — each row: label · bar · count. Bars share a
+                  scale so the relative size across days is readable at a glance. */}
+              {(() => {
+                const maxV = Math.max(...provisionalDays.map(d => d.m), 1);
+                return (
+                  <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:4}}>
+                    {provisionalDays.map((d) => {
+                      const pct = Math.round((d.m / maxV) * 100);
+                      return (
+                        <div key={d.d}
+                          title={d.correction
+                            ? `Home Office page labelled this row "${d.correction.raw}" — adjusted to ${d.correction.corrected} to match the surrounding dates.`
+                            : (d.superseded
+                              ? 'Verified — this date has been incorporated into the weekly ODS time series and is no longer provisional.'
+                              : 'Provisional — not yet confirmed by the weekly ODS. May be revised when the next release publishes.')}
+                          style={{display:'grid',gridTemplateColumns:'72px 1fr 56px',alignItems:'center',gap:10,padding:'8px 10px',background:'#fff',
+                            border: d.superseded ? '1px solid var(--rule)' : '1px dashed var(--accent-warn)',
+                            opacity: d.superseded ? 0.55 : 1,cursor:'help'}}>
+                          <div className="uc" style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0.1,lineHeight:1.25}}>
+                            {d.label}
+                            {d.correction && (
+                              <span style={{color:'var(--accent-warn)',marginLeft:3,fontWeight:500}} aria-label="Date label auto-corrected">*</span>
+                            )}
+                          </div>
+                          <div style={{position:'relative',height:14,background:'var(--bg-3)'}}>
+                            <div style={{position:'absolute',left:0,top:0,bottom:0,width:pct+'%',
+                              background: d.superseded ? 'var(--muted-2)' : 'var(--accent-warn)'}}/>
+                          </div>
+                          <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:16,fontWeight:500,color:'var(--ink)',textAlign:'right',letterSpacing:-0.2}}>
+                            {d.m.toLocaleString()}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              <div style={{fontSize:12,color:'var(--muted)',fontStyle:'italic',marginTop:10,lineHeight:1.5}}>
+                {provisionalMeta?.updatedAt
+                  ? `Updated ${new Date(provisionalMeta.updatedAt+'T00:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}`
+                  : ''}
+                {canonicalLatest && <span> · Canonical ODS through {canonicalLatest}</span>}
+              </div>
+            </div>
+
+            {/* Right column: this week vs every equivalent week since 2018 */}
+            <div>
+              {typeof BOATS_WEEKLY !== 'undefined' && BOATS_WEEKLY.length > 0 && (
+                <>
+                  <div className="uc" style={{color:'var(--muted)',fontSize:11,letterSpacing:0.1,marginBottom:8}}>This week, ranked</div>
+                  <ThisWeekRanked data={BOATS_WEEKLY} width={720}
+                    caption="Each bar is the same calendar week in a different year. The current year is highlighted. Years are only included if a week-ending date sits within ±6 days of this week's date."
+                    source="Home Office · SB_01"
+                    asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
+                </>
+              )}
+            </div>
           </div>
           {(provisionalMeta?.corrections || []).length > 0 && (
             <div style={{fontSize:11.5,color:'var(--ink-2)',marginTop:10,lineHeight:1.5,borderLeft:'2px solid var(--accent-warn)',paddingLeft:10}}>
@@ -685,17 +703,18 @@ function DashboardView({ setRoute }) {
                 everyYear={true}/>
             </DashFrame>
           </div>
-          {/* Seasonal heat-map — one row per year, 52 weekly cells.
-              Reveals the strong spring→autumn seasonality that the annual line
-              flattens out. */}
-          {typeof BOATS_WEEKLY !== 'undefined' && BOATS_WEEKLY.length > 0 && (
+          {/* Month-by-year seasonality heat-map — one row per year, 12 monthly
+              cells. A coarser grid than the weekly version but much easier to
+              read: the summer peak and the season's gradual lengthening both
+              jump out at a glance. */}
+          {typeof BOATS_MONTHLY !== 'undefined' && BOATS_MONTHLY.length > 0 && (
             <div style={{marginTop:20}}>
-              <DashFrame number="03" kickerColor="var(--accent-warn)" title="Arrivals by week · seasonal pattern" sub="Weekly crossings, 2018–latest · darker = more arrivals"
-                setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'weekly' }}>
-                <SeasonalHeatMap data={BOATS_WEEKLY} width={1100} height={260}
+              <DashFrame number="03" kickerColor="var(--accent-warn)" title="Arrivals by month · seasonal pattern" sub="Monthly crossings, 2018–latest · darker = more arrivals"
+                setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'monthly' }}>
+                <MonthSeasonalityHeatmap data={BOATS_MONTHLY}
+                  width={1100} height={compact ? 220 : 300}
                   yearRange={range}
-                  yLabel="Year" xLabel="Month"
-                  caption="Each cell is one ISO week × year. Darker cells are weeks with more crossings. Seasonality is unmistakable: very low from January to March, rising from April, peaking late summer."
+                  caption="Each cell is one month × year. Darker cells are months with more crossings; the strongest cells carry their count in the cell. Seasonality is unmistakable: quiet from January to March, rising from April, peaking late summer — and the season has lengthened year-on-year."
                   source="Home Office · SB_01"
                   asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
               </DashFrame>
@@ -719,44 +738,19 @@ function DashboardView({ setRoute }) {
               <NationalitiesTable data={natFull}/>
             </DashFrame>
           </div>
-          {(interceptionsMonthly.length > 0 || preventionsMonthly.length > 0) && (() => {
-            // Merged dual-axis chart: interceptions (events) on the left axis,
-            // preventions (migrants) on the right axis. Re-index both series
-            // onto a shared monthly grid (union of all labels) so the x-axis
-            // aligns — otherwise DualAxisChart would plot two series against
-            // separate index spaces and their shapes wouldn't be comparable.
-            const monthLabels = Array.from(new Set([
-              ...interceptionsMonthly.map(p => p.label),
-              ...preventionsMonthly.map(p => p.label),
-            ])).sort();
-            const indexByLabel = Object.fromEntries(monthLabels.map((lbl, i) => [lbl, i]));
-            const leftAligned  = interceptionsMonthly.map(p => ({ y: indexByLabel[p.label], v: p.v, label: p.label }));
-            const rightAligned = preventionsMonthly.map(p => ({ y: indexByLabel[p.label], v: p.v, label: p.label }));
-            const firstMonth = monthLabels[0];
-            const lastMonth  = monthLabels[monthLabels.length - 1];
-            return (
-              <div style={{marginTop:20}}>
-                <DashFrame number="06" kickerColor="var(--accent)"
-                  title="Monthly interceptions and preventions"
-                  sub={`Border Force · ${_fmtMonth(firstMonth)}–${_fmtMonth(lastMonth)} · dual axis`}>
-                  <DualAxisChart
-                    left={leftAligned} right={rightAligned}
-                    yearRange={range}
-                    leftStroke="var(--accent)" rightStroke="var(--accent-warn)"
-                    leftLabel="Interceptions" rightLabel="Preventions"
-                    yLabelLeft="Events (interceptions)"
-                    yLabelRight="Migrants (preventions)"
-                    xLabel="Month"
-                    compact={compact}
-                    width={compact ? 580 : 1100} height={280}
-                    xLabelFmt={(_, i, p) => _fmtMonth(p?.label ?? p?.y)}
-                    caption="Interceptions (solid, left axis) count the events in which Border Force prevented a crossing in progress; preventions (dashed, right axis) count the migrants involved. Reporting of preventions began in May 2024 — the dashed line starts there."
-                    source="Home Office · SB_02"
-                    asOf={srcAsOf.SB_02} nextUpdate={srcAsOf.SB_02_next}/>
-                </DashFrame>
-              </div>
-            );
-          })()}
+          {typeof BOATS_WEEKLY !== 'undefined' && BOATS_WEEKLY.some(w => w && w.p != null) && (
+            <div style={{marginTop:20}}>
+              <DashFrame number="06" kickerColor="var(--accent)"
+                title="Interception rate — share of attempts that never complete"
+                sub="Rolling 13-week window · p / (p + m) · SB_02">
+                <InterceptionRate data={BOATS_WEEKLY}
+                  width={compact ? 580 : 1100} height={compact ? 240 : 320}
+                  caption="Reads as: the 13-week rolling share of crossing attempts that ended on the French side (prevented from leaving) rather than with a UK arrival. The shaded band shows the absolute volume of attempts so a rising rate on a small base is distinguishable from a rising rate on a large one. Preventions began to be published in May 2024; the series starts there."
+                  source="Home Office · SB_02"
+                  asOf={srcAsOf.SB_02} nextUpdate={srcAsOf.SB_02_next}/>
+              </DashFrame>
+            </div>
+          )}
         </section>
       )}
 

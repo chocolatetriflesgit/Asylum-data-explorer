@@ -1978,13 +1978,36 @@ function SankeyChart({ nodes, links, width = 820, height = 500, compact = false 
                 strokeDasharray={n.mocked && !isPinned ? '3 2' : undefined}
                 strokeWidth={isPinned ? 2 : (n.mocked ? 1 : 0)}
                 rx={2}/>
-              {isLeftmost ? (
-                <text x={nl.x - 8} y={nl.y + nl.h / 2}
-                  textAnchor="end" dominantBaseline="middle"
-                  fontSize={compact ? 13 : 11} fontFamily="var(--serif)" fill="var(--ink-2)">
-                  {n.label}{n.mocked ? ' *' : ''}
-                </text>
-              ) : (
+              {isLeftmost ? (() => {
+                const full = n.label + (n.mocked ? ' *' : '');
+                const WRAP_AT = 22;
+                let lines = [full];
+                if (full.length > WRAP_AT) {
+                  const mid = full.length / 2;
+                  let bestIdx = -1, bestDist = Infinity;
+                  for (let i = 0; i < full.length; i++) {
+                    if (full[i] === ' ') {
+                      const d = Math.abs(i - mid);
+                      if (d < bestDist) { bestDist = d; bestIdx = i; }
+                    }
+                  }
+                  if (bestIdx !== -1) lines = [full.slice(0, bestIdx), full.slice(bestIdx + 1)];
+                }
+                const fs = compact ? 13 : 11;
+                const lineH = fs + 2;
+                return (
+                  <text x={nl.x - 8} y={nl.y + nl.h / 2}
+                    textAnchor="end" dominantBaseline="middle"
+                    fontSize={fs} fontFamily="var(--serif)" fill="var(--ink-2)">
+                    {lines.map((ln, i) => (
+                      <tspan key={i} x={nl.x - 8}
+                        dy={i === 0 ? -((lines.length - 1) * lineH) / 2 : lineH}>
+                        {ln}
+                      </tspan>
+                    ))}
+                  </text>
+                );
+              })() : (
                 <text x={nl.x + NODE_W + 8} y={nl.y + nl.h / 2 - 7}
                   textAnchor="start" fontSize={compact ? 13 : 11} fontFamily="var(--serif)" fill="var(--ink-2)">
                   <tspan>{n.label}{n.mocked ? ' *' : ''}</tspan>
@@ -2436,4 +2459,411 @@ function GroupedBarChart({ periods, series, width = 820, height = 360, palette, 
   );
 }
 
-Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, fmtShortDate, SourceStrip, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor, SankeyChart, YoYCumulative, SeasonalHeatMap, GrantRateSmallMultiples, CohortRibbon, BacklogWaterfall, TopFiveStackedBars, GroupedBarChart, buildTopFiveStackedByYear });
+// ─────────────────────────────────────────────────────────────
+// Interception rate — 13-week rolling share of crossing attempts
+// that ended on the French side rather than with a UK arrival.
+// Formula: p / (p + m) on a rolling 13-week window. Expects
+// BOATS_WEEKLY-shaped rows with {we, m, p}; silently drops weeks
+// where p is null (preventions were not reported before ~May 2024).
+// A faint area chart of total attempts (arrivals + preventions)
+// sits behind the line so the reader can tell a rising rate on a
+// small base from a rising rate on a large one.
+// ─────────────────────────────────────────────────────────────
+function InterceptionRate({
+  data,
+  width=1100, height=320,
+  title='', subtitle='',
+  source='', asOf=null, nextUpdate=null, sourceUrl=null,
+  caption=null,
+  window: winSize=13,
+}) {
+  const { show, hide, node } = useTooltip();
+  const W = width, H = height;
+  const pad = { t: 22, r: 28, b: 46, l: 72 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+
+  const rows = (Array.isArray(data) ? data : [])
+    .filter(w => w && w.we && w.p != null && typeof w.m === 'number');
+  if (rows.length < winSize) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>Not enough weeks with prevention data to plot an interception rate.</div>;
+  }
+
+  // Rolling 13-week sums of p and m; rate = p / (p + m).
+  const series = [];
+  for (let i = winSize - 1; i < rows.length; i++) {
+    let sp = 0, sm = 0;
+    for (let j = i - winSize + 1; j <= i; j++) {
+      sp += rows[j].p || 0;
+      sm += rows[j].m || 0;
+    }
+    const total = sp + sm;
+    const rate = total > 0 ? sp / total : 0;
+    series.push({ we: rows[i].we, rate, total });
+  }
+
+  const maxRate = Math.max(...series.map(s => s.rate));
+  const yMax = Math.max(0.1, Math.ceil(maxRate * 10) / 10);
+  const maxTotal = Math.max(1, ...series.map(s => s.total));
+
+  const xs = i => pad.l + (i / (series.length - 1)) * iw;
+  const yRate = r => pad.t + (1 - r / yMax) * ih;
+  const yTotal = v => pad.t + (1 - v / maxTotal) * ih;
+
+  // Gridlines every 5 percentage points.
+  const gridStep = yMax <= 0.2 ? 0.05 : 0.1;
+  const gridTicks = [];
+  for (let t = 0; t <= yMax + 1e-9; t += gridStep) gridTicks.push(Math.round(t * 1000) / 1000);
+
+  // One x-tick per calendar year, placed at the first row of that year.
+  const yearTicks = [];
+  const seenYear = new Set();
+  series.forEach((s, i) => {
+    const yr = s.we.slice(0, 4);
+    if (!seenYear.has(yr)) { seenYear.add(yr); yearTicks.push({ yr, i }); }
+  });
+
+  const areaD = [
+    `M ${xs(0)},${H - pad.b}`,
+    ...series.map((s, i) => `L ${xs(i)},${yTotal(s.total)}`),
+    `L ${xs(series.length - 1)},${H - pad.b} Z`,
+  ].join(' ');
+
+  const lineD = series.map((s, i) => (i ? 'L' : 'M') + xs(i) + ',' + yRate(s.rate)).join(' ');
+
+  const last = series[series.length - 1];
+  const lx = xs(series.length - 1), ly = yRate(last.rate);
+
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      {title && (
+        <figcaption style={{marginBottom:14}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>{subtitle}</div>
+          <div style={{fontSize:19,fontWeight:500,letterSpacing:-0.1,color:'var(--ink)'}}>{title}</div>
+        </figcaption>
+      )}
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        {/* Attempts-volume area behind the rate line */}
+        <path d={areaD} fill="var(--bg-3)" opacity="0.55"/>
+
+        {/* y-axis gridlines + percentage labels */}
+        {gridTicks.map((t, k) => (
+          <g key={`g-${k}`}>
+            <line x1={pad.l} x2={W - pad.r} y1={yRate(t)} y2={yRate(t)} stroke="var(--rule)" strokeWidth="1"/>
+            <text x={pad.l - 10} y={yRate(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)"
+              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{Math.round(t * 100)}%</text>
+          </g>
+        ))}
+
+        {/* x-axis year ticks */}
+        {yearTicks.map(({ yr, i }) => (
+          <g key={`x-${yr}`}>
+            <line x1={xs(i)} x2={xs(i)} y1={H - pad.b} y2={H - pad.b + 4} stroke="var(--muted-2)"/>
+            <text x={xs(i)} y={H - pad.b + 18} textAnchor="middle" fontSize="11" fill="var(--muted)"
+              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+          </g>
+        ))}
+
+        {/* rate line */}
+        <path d={lineD} fill="none" stroke="var(--accent)" strokeWidth="2.2"/>
+
+        {/* invisible hover strips — one per data point, full height */}
+        {series.map((s, i) => {
+          const bw = iw / series.length;
+          return (
+            <rect key={`h-${i}`}
+              x={xs(i) - bw / 2} y={pad.t} width={bw} height={ih}
+              fill="transparent"
+              onMouseMove={e => show(e,
+                <span><b>Week ending {s.we}</b> · <span className="tnum">{(s.rate * 100).toFixed(1)}%</span> intercepted · <span className="tnum">{fmtN(s.total)}</span> attempts</span>)}
+              onMouseLeave={hide}
+              style={{cursor:'crosshair'}}/>
+          );
+        })}
+
+        {/* latest-value pin */}
+        <circle cx={lx} cy={ly} r="4" fill="var(--accent)"/>
+        <text x={lx - 8} y={ly - 10} textAnchor="end" fontSize="14" fontWeight={600}
+          fill="var(--accent)"
+          style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+          {Math.round(last.rate * 100)}%
+        </text>
+
+        {/* axis titles */}
+        <text x={18} y={pad.t + ih / 2}
+          transform={`rotate(-90 18 ${pad.t + ih / 2})`}
+          textAnchor="middle" fontSize="11" fill="var(--muted)"
+          style={{letterSpacing:'0.08em',textTransform:'uppercase',fontFamily:'var(--serif)'}}>
+          Interception rate · {winSize}-week rolling
+        </text>
+        <text x={W - pad.r} y={pad.t - 6} textAnchor="end" fontSize="11" fill="var(--muted)"
+          fontStyle="italic" style={{fontFamily:'var(--serif)'}}>
+          Total attempts (arrivals + preventions) shown as shaded area behind
+        </text>
+      </svg>
+      {caption && (
+        <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5,maxWidth:860}}>
+          {caption}
+        </div>
+      )}
+      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate} sourceUrl={sourceUrl}/>
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Month-by-year seasonality heat-map — one row per year, 12
+// month columns. Expects BOATS_MONTHLY-shaped rows: {month:
+// "YYYY-MM", m: migrants}. Intensity = migrants that month,
+// gamma-corrected so low-but-not-zero months lift off the floor.
+// Null cells render as a dashed outline (no data yet).
+// ─────────────────────────────────────────────────────────────
+function MonthSeasonalityHeatmap({
+  data,
+  width=1100, height=260,
+  title='', subtitle='',
+  source='', asOf=null, nextUpdate=null, sourceUrl=null,
+  caption=null,
+  yearRange=null,
+}) {
+  const { show, hide, node } = useTooltip();
+  const W = width, H = height;
+
+  if (!Array.isArray(data) || !data.length) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data.</div>;
+  }
+
+  // Build {year: [12 cells]} map.
+  const byYear = {};
+  for (const r of data) {
+    if (!r || !r.month) continue;
+    const [y, m] = r.month.split('-').map(Number);
+    if (!Number.isFinite(y) || !Number.isFinite(m)) continue;
+    if (!byYear[y]) byYear[y] = new Array(12).fill(null);
+    byYear[y][m - 1] = r.m;
+  }
+  const allYears = Object.keys(byYear).map(Number).sort((a, b) => a - b);
+  const years = yearRange
+    ? allYears.filter(y => y >= yearRange[0] && y <= yearRange[1])
+    : allYears;
+  if (!years.length) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data in selected range.</div>;
+  }
+
+  const vals = data.map(r => r.m).filter(v => v != null && v > 0);
+  const maxV = Math.max(1, ...vals);
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const pad = { t: 34, r: 24, b: 26, l: 54 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const cellW = iw / 12;
+  const cellH = ih / years.length;
+
+  const intensity = v => (v == null || v <= 0) ? 0 : Math.pow(v / maxV, 0.55);
+  // Terracotta-on-cream ramp — warm, simpler than the dual-tone weekly heatmap,
+  // and visually signals "heat" for the seasonal peak without competing with
+  // the --accent palette used elsewhere on the page.
+  const colorFor = v => {
+    if (v == null) return 'transparent';
+    const pct = Math.round(intensity(v) * 100);
+    return `color-mix(in srgb, var(--accent-warn) ${pct}%, var(--bg))`;
+  };
+
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      {title && (
+        <figcaption style={{marginBottom:14}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>{subtitle}</div>
+          <div style={{fontSize:19,fontWeight:500,letterSpacing:-0.1,color:'var(--ink)'}}>{title}</div>
+        </figcaption>
+      )}
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        {/* month headers */}
+        {MONTHS.map((m, i) => (
+          <text key={`m-${m}`}
+            x={pad.l + cellW * (i + 0.5)} y={pad.t - 10}
+            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)'}}>{m}</text>
+        ))}
+
+        {/* year labels (left) + cells */}
+        {years.map((yr, yi) => {
+          const row = byYear[yr] || [];
+          return (
+            <g key={`yr-${yr}`}>
+              <text x={pad.l - 12} y={pad.t + cellH * yi + cellH / 2 + 4}
+                textAnchor="end" fontSize="11" fill="var(--muted)"
+                style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+              {row.map((v, i) => {
+                const x = pad.l + cellW * i + 1;
+                const y = pad.t + cellH * yi + 1;
+                const w = cellW - 2, h = cellH - 2;
+                if (v == null) {
+                  return <rect key={`c-${yr}-${i}`}
+                    x={x} y={y} width={w} height={h}
+                    fill="none" stroke="var(--rule)" strokeDasharray="2 2"/>;
+                }
+                const t = intensity(v);
+                const showLabel = t > 0.5 && cellH > 20;
+                return (
+                  <g key={`c-${yr}-${i}`}>
+                    <rect x={x} y={y} width={w} height={h}
+                      fill={colorFor(v)}
+                      stroke="var(--rule)" strokeWidth="0.5"
+                      onMouseMove={e => show(e,
+                        <span><b>{MONTHS[i]} {yr}</b> · <span className="tnum">{fmtN(v)}</span> migrants</span>)}
+                      onMouseLeave={hide}
+                      style={{cursor:'crosshair'}}/>
+                    {showLabel && (
+                      <text x={x + w / 2} y={y + h / 2 + 4}
+                        textAnchor="middle" fontSize="11" fontWeight={500} fill="#fff"
+                        style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)',pointerEvents:'none'}}>
+                        {fmtK(v)}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
+
+        {/* legend */}
+        <g transform={`translate(${pad.l} ${H - 6})`}>
+          <text x={-6} y={-1} textAnchor="end" fontSize="10" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)'}}>fewer</text>
+          {[0.2, 0.4, 0.6, 0.8, 1].map((t, i) => (
+            <rect key={i} x={i * 16} y={-10} width={15} height={8}
+              fill={`color-mix(in srgb, var(--accent-warn) ${Math.round(Math.pow(t, 0.55) * 100)}%, var(--bg))`}
+              stroke="var(--rule)" strokeWidth="0.5"/>
+          ))}
+          <text x={5 * 16 + 6} y={-1} fontSize="10" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)'}}>more</text>
+          <text x={iw} y={-1} textAnchor="end" fontSize="10" fill="var(--muted)"
+            fontStyle="italic" style={{fontFamily:'var(--serif)'}}>
+            Peak: {fmtN(maxV)} in one month
+          </text>
+        </g>
+      </svg>
+      {caption && (
+        <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5,maxWidth:860}}>
+          {caption}
+        </div>
+      )}
+      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate} sourceUrl={sourceUrl}/>
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// This week, ranked — match the latest week's calendar position
+// (day-of-year ±6) against every prior year and rank by arrivals.
+// Current year highlighted; the chart makes a number ("n last
+// week") memorable ("2nd-busiest equivalent week since 2018").
+// ─────────────────────────────────────────────────────────────
+function ThisWeekRanked({
+  data,
+  width=560, height=null,
+  title='', subtitle='',
+  source='', asOf=null, nextUpdate=null, sourceUrl=null,
+  caption=null,
+}) {
+  const weekly = Array.isArray(data) ? data : [];
+  if (!weekly.length) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No weekly data.</div>;
+  }
+  const last = weekly[weekly.length - 1];
+  if (!last || !last.we) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No weekly data.</div>;
+  }
+  const target = new Date(last.we + 'T00:00:00Z');
+  const targetYear = target.getUTCFullYear();
+  const targetDoy = Math.floor((target - Date.UTC(targetYear, 0, 1)) / 86400000);
+
+  // For each year, pick the weekly row whose week-ending day-of-year sits
+  // closest to the target — only if within ±6 days (i.e. same calendar week).
+  const byYear = {};
+  for (const w of weekly) {
+    if (!w || !w.we) continue;
+    const d = new Date(w.we + 'T00:00:00Z');
+    if (isNaN(d)) continue;
+    const yr = d.getUTCFullYear();
+    const doy = Math.floor((d - Date.UTC(yr, 0, 1)) / 86400000);
+    const delta = Math.abs(doy - targetDoy);
+    if (delta > 6) continue;
+    if (!byYear[yr] || byYear[yr].delta > delta) byYear[yr] = { ...w, delta };
+  }
+
+  const years = Object.keys(byYear).map(Number).sort((a, b) => a - b);
+  if (!years.length) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>Not enough history to rank.</div>;
+  }
+  const rows = years.map(y => ({ y, m: byYear[y].m || 0, we: byYear[y].we }));
+  const maxV = Math.max(1, ...rows.map(r => r.m));
+  const sorted = [...rows].sort((a, b) => b.m - a.m);
+  const rank = sorted.findIndex(r => r.y === targetYear) + 1;
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateStr = `${String(target.getUTCDate()).padStart(2,'0')} ${MONTHS[target.getUTCMonth()]}`;
+
+  const pad = { t: 36, r: 70, b: 18, l: 54 };
+  const rowH = 30;
+  const H = height || (pad.t + pad.b + rows.length * rowH);
+  const iw = width - pad.l - pad.r;
+
+  const ordinal = n => {
+    const s = ['th','st','nd','rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      {title && (
+        <figcaption style={{marginBottom:14}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>{subtitle}</div>
+          <div style={{fontSize:19,fontWeight:500,letterSpacing:-0.1,color:'var(--ink)'}}>{title}</div>
+        </figcaption>
+      )}
+      <svg width="100%" height={H} viewBox={`0 0 ${width} ${H}`} style={{display:'block',overflow:'visible'}}>
+        <text x={pad.l} y={20} fontSize="12.5" fontStyle="italic" fill="var(--ink-2)"
+          style={{fontFamily:'var(--serif)'}}>
+          Week ending around {dateStr}, each year
+        </text>
+        <text x={width - pad.r} y={20} textAnchor="end" fontSize="12.5" fontWeight={600}
+          fill="var(--accent-warn)"
+          style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+          {targetYear} ranks {ordinal(rank)} of {rows.length}
+        </text>
+
+        {rows.map((r, i) => {
+          const y = pad.t + i * rowH;
+          const isNow = r.y === targetYear;
+          const bw = (r.m / maxV) * iw;
+          return (
+            <g key={`r-${r.y}`}>
+              <text x={pad.l - 10} y={y + rowH / 2 + 4}
+                textAnchor="end" fontSize="11" fontWeight={isNow ? 600 : 400}
+                fill={isNow ? 'var(--accent-warn)' : 'var(--muted)'}
+                style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{r.y}</text>
+              <rect x={pad.l} y={y + 4} width={bw} height={rowH - 10}
+                fill={isNow ? 'var(--accent-warn)' : 'var(--bg-3)'}/>
+              <text x={pad.l + bw + 6} y={y + rowH / 2 + 4}
+                fontSize="11.5" fontWeight={isNow ? 600 : 400}
+                fill={isNow ? 'var(--accent-warn)' : 'var(--ink-2)'}
+                style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtN(r.m)}</text>
+            </g>
+          );
+        })}
+      </svg>
+      {caption && (
+        <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5,maxWidth:520}}>
+          {caption}
+        </div>
+      )}
+      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate} sourceUrl={sourceUrl}/>
+    </figure>
+  );
+}
+
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, fmtShortDate, SourceStrip, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor, SankeyChart, YoYCumulative, SeasonalHeatMap, GrantRateSmallMultiples, CohortRibbon, BacklogWaterfall, TopFiveStackedBars, GroupedBarChart, buildTopFiveStackedByYear, InterceptionRate, MonthSeasonalityHeatmap, ThisWeekRanked });

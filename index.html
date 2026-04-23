@@ -125,6 +125,12 @@
       padding-bottom: 4px !important; scrollbar-width: none !important;
     }
     .header-nav::-webkit-scrollbar { display: none !important; }
+    .header-subnav > div {
+      padding: 6px 16px !important; gap: 14px !important;
+      overflow-x: auto !important; -webkit-overflow-scrolling: touch !important;
+      scrollbar-width: none !important;
+    }
+    .header-subnav > div::-webkit-scrollbar { display: none !important; }
     .site-footer { flex-direction: column !important; gap: 16px !important; padding: 24px 16px !important; }
     .footer-links { flex-wrap: wrap !important; gap: 12px !important; }
     .hero-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
@@ -135,6 +141,7 @@
     .kpi-detail-4  { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
     .kpi-detail-5  { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
     .day-strip-7   { grid-template-columns: repeat(4, 1fr) !important; gap: 6px !important; }
+    .provisional-grid { grid-template-columns: 1fr !important; gap: 20px !important; }
     .range-filter-bar { position: static !important; flex-direction: column !important; gap: 16px !important; padding: 16px !important; }
     .focus-nav { flex-wrap: wrap !important; gap: 8px !important; }
     .chart-grid-2 { grid-template-columns: 1fr !important; gap: 16px !important; }
@@ -2836,13 +2843,36 @@ function SankeyChart({ nodes, links, width = 820, height = 500, compact = false 
                 strokeDasharray={n.mocked && !isPinned ? '3 2' : undefined}
                 strokeWidth={isPinned ? 2 : (n.mocked ? 1 : 0)}
                 rx={2}/>
-              {isLeftmost ? (
-                <text x={nl.x - 8} y={nl.y + nl.h / 2}
-                  textAnchor="end" dominantBaseline="middle"
-                  fontSize={compact ? 13 : 11} fontFamily="var(--serif)" fill="var(--ink-2)">
-                  {n.label}{n.mocked ? ' *' : ''}
-                </text>
-              ) : (
+              {isLeftmost ? (() => {
+                const full = n.label + (n.mocked ? ' *' : '');
+                const WRAP_AT = 22;
+                let lines = [full];
+                if (full.length > WRAP_AT) {
+                  const mid = full.length / 2;
+                  let bestIdx = -1, bestDist = Infinity;
+                  for (let i = 0; i < full.length; i++) {
+                    if (full[i] === ' ') {
+                      const d = Math.abs(i - mid);
+                      if (d < bestDist) { bestDist = d; bestIdx = i; }
+                    }
+                  }
+                  if (bestIdx !== -1) lines = [full.slice(0, bestIdx), full.slice(bestIdx + 1)];
+                }
+                const fs = compact ? 13 : 11;
+                const lineH = fs + 2;
+                return (
+                  <text x={nl.x - 8} y={nl.y + nl.h / 2}
+                    textAnchor="end" dominantBaseline="middle"
+                    fontSize={fs} fontFamily="var(--serif)" fill="var(--ink-2)">
+                    {lines.map((ln, i) => (
+                      <tspan key={i} x={nl.x - 8}
+                        dy={i === 0 ? -((lines.length - 1) * lineH) / 2 : lineH}>
+                        {ln}
+                      </tspan>
+                    ))}
+                  </text>
+                );
+              })() : (
                 <text x={nl.x + NODE_W + 8} y={nl.y + nl.h / 2 - 7}
                   textAnchor="start" fontSize={compact ? 13 : 11} fontFamily="var(--serif)" fill="var(--ink-2)">
                   <tspan>{n.label}{n.mocked ? ' *' : ''}</tspan>
@@ -3294,7 +3324,414 @@ function GroupedBarChart({ periods, series, width = 820, height = 360, palette, 
   );
 }
 
-Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, fmtShortDate, SourceStrip, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor, SankeyChart, YoYCumulative, SeasonalHeatMap, GrantRateSmallMultiples, CohortRibbon, BacklogWaterfall, TopFiveStackedBars, GroupedBarChart, buildTopFiveStackedByYear });
+// ─────────────────────────────────────────────────────────────
+// Interception rate — 13-week rolling share of crossing attempts
+// that ended on the French side rather than with a UK arrival.
+// Formula: p / (p + m) on a rolling 13-week window. Expects
+// BOATS_WEEKLY-shaped rows with {we, m, p}; silently drops weeks
+// where p is null (preventions were not reported before ~May 2024).
+// A faint area chart of total attempts (arrivals + preventions)
+// sits behind the line so the reader can tell a rising rate on a
+// small base from a rising rate on a large one.
+// ─────────────────────────────────────────────────────────────
+function InterceptionRate({
+  data,
+  width=1100, height=320,
+  title='', subtitle='',
+  source='', asOf=null, nextUpdate=null, sourceUrl=null,
+  caption=null,
+  window: winSize=13,
+}) {
+  const { show, hide, node } = useTooltip();
+  const W = width, H = height;
+  const pad = { t: 22, r: 28, b: 46, l: 72 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+
+  const rows = (Array.isArray(data) ? data : [])
+    .filter(w => w && w.we && w.p != null && typeof w.m === 'number');
+  if (rows.length < winSize) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>Not enough weeks with prevention data to plot an interception rate.</div>;
+  }
+
+  // Rolling 13-week sums of p and m; rate = p / (p + m).
+  const series = [];
+  for (let i = winSize - 1; i < rows.length; i++) {
+    let sp = 0, sm = 0;
+    for (let j = i - winSize + 1; j <= i; j++) {
+      sp += rows[j].p || 0;
+      sm += rows[j].m || 0;
+    }
+    const total = sp + sm;
+    const rate = total > 0 ? sp / total : 0;
+    series.push({ we: rows[i].we, rate, total });
+  }
+
+  const maxRate = Math.max(...series.map(s => s.rate));
+  const yMax = Math.max(0.1, Math.ceil(maxRate * 10) / 10);
+  const maxTotal = Math.max(1, ...series.map(s => s.total));
+
+  const xs = i => pad.l + (i / (series.length - 1)) * iw;
+  const yRate = r => pad.t + (1 - r / yMax) * ih;
+  const yTotal = v => pad.t + (1 - v / maxTotal) * ih;
+
+  // Gridlines every 5 percentage points.
+  const gridStep = yMax <= 0.2 ? 0.05 : 0.1;
+  const gridTicks = [];
+  for (let t = 0; t <= yMax + 1e-9; t += gridStep) gridTicks.push(Math.round(t * 1000) / 1000);
+
+  // One x-tick per calendar year, placed at the first row of that year.
+  const yearTicks = [];
+  const seenYear = new Set();
+  series.forEach((s, i) => {
+    const yr = s.we.slice(0, 4);
+    if (!seenYear.has(yr)) { seenYear.add(yr); yearTicks.push({ yr, i }); }
+  });
+
+  const areaD = [
+    `M ${xs(0)},${H - pad.b}`,
+    ...series.map((s, i) => `L ${xs(i)},${yTotal(s.total)}`),
+    `L ${xs(series.length - 1)},${H - pad.b} Z`,
+  ].join(' ');
+
+  const lineD = series.map((s, i) => (i ? 'L' : 'M') + xs(i) + ',' + yRate(s.rate)).join(' ');
+
+  const last = series[series.length - 1];
+  const lx = xs(series.length - 1), ly = yRate(last.rate);
+
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      {title && (
+        <figcaption style={{marginBottom:14}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>{subtitle}</div>
+          <div style={{fontSize:19,fontWeight:500,letterSpacing:-0.1,color:'var(--ink)'}}>{title}</div>
+        </figcaption>
+      )}
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        {/* Attempts-volume area behind the rate line */}
+        <path d={areaD} fill="var(--bg-3)" opacity="0.55"/>
+
+        {/* y-axis gridlines + percentage labels */}
+        {gridTicks.map((t, k) => (
+          <g key={`g-${k}`}>
+            <line x1={pad.l} x2={W - pad.r} y1={yRate(t)} y2={yRate(t)} stroke="var(--rule)" strokeWidth="1"/>
+            <text x={pad.l - 10} y={yRate(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)"
+              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{Math.round(t * 100)}%</text>
+          </g>
+        ))}
+
+        {/* x-axis year ticks */}
+        {yearTicks.map(({ yr, i }) => (
+          <g key={`x-${yr}`}>
+            <line x1={xs(i)} x2={xs(i)} y1={H - pad.b} y2={H - pad.b + 4} stroke="var(--muted-2)"/>
+            <text x={xs(i)} y={H - pad.b + 18} textAnchor="middle" fontSize="11" fill="var(--muted)"
+              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+          </g>
+        ))}
+
+        {/* rate line */}
+        <path d={lineD} fill="none" stroke="var(--accent)" strokeWidth="2.2"/>
+
+        {/* invisible hover strips — one per data point, full height */}
+        {series.map((s, i) => {
+          const bw = iw / series.length;
+          return (
+            <rect key={`h-${i}`}
+              x={xs(i) - bw / 2} y={pad.t} width={bw} height={ih}
+              fill="transparent"
+              onMouseMove={e => show(e,
+                <span><b>Week ending {s.we}</b> · <span className="tnum">{(s.rate * 100).toFixed(1)}%</span> intercepted · <span className="tnum">{fmtN(s.total)}</span> attempts</span>)}
+              onMouseLeave={hide}
+              style={{cursor:'crosshair'}}/>
+          );
+        })}
+
+        {/* latest-value pin */}
+        <circle cx={lx} cy={ly} r="4" fill="var(--accent)"/>
+        <text x={lx - 8} y={ly - 10} textAnchor="end" fontSize="14" fontWeight={600}
+          fill="var(--accent)"
+          style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+          {Math.round(last.rate * 100)}%
+        </text>
+
+        {/* axis titles */}
+        <text x={18} y={pad.t + ih / 2}
+          transform={`rotate(-90 18 ${pad.t + ih / 2})`}
+          textAnchor="middle" fontSize="11" fill="var(--muted)"
+          style={{letterSpacing:'0.08em',textTransform:'uppercase',fontFamily:'var(--serif)'}}>
+          Interception rate · {winSize}-week rolling
+        </text>
+        <text x={W - pad.r} y={pad.t - 6} textAnchor="end" fontSize="11" fill="var(--muted)"
+          fontStyle="italic" style={{fontFamily:'var(--serif)'}}>
+          Total attempts (arrivals + preventions) shown as shaded area behind
+        </text>
+      </svg>
+      {caption && (
+        <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5,maxWidth:860}}>
+          {caption}
+        </div>
+      )}
+      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate} sourceUrl={sourceUrl}/>
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Month-by-year seasonality heat-map — one row per year, 12
+// month columns. Expects BOATS_MONTHLY-shaped rows: {month:
+// "YYYY-MM", m: migrants}. Intensity = migrants that month,
+// gamma-corrected so low-but-not-zero months lift off the floor.
+// Null cells render as a dashed outline (no data yet).
+// ─────────────────────────────────────────────────────────────
+function MonthSeasonalityHeatmap({
+  data,
+  width=1100, height=260,
+  title='', subtitle='',
+  source='', asOf=null, nextUpdate=null, sourceUrl=null,
+  caption=null,
+  yearRange=null,
+}) {
+  const { show, hide, node } = useTooltip();
+  const W = width, H = height;
+
+  if (!Array.isArray(data) || !data.length) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data.</div>;
+  }
+
+  // Build {year: [12 cells]} map.
+  const byYear = {};
+  for (const r of data) {
+    if (!r || !r.month) continue;
+    const [y, m] = r.month.split('-').map(Number);
+    if (!Number.isFinite(y) || !Number.isFinite(m)) continue;
+    if (!byYear[y]) byYear[y] = new Array(12).fill(null);
+    byYear[y][m - 1] = r.m;
+  }
+  const allYears = Object.keys(byYear).map(Number).sort((a, b) => a - b);
+  const years = yearRange
+    ? allYears.filter(y => y >= yearRange[0] && y <= yearRange[1])
+    : allYears;
+  if (!years.length) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No data in selected range.</div>;
+  }
+
+  const vals = data.map(r => r.m).filter(v => v != null && v > 0);
+  const maxV = Math.max(1, ...vals);
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const pad = { t: 34, r: 24, b: 26, l: 54 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const cellW = iw / 12;
+  const cellH = ih / years.length;
+
+  const intensity = v => (v == null || v <= 0) ? 0 : Math.pow(v / maxV, 0.55);
+  // Terracotta-on-cream ramp — warm, simpler than the dual-tone weekly heatmap,
+  // and visually signals "heat" for the seasonal peak without competing with
+  // the --accent palette used elsewhere on the page.
+  const colorFor = v => {
+    if (v == null) return 'transparent';
+    const pct = Math.round(intensity(v) * 100);
+    return `color-mix(in srgb, var(--accent-warn) ${pct}%, var(--bg))`;
+  };
+
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      {title && (
+        <figcaption style={{marginBottom:14}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>{subtitle}</div>
+          <div style={{fontSize:19,fontWeight:500,letterSpacing:-0.1,color:'var(--ink)'}}>{title}</div>
+        </figcaption>
+      )}
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+        {/* month headers */}
+        {MONTHS.map((m, i) => (
+          <text key={`m-${m}`}
+            x={pad.l + cellW * (i + 0.5)} y={pad.t - 10}
+            textAnchor="middle" fontSize="11" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)'}}>{m}</text>
+        ))}
+
+        {/* year labels (left) + cells */}
+        {years.map((yr, yi) => {
+          const row = byYear[yr] || [];
+          return (
+            <g key={`yr-${yr}`}>
+              <text x={pad.l - 12} y={pad.t + cellH * yi + cellH / 2 + 4}
+                textAnchor="end" fontSize="11" fill="var(--muted)"
+                style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{yr}</text>
+              {row.map((v, i) => {
+                const x = pad.l + cellW * i + 1;
+                const y = pad.t + cellH * yi + 1;
+                const w = cellW - 2, h = cellH - 2;
+                if (v == null) {
+                  return <rect key={`c-${yr}-${i}`}
+                    x={x} y={y} width={w} height={h}
+                    fill="none" stroke="var(--rule)" strokeDasharray="2 2"/>;
+                }
+                const t = intensity(v);
+                const showLabel = t > 0.5 && cellH > 20;
+                return (
+                  <g key={`c-${yr}-${i}`}>
+                    <rect x={x} y={y} width={w} height={h}
+                      fill={colorFor(v)}
+                      stroke="var(--rule)" strokeWidth="0.5"
+                      onMouseMove={e => show(e,
+                        <span><b>{MONTHS[i]} {yr}</b> · <span className="tnum">{fmtN(v)}</span> migrants</span>)}
+                      onMouseLeave={hide}
+                      style={{cursor:'crosshair'}}/>
+                    {showLabel && (
+                      <text x={x + w / 2} y={y + h / 2 + 4}
+                        textAnchor="middle" fontSize="11" fontWeight={500} fill="#fff"
+                        style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)',pointerEvents:'none'}}>
+                        {fmtK(v)}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
+
+        {/* legend */}
+        <g transform={`translate(${pad.l} ${H - 6})`}>
+          <text x={-6} y={-1} textAnchor="end" fontSize="10" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)'}}>fewer</text>
+          {[0.2, 0.4, 0.6, 0.8, 1].map((t, i) => (
+            <rect key={i} x={i * 16} y={-10} width={15} height={8}
+              fill={`color-mix(in srgb, var(--accent-warn) ${Math.round(Math.pow(t, 0.55) * 100)}%, var(--bg))`}
+              stroke="var(--rule)" strokeWidth="0.5"/>
+          ))}
+          <text x={5 * 16 + 6} y={-1} fontSize="10" fill="var(--muted)"
+            style={{fontFamily:'var(--serif)'}}>more</text>
+          <text x={iw} y={-1} textAnchor="end" fontSize="10" fill="var(--muted)"
+            fontStyle="italic" style={{fontFamily:'var(--serif)'}}>
+            Peak: {fmtN(maxV)} in one month
+          </text>
+        </g>
+      </svg>
+      {caption && (
+        <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5,maxWidth:860}}>
+          {caption}
+        </div>
+      )}
+      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate} sourceUrl={sourceUrl}/>
+      {node}
+    </figure>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// This week, ranked — match the latest week's calendar position
+// (day-of-year ±6) against every prior year and rank by arrivals.
+// Current year highlighted; the chart makes a number ("n last
+// week") memorable ("2nd-busiest equivalent week since 2018").
+// ─────────────────────────────────────────────────────────────
+function ThisWeekRanked({
+  data,
+  width=560, height=null,
+  title='', subtitle='',
+  source='', asOf=null, nextUpdate=null, sourceUrl=null,
+  caption=null,
+}) {
+  const weekly = Array.isArray(data) ? data : [];
+  if (!weekly.length) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No weekly data.</div>;
+  }
+  const last = weekly[weekly.length - 1];
+  if (!last || !last.we) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>No weekly data.</div>;
+  }
+  const target = new Date(last.we + 'T00:00:00Z');
+  const targetYear = target.getUTCFullYear();
+  const targetDoy = Math.floor((target - Date.UTC(targetYear, 0, 1)) / 86400000);
+
+  // For each year, pick the weekly row whose week-ending day-of-year sits
+  // closest to the target — only if within ±6 days (i.e. same calendar week).
+  const byYear = {};
+  for (const w of weekly) {
+    if (!w || !w.we) continue;
+    const d = new Date(w.we + 'T00:00:00Z');
+    if (isNaN(d)) continue;
+    const yr = d.getUTCFullYear();
+    const doy = Math.floor((d - Date.UTC(yr, 0, 1)) / 86400000);
+    const delta = Math.abs(doy - targetDoy);
+    if (delta > 6) continue;
+    if (!byYear[yr] || byYear[yr].delta > delta) byYear[yr] = { ...w, delta };
+  }
+
+  const years = Object.keys(byYear).map(Number).sort((a, b) => a - b);
+  if (!years.length) {
+    return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>Not enough history to rank.</div>;
+  }
+  const rows = years.map(y => ({ y, m: byYear[y].m || 0, we: byYear[y].we }));
+  const maxV = Math.max(1, ...rows.map(r => r.m));
+  const sorted = [...rows].sort((a, b) => b.m - a.m);
+  const rank = sorted.findIndex(r => r.y === targetYear) + 1;
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateStr = `${String(target.getUTCDate()).padStart(2,'0')} ${MONTHS[target.getUTCMonth()]}`;
+
+  const pad = { t: 36, r: 70, b: 18, l: 54 };
+  const rowH = 30;
+  const H = height || (pad.t + pad.b + rows.length * rowH);
+  const iw = width - pad.l - pad.r;
+
+  const ordinal = n => {
+    const s = ['th','st','nd','rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  return (
+    <figure className="chart-wrap" style={{position:'relative',margin:0}}>
+      {title && (
+        <figcaption style={{marginBottom:14}}>
+          <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>{subtitle}</div>
+          <div style={{fontSize:19,fontWeight:500,letterSpacing:-0.1,color:'var(--ink)'}}>{title}</div>
+        </figcaption>
+      )}
+      <svg width="100%" height={H} viewBox={`0 0 ${width} ${H}`} style={{display:'block',overflow:'visible'}}>
+        <text x={pad.l} y={20} fontSize="12.5" fontStyle="italic" fill="var(--ink-2)"
+          style={{fontFamily:'var(--serif)'}}>
+          Week ending around {dateStr}, each year
+        </text>
+        <text x={width - pad.r} y={20} textAnchor="end" fontSize="12.5" fontWeight={600}
+          fill="var(--accent-warn)"
+          style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>
+          {targetYear} ranks {ordinal(rank)} of {rows.length}
+        </text>
+
+        {rows.map((r, i) => {
+          const y = pad.t + i * rowH;
+          const isNow = r.y === targetYear;
+          const bw = (r.m / maxV) * iw;
+          return (
+            <g key={`r-${r.y}`}>
+              <text x={pad.l - 10} y={y + rowH / 2 + 4}
+                textAnchor="end" fontSize="11" fontWeight={isNow ? 600 : 400}
+                fill={isNow ? 'var(--accent-warn)' : 'var(--muted)'}
+                style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{r.y}</text>
+              <rect x={pad.l} y={y + 4} width={bw} height={rowH - 10}
+                fill={isNow ? 'var(--accent-warn)' : 'var(--bg-3)'}/>
+              <text x={pad.l + bw + 6} y={y + rowH / 2 + 4}
+                fontSize="11.5" fontWeight={isNow ? 600 : 400}
+                fill={isNow ? 'var(--accent-warn)' : 'var(--ink-2)'}
+                style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtN(r.m)}</text>
+            </g>
+          );
+        })}
+      </svg>
+      {caption && (
+        <div style={{fontSize:12.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.5,maxWidth:520}}>
+          {caption}
+        </div>
+      )}
+      <SourceStrip source={source} asOf={asOf} nextUpdate={nextUpdate} sourceUrl={sourceUrl}/>
+    </figure>
+  );
+}
+
+Object.assign(window, { LineChart, MultiLineChart, BarChart, StackedBar, StackedColumns, StackedColumnsMulti, RegionWorldMap, RegionTable, WorldMapChoropleth, Spark, Ring, RegionList, fmtK, fmtN, fmtShortDate, SourceStrip, useMapZoom, ZoomControls, ATLAS_PALETTE, atlasPaletteColor, SankeyChart, YoYCumulative, SeasonalHeatMap, GrantRateSmallMultiples, CohortRibbon, BacklogWaterfall, TopFiveStackedBars, GroupedBarChart, buildTopFiveStackedByYear, InterceptionRate, MonthSeasonalityHeatmap, ThisWeekRanked });
 
 
 /* --- src/app.jsx --- */
@@ -3343,17 +3780,33 @@ function Masthead() {
 
 // ─────────────────────────────────────────────────────────────
 // Header
+//
+// Collapsed to four primary tabs — Read / Explore / Build a chart /
+// Sources & methods — with a secondary sub-nav that appears under
+// Explore (Dashboard · Atlas · Flow) and Sources & methods (Datasets ·
+// Updates). Picking a primary tab lands on its default sub-view; the
+// sub-nav then lets readers switch within the group without leaving.
 // ─────────────────────────────────────────────────────────────
+const NAV_GROUPS = [
+  { id: 'read',    label: 'Read',              routes: ['index', 'story'],              default: 'index' },
+  { id: 'explore', label: 'Explore',           routes: ['dashboard', 'atlas', 'flow'],  default: 'dashboard',
+    sub: [
+      { id: 'dashboard', label: 'Dashboard' },
+      { id: 'atlas',     label: 'Atlas' },
+      { id: 'flow',      label: 'Flow' },
+    ]
+  },
+  { id: 'build',   label: 'Build a chart',     routes: ['build'],                       default: 'build' },
+  { id: 'docs',    label: 'Sources & methods', routes: ['datasets', 'updates'],         default: 'datasets',
+    sub: [
+      { id: 'datasets', label: 'Datasets' },
+      { id: 'updates',  label: 'Updates' },
+    ]
+  },
+];
+
 function Header({ route, setRoute, onSearch, onMethod }) {
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'flow',  label: 'Flow' },
-    { id: 'atlas', label: 'Atlas' },
-    { id: 'index', label: 'Stories' },
-    { id: 'build', label: 'Build a chart' },
-    { id: 'datasets', label: 'Datasets' },
-    { id: 'updates', label: 'Updates' },
-  ];
+  const activeGroup = NAV_GROUPS.find(g => g.routes.includes(route.name)) || NAV_GROUPS[0];
   return (
     <header style={{background:'var(--bg)',borderBottom:'1px solid var(--rule)',position:'sticky',top:0,zIndex:50,backdropFilter:'blur(6px)'}}>
       <Masthead />
@@ -3363,13 +3816,13 @@ function Header({ route, setRoute, onSearch, onMethod }) {
           <span style={{fontFamily:'var(--serif)',fontSize:15,fontStyle:'italic',color:'var(--muted)'}}>data explorer</span>
         </button>
         <nav className="header-nav" style={{display:'flex',alignItems:'center',gap:28}}>
-          {tabs.map(t=>(
-            <button key={t.id} onClick={()=>setRoute({name:t.id})}
+          {NAV_GROUPS.map(g => (
+            <button key={g.id} onClick={()=>setRoute({name: g.default})}
               className="ulh"
-              style={{fontSize:13.5,color: route.name===t.id ? 'var(--accent)':'var(--ink-2)',
-                     borderBottom: route.name===t.id ? '1px solid var(--accent)':'1px solid transparent',
+              style={{fontSize:13.5,color: activeGroup.id===g.id ? 'var(--accent)':'var(--ink-2)',
+                     borderBottom: activeGroup.id===g.id ? '1px solid var(--accent)':'1px solid transparent',
                      paddingBottom:3}}>
-              {t.label}
+              {g.label}
             </button>
           ))}
           <button onClick={onSearch} className="pressable" aria-label="Search" style={{fontSize:13.5,color:'var(--muted)',display:'flex',alignItems:'center',gap:6}}>
@@ -3379,6 +3832,22 @@ function Header({ route, setRoute, onSearch, onMethod }) {
           <button onClick={onMethod} className="ulh" style={{fontSize:13.5,color:'var(--muted)'}}>Methodology</button>
         </nav>
       </div>
+      {activeGroup.sub && (
+        <div className="header-subnav" style={{background:'var(--bg-2)',borderTop:'1px solid var(--rule)'}}>
+          <div style={{maxWidth:1240,margin:'0 auto',padding:'8px 48px',display:'flex',alignItems:'center',gap:24}}>
+            <span className="uc" style={{color:'var(--muted-2)',fontSize:10.5,letterSpacing:0.1,marginRight:4}}>{activeGroup.label}</span>
+            {activeGroup.sub.map(s => (
+              <button key={s.id} onClick={()=>setRoute({name: s.id})}
+                className="ulh"
+                style={{fontSize:13,color: route.name===s.id ? 'var(--accent)':'var(--ink-2)',
+                       borderBottom: route.name===s.id ? '1px solid var(--accent)':'1px solid transparent',
+                       paddingBottom:2,fontStyle: route.name===s.id ? 'normal' : 'italic'}}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </header>
   );
 }
@@ -3899,12 +4368,9 @@ function DashboardView({ setRoute }) {
       .sort((a,b) => a.label.localeCompare(b.label))
       .map((row, i) => ({ ...row, y: i }));
   };
-  const interceptionsMonthly = _aggregateByMonth('e');
-  const interceptionsFirstMonth = interceptionsMonthly[0]?.label ?? null;
-  const interceptionsLastMonth = interceptionsMonthly[interceptionsMonthly.length - 1]?.label ?? null;
-  const preventionsMonthly = _aggregateByMonth('p');
-  const preventionsFirstMonth = preventionsMonthly[0]?.label ?? null;
-  const preventionsLastMonth = preventionsMonthly[preventionsMonthly.length - 1]?.label ?? null;
+  // _aggregateByMonth remains available if future panels need a monthly
+  // rollup of preventions / interception events. The dashboard itself now
+  // surfaces the ratio via InterceptionRate, which reads BOATS_WEEKLY directly.
 
   // Phase 4 placeholders — hydrate from globals when data lands.
   const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : null;
@@ -4043,70 +4509,91 @@ function DashboardView({ setRoute }) {
         </p>
       </div>
 
-      {/* Provisional last-7-days strip — lifted above KPI rows as the freshest data point. */}
+      {/* Provisional last-7-days strip — lifted above KPI rows as the freshest
+          data point. Laid out as two columns: the week's total + days stacked
+          vertically on the left, and a ranked comparison against the same
+          calendar week in every prior year on the right. */}
       {provisional && provisionalDays.length > 0 && (
         <section style={{marginBottom:28,padding:'18px 22px',border:'1px dashed var(--rule-2)',background:'var(--bg-2)',borderRadius:0,borderLeft:'none',borderRight:'none'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,gap:24,flexWrap:'wrap'}}>
+          <div className="provisional-grid" style={{display:'grid',gridTemplateColumns:'minmax(240px, 1fr) minmax(340px, 1.7fr)',gap:40,alignItems:'flex-start'}}>
+            {/* Left column: headline total + vertical day list */}
             <div>
-              <div className="uc" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,fontWeight:500,marginBottom:8}}>Last 7 days · provisional</div>
-              <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap'}}>
-                <div style={{fontFamily:'var(--serif)',fontSize:36,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">
-                  {provisionalWeekTotal.toLocaleString()}
-                </div>
-                {sameWeekLastYear && sameWeekLastYear.m > 0 && (() => {
-                  const diff = provisionalWeekTotal - sameWeekLastYear.m;
-                  const pct = (diff / sameWeekLastYear.m * 100).toFixed(0);
-                  return (
-                    <div style={{fontSize:13,color: diff > 0 ? 'var(--accent-warn)' : 'var(--accent-2)',fontStyle:'italic'}}>
-                      {diff>=0?'+':''}{pct}% vs same week {sameWeekLastYear.we.slice(0,4)}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,gap:16,flexWrap:'wrap'}}>
+                <div>
+                  <div className="uc" style={{color:'var(--accent-warn)',fontSize:11,letterSpacing:0.1,fontWeight:500,marginBottom:8}}>Last 7 days · provisional</div>
+                  <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap'}}>
+                    <div style={{fontFamily:'var(--serif)',fontSize:36,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">
+                      {provisionalWeekTotal.toLocaleString()}
                     </div>
-                  );
-                })()}
-              </div>
-              {/* Mini sparkline */}
-              <svg width={provisionalDays.length * 22} height={30} style={{display:'block',marginTop:8}}>
-                {(() => {
-                  const vals = provisionalDays.map(d => d.m);
-                  const maxV = Math.max(...vals, 1);
-                  return vals.map((v, i) => (
-                    <rect key={i} x={i * 22} y={30 - Math.round((v / maxV) * 24)} width={18} height={Math.round((v / maxV) * 24)}
-                      fill={provisionalDays[i].superseded ? 'var(--muted-2)' : 'var(--accent-warn)'}/>
-                  ));
-                })()}
-              </svg>
-            </div>
-            <div style={{fontSize:12,color:'var(--muted)',fontStyle:'italic',textAlign:'right',marginTop:4}}>
-              {provisionalMeta?.updatedAt
-                ? `Updated ${new Date(provisionalMeta.updatedAt+'T00:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}`
-                : ''}
-              {canonicalLatest && <div style={{marginTop:4}}>Canonical ODS through {canonicalLatest}</div>}
-            </div>
-          </div>
-          <div className="day-strip-7" style={{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:8}}>
-            {provisionalDays.map((d,i) => (
-              <div key={d.d}
-                title={d.correction
-                  ? `Home Office page labelled this row "${d.correction.raw}" — adjusted to ${d.correction.corrected} to match the surrounding dates.`
-                  : (d.superseded
-                    ? 'Verified — this date has been incorporated into the weekly ODS time series and is no longer provisional.'
-                    : 'Provisional — not yet confirmed by the weekly ODS. May be revised when the next release publishes.')}
-                style={{padding:'10px 10px 12px',background:'#fff',
-                  border: d.superseded ? '1px solid var(--rule)' : '1px dashed var(--accent-warn)',
-                  opacity: d.superseded ? 0.5 : 1,cursor:'help'}}>
-                <div className="uc" style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0.1}}>
-                  {d.label}
-                  {d.correction && (
-                    <span style={{color:'var(--accent-warn)',marginLeft:3,fontWeight:500}} aria-label="Date label auto-corrected">*</span>
-                  )}
-                </div>
-                <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,lineHeight:1.1,marginTop:6,color:'var(--ink)'}}>
-                  {d.m.toLocaleString()}
-                </div>
-                <div style={{fontSize:11.5,color:'var(--muted-2)',marginTop:4}}>
-                  {d.b} boat{d.b===1?'':'s'}{d.superseded ? ' · verified' : ''}
+                    {sameWeekLastYear && sameWeekLastYear.m > 0 && (() => {
+                      const diff = provisionalWeekTotal - sameWeekLastYear.m;
+                      const pct = (diff / sameWeekLastYear.m * 100).toFixed(0);
+                      return (
+                        <div style={{fontSize:13,color: diff > 0 ? 'var(--accent-warn)' : 'var(--accent-2)',fontStyle:'italic'}}>
+                          {diff>=0?'+':''}{pct}% vs same week {sameWeekLastYear.we.slice(0,4)}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
-            ))}
+              {/* Vertical day list — each row: label · bar · count. Bars share a
+                  scale so the relative size across days is readable at a glance. */}
+              {(() => {
+                const maxV = Math.max(...provisionalDays.map(d => d.m), 1);
+                return (
+                  <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:4}}>
+                    {provisionalDays.map((d) => {
+                      const pct = Math.round((d.m / maxV) * 100);
+                      return (
+                        <div key={d.d}
+                          title={d.correction
+                            ? `Home Office page labelled this row "${d.correction.raw}" — adjusted to ${d.correction.corrected} to match the surrounding dates.`
+                            : (d.superseded
+                              ? 'Verified — this date has been incorporated into the weekly ODS time series and is no longer provisional.'
+                              : 'Provisional — not yet confirmed by the weekly ODS. May be revised when the next release publishes.')}
+                          style={{display:'grid',gridTemplateColumns:'72px 1fr 56px',alignItems:'center',gap:10,padding:'8px 10px',background:'#fff',
+                            border: d.superseded ? '1px solid var(--rule)' : '1px dashed var(--accent-warn)',
+                            opacity: d.superseded ? 0.55 : 1,cursor:'help'}}>
+                          <div className="uc" style={{fontSize:10.5,color:'var(--muted)',letterSpacing:0.1,lineHeight:1.25}}>
+                            {d.label}
+                            {d.correction && (
+                              <span style={{color:'var(--accent-warn)',marginLeft:3,fontWeight:500}} aria-label="Date label auto-corrected">*</span>
+                            )}
+                          </div>
+                          <div style={{position:'relative',height:14,background:'var(--bg-3)'}}>
+                            <div style={{position:'absolute',left:0,top:0,bottom:0,width:pct+'%',
+                              background: d.superseded ? 'var(--muted-2)' : 'var(--accent-warn)'}}/>
+                          </div>
+                          <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:16,fontWeight:500,color:'var(--ink)',textAlign:'right',letterSpacing:-0.2}}>
+                            {d.m.toLocaleString()}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              <div style={{fontSize:12,color:'var(--muted)',fontStyle:'italic',marginTop:10,lineHeight:1.5}}>
+                {provisionalMeta?.updatedAt
+                  ? `Updated ${new Date(provisionalMeta.updatedAt+'T00:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}`
+                  : ''}
+                {canonicalLatest && <span> · Canonical ODS through {canonicalLatest}</span>}
+              </div>
+            </div>
+
+            {/* Right column: this week vs every equivalent week since 2018 */}
+            <div>
+              {typeof BOATS_WEEKLY !== 'undefined' && BOATS_WEEKLY.length > 0 && (
+                <>
+                  <div className="uc" style={{color:'var(--muted)',fontSize:11,letterSpacing:0.1,marginBottom:8}}>This week, ranked</div>
+                  <ThisWeekRanked data={BOATS_WEEKLY} width={720}
+                    caption="Each bar is the same calendar week in a different year. The current year is highlighted. Years are only included if a week-ending date sits within ±6 days of this week's date."
+                    source="Home Office · SB_01"
+                    asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
+                </>
+              )}
+            </div>
           </div>
           {(provisionalMeta?.corrections || []).length > 0 && (
             <div style={{fontSize:11.5,color:'var(--ink-2)',marginTop:10,lineHeight:1.5,borderLeft:'2px solid var(--accent-warn)',paddingLeft:10}}>
@@ -4454,17 +4941,18 @@ function DashboardView({ setRoute }) {
                 everyYear={true}/>
             </DashFrame>
           </div>
-          {/* Seasonal heat-map — one row per year, 52 weekly cells.
-              Reveals the strong spring→autumn seasonality that the annual line
-              flattens out. */}
-          {typeof BOATS_WEEKLY !== 'undefined' && BOATS_WEEKLY.length > 0 && (
+          {/* Month-by-year seasonality heat-map — one row per year, 12 monthly
+              cells. A coarser grid than the weekly version but much easier to
+              read: the summer peak and the season's gradual lengthening both
+              jump out at a glance. */}
+          {typeof BOATS_MONTHLY !== 'undefined' && BOATS_MONTHLY.length > 0 && (
             <div style={{marginTop:20}}>
-              <DashFrame number="03" kickerColor="var(--accent-warn)" title="Arrivals by week · seasonal pattern" sub="Weekly crossings, 2018–latest · darker = more arrivals"
-                setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'weekly' }}>
-                <SeasonalHeatMap data={BOATS_WEEKLY} width={1100} height={260}
+              <DashFrame number="03" kickerColor="var(--accent-warn)" title="Arrivals by month · seasonal pattern" sub="Monthly crossings, 2018–latest · darker = more arrivals"
+                setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'monthly' }}>
+                <MonthSeasonalityHeatmap data={BOATS_MONTHLY}
+                  width={1100} height={compact ? 220 : 300}
                   yearRange={range}
-                  yLabel="Year" xLabel="Month"
-                  caption="Each cell is one ISO week × year. Darker cells are weeks with more crossings. Seasonality is unmistakable: very low from January to March, rising from April, peaking late summer."
+                  caption="Each cell is one month × year. Darker cells are months with more crossings; the strongest cells carry their count in the cell. Seasonality is unmistakable: quiet from January to March, rising from April, peaking late summer — and the season has lengthened year-on-year."
                   source="Home Office · SB_01"
                   asOf={srcAsOf.SB_01} nextUpdate={srcAsOf.SB_01_next}/>
               </DashFrame>
@@ -4488,44 +4976,19 @@ function DashboardView({ setRoute }) {
               <NationalitiesTable data={natFull}/>
             </DashFrame>
           </div>
-          {(interceptionsMonthly.length > 0 || preventionsMonthly.length > 0) && (() => {
-            // Merged dual-axis chart: interceptions (events) on the left axis,
-            // preventions (migrants) on the right axis. Re-index both series
-            // onto a shared monthly grid (union of all labels) so the x-axis
-            // aligns — otherwise DualAxisChart would plot two series against
-            // separate index spaces and their shapes wouldn't be comparable.
-            const monthLabels = Array.from(new Set([
-              ...interceptionsMonthly.map(p => p.label),
-              ...preventionsMonthly.map(p => p.label),
-            ])).sort();
-            const indexByLabel = Object.fromEntries(monthLabels.map((lbl, i) => [lbl, i]));
-            const leftAligned  = interceptionsMonthly.map(p => ({ y: indexByLabel[p.label], v: p.v, label: p.label }));
-            const rightAligned = preventionsMonthly.map(p => ({ y: indexByLabel[p.label], v: p.v, label: p.label }));
-            const firstMonth = monthLabels[0];
-            const lastMonth  = monthLabels[monthLabels.length - 1];
-            return (
-              <div style={{marginTop:20}}>
-                <DashFrame number="06" kickerColor="var(--accent)"
-                  title="Monthly interceptions and preventions"
-                  sub={`Border Force · ${_fmtMonth(firstMonth)}–${_fmtMonth(lastMonth)} · dual axis`}>
-                  <DualAxisChart
-                    left={leftAligned} right={rightAligned}
-                    yearRange={range}
-                    leftStroke="var(--accent)" rightStroke="var(--accent-warn)"
-                    leftLabel="Interceptions" rightLabel="Preventions"
-                    yLabelLeft="Events (interceptions)"
-                    yLabelRight="Migrants (preventions)"
-                    xLabel="Month"
-                    compact={compact}
-                    width={compact ? 580 : 1100} height={280}
-                    xLabelFmt={(_, i, p) => _fmtMonth(p?.label ?? p?.y)}
-                    caption="Interceptions (solid, left axis) count the events in which Border Force prevented a crossing in progress; preventions (dashed, right axis) count the migrants involved. Reporting of preventions began in May 2024 — the dashed line starts there."
-                    source="Home Office · SB_02"
-                    asOf={srcAsOf.SB_02} nextUpdate={srcAsOf.SB_02_next}/>
-                </DashFrame>
-              </div>
-            );
-          })()}
+          {typeof BOATS_WEEKLY !== 'undefined' && BOATS_WEEKLY.some(w => w && w.p != null) && (
+            <div style={{marginTop:20}}>
+              <DashFrame number="06" kickerColor="var(--accent)"
+                title="Interception rate — share of attempts that never complete"
+                sub="Rolling 13-week window · p / (p + m) · SB_02">
+                <InterceptionRate data={BOATS_WEEKLY}
+                  width={compact ? 580 : 1100} height={compact ? 240 : 320}
+                  caption="Reads as: the 13-week rolling share of crossing attempts that ended on the French side (prevented from leaving) rather than with a UK arrival. The shaded band shows the absolute volume of attempts so a rising rate on a small base is distinguishable from a rising rate on a large one. Preventions began to be published in May 2024; the series starts there."
+                  source="Home Office · SB_02"
+                  asOf={srcAsOf.SB_02} nextUpdate={srcAsOf.SB_02_next}/>
+              </DashFrame>
+            </div>
+          )}
         </section>
       )}
 

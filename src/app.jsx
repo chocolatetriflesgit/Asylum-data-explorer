@@ -43,17 +43,33 @@ function Masthead() {
 
 // ─────────────────────────────────────────────────────────────
 // Header
+//
+// Collapsed to four primary tabs — Read / Explore / Build a chart /
+// Sources & methods — with a secondary sub-nav that appears under
+// Explore (Dashboard · Atlas · Flow) and Sources & methods (Datasets ·
+// Updates). Picking a primary tab lands on its default sub-view; the
+// sub-nav then lets readers switch within the group without leaving.
 // ─────────────────────────────────────────────────────────────
+const NAV_GROUPS = [
+  { id: 'read',    label: 'Read',              routes: ['index', 'story'],              default: 'index' },
+  { id: 'explore', label: 'Explore',           routes: ['dashboard', 'atlas', 'flow'],  default: 'dashboard',
+    sub: [
+      { id: 'dashboard', label: 'Dashboard' },
+      { id: 'atlas',     label: 'Atlas' },
+      { id: 'flow',      label: 'Flow' },
+    ]
+  },
+  { id: 'build',   label: 'Build a chart',     routes: ['build'],                       default: 'build' },
+  { id: 'docs',    label: 'Sources & methods', routes: ['datasets', 'updates'],         default: 'datasets',
+    sub: [
+      { id: 'datasets', label: 'Datasets' },
+      { id: 'updates',  label: 'Updates' },
+    ]
+  },
+];
+
 function Header({ route, setRoute, onSearch, onMethod }) {
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'flow',  label: 'Flow' },
-    { id: 'atlas', label: 'Atlas' },
-    { id: 'index', label: 'Stories' },
-    { id: 'build', label: 'Build a chart' },
-    { id: 'datasets', label: 'Datasets' },
-    { id: 'updates', label: 'Updates' },
-  ];
+  const activeGroup = NAV_GROUPS.find(g => g.routes.includes(route.name)) || NAV_GROUPS[0];
   return (
     <header style={{background:'var(--bg)',borderBottom:'1px solid var(--rule)',position:'sticky',top:0,zIndex:50,backdropFilter:'blur(6px)'}}>
       <Masthead />
@@ -63,13 +79,13 @@ function Header({ route, setRoute, onSearch, onMethod }) {
           <span style={{fontFamily:'var(--serif)',fontSize:15,fontStyle:'italic',color:'var(--muted)'}}>data explorer</span>
         </button>
         <nav className="header-nav" style={{display:'flex',alignItems:'center',gap:28}}>
-          {tabs.map(t=>(
-            <button key={t.id} onClick={()=>setRoute({name:t.id})}
+          {NAV_GROUPS.map(g => (
+            <button key={g.id} onClick={()=>setRoute({name: g.default})}
               className="ulh"
-              style={{fontSize:13.5,color: route.name===t.id ? 'var(--accent)':'var(--ink-2)',
-                     borderBottom: route.name===t.id ? '1px solid var(--accent)':'1px solid transparent',
+              style={{fontSize:13.5,color: activeGroup.id===g.id ? 'var(--accent)':'var(--ink-2)',
+                     borderBottom: activeGroup.id===g.id ? '1px solid var(--accent)':'1px solid transparent',
                      paddingBottom:3}}>
-              {t.label}
+              {g.label}
             </button>
           ))}
           <button onClick={onSearch} className="pressable" aria-label="Search" style={{fontSize:13.5,color:'var(--muted)',display:'flex',alignItems:'center',gap:6}}>
@@ -79,6 +95,22 @@ function Header({ route, setRoute, onSearch, onMethod }) {
           <button onClick={onMethod} className="ulh" style={{fontSize:13.5,color:'var(--muted)'}}>Methodology</button>
         </nav>
       </div>
+      {activeGroup.sub && (
+        <div className="header-subnav" style={{background:'var(--bg-2)',borderTop:'1px solid var(--rule)'}}>
+          <div style={{maxWidth:1240,margin:'0 auto',padding:'8px 48px',display:'flex',alignItems:'center',gap:24}}>
+            <span className="uc" style={{color:'var(--muted-2)',fontSize:10.5,letterSpacing:0.1,marginRight:4}}>{activeGroup.label}</span>
+            {activeGroup.sub.map(s => (
+              <button key={s.id} onClick={()=>setRoute({name: s.id})}
+                className="ulh"
+                style={{fontSize:13,color: route.name===s.id ? 'var(--accent)':'var(--ink-2)',
+                       borderBottom: route.name===s.id ? '1px solid var(--accent)':'1px solid transparent',
+                       paddingBottom:2,fontStyle: route.name===s.id ? 'normal' : 'italic'}}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </header>
   );
 }
