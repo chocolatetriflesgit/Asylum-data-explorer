@@ -1574,9 +1574,9 @@ function RegionTable({ data, rows }) {
     <table style={{width:'100%',borderCollapse:'collapse',fontSize:13.5}}>
       <thead>
         <tr>
-          <th className="uc" style={{padding:'0 0 10px',textAlign:'left',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent-gold)'}}>Region</th>
-          <th className="uc" style={{padding:'0 0 10px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent-gold)'}}>Applicants</th>
-          <th className="uc" style={{padding:'0 0 10px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent-gold)'}}>Share</th>
+          <th className="uc" style={{padding:'0 10px 10px 0',textAlign:'left',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent-gold)'}}>Region</th>
+          <th className="uc" style={{padding:'0 10px 10px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent-gold)'}}>Applicants</th>
+          <th className="uc" style={{padding:'0 0 10px 10px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent-gold)'}}>Share</th>
         </tr>
       </thead>
       <tbody>
@@ -1590,7 +1590,7 @@ function RegionTable({ data, rows }) {
                 style={{borderBottom:'1px solid var(--rule)', cursor: canExpand ? 'pointer' : 'default'}}
                 onClick={canExpand ? () => toggle(r.name) : undefined}
               >
-                <td style={{padding:'10px 0',color:'var(--ink)'}}>
+                <td style={{padding:'10px 10px 10px 0',color:'var(--ink)'}}>
                   {canExpand && (
                     <span style={{
                       display:'inline-block', width:10, marginRight:4, fontSize:9,
@@ -1602,14 +1602,14 @@ function RegionTable({ data, rows }) {
                   <span style={{display:'inline-block',width:12,height:12,marginRight:8,verticalAlign:'middle',background:fillFor(r.v),borderRadius:2,border:'1px solid var(--rule-2)'}}/>
                   {r.name}
                 </td>
-                <td className="tnum" style={{padding:'10px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
-                <td className="tnum" style={{padding:'10px 0',textAlign:'right',color:'var(--muted)'}}>{(r.v/total*100).toFixed(1)}%</td>
+                <td className="tnum" style={{padding:'10px',textAlign:'right'}}>{fmtN(r.v)}</td>
+                <td className="tnum" style={{padding:'10px 0 10px 10px',textAlign:'right',color:'var(--muted)'}}>{(r.v/total*100).toFixed(1)}%</td>
               </tr>
               {isOpen && countries.map(c => (
                 <tr key={c.name} style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
-                  <td style={{padding:'5px 0 5px 26px',color:'var(--ink-2)',fontSize:12.5}}>{c.name}</td>
-                  <td className="tnum" style={{padding:'5px 0',textAlign:'right',fontSize:12.5}}>{fmtN(c.v)}</td>
-                  <td className="tnum" style={{padding:'5px 0',textAlign:'right',color:'var(--muted)',fontSize:12.5}}>
+                  <td style={{padding:'5px 10px 5px 26px',color:'var(--ink-2)',fontSize:12.5}}>{c.name}</td>
+                  <td className="tnum" style={{padding:'5px 10px',textAlign:'right',fontSize:12.5}}>{fmtN(c.v)}</td>
+                  <td className="tnum" style={{padding:'5px 0 5px 10px',textAlign:'right',color:'var(--muted)',fontSize:12.5}}>
                     {(c.v / total * 100).toFixed(1)}%
                   </td>
                 </tr>
@@ -1618,9 +1618,9 @@ function RegionTable({ data, rows }) {
           );
         })}
         <tr>
-          <td className="uc" style={{padding:'12px 0 0',color:'var(--muted)'}}>Total</td>
-          <td className="tnum" style={{padding:'12px 0 0',textAlign:'right',color:'var(--ink)',fontWeight:500}}>{fmtN(total)}</td>
-          <td className="tnum" style={{padding:'12px 0 0',textAlign:'right',color:'var(--muted)'}}>100.0%</td>
+          <td className="uc" style={{padding:'12px 10px 0 0',color:'var(--muted)'}}>Total</td>
+          <td className="tnum" style={{padding:'12px 10px 0',textAlign:'right',color:'var(--ink)',fontWeight:500}}>{fmtN(total)}</td>
+          <td className="tnum" style={{padding:'12px 0 0 10px',textAlign:'right',color:'var(--muted)'}}>100.0%</td>
         </tr>
       </tbody>
     </table>
@@ -2029,7 +2029,7 @@ const COHORT_LABELS = {
   notYet:      'Pending',
 };
 
-function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlightYear=null, annotations=[] }) {
+function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, annotations=[] }) {
   if (!Array.isArray(data) || data.length === 0) {
     return (
       <figure className="chart-wrap" style={{margin:0,padding:'32px 24px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',color:'var(--muted)',fontFamily:'var(--serif)'}}>
@@ -2044,7 +2044,13 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
   }
   const { show, hide, node: ttNode } = useTooltip();
   const rows = Math.ceil(data.length / cols);
-  const cellW = (width - gap*(cols-1)) / cols;
+  // Reserve a left-hand gutter for the phase labels ("At first decision" /
+  // "Latest"). The labels are identical for every row, so they render once
+  // per row in the gutter rather than repeating on every cell — otherwise
+  // the text overflows the 16 px inter-cell gap and lands on top of the
+  // neighbouring cohort's bars.
+  const labelGutter = 78;
+  const cellW = (width - labelGutter - gap*(cols-1)) / cols;
   const ribbonH = 14;
   // Annotations render in their own strip below the latest-phase ribbon with
   // a leader line, so they never overlap ribbon rects.
@@ -2073,12 +2079,7 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
       <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{display:'block',overflow:'visible'}}>
         {data.map((row, i) => {
           const r = Math.floor(i/cols), c = i%cols;
-          const x0 = c*(cellW+gap), y0 = r*(effRowHeight+gap);
-          const isHL = highlightYear != null && row.year === highlightYear;
-          const hasAnyHL = highlightYear != null;
-          // Dim non-highlighted cohorts when a highlight is active so the
-          // pre-selected cohort reads as the focus of the panel.
-          const groupOpacity = !hasAnyHL ? 1 : (isHL ? 1 : 0.45);
+          const x0 = labelGutter + c*(cellW+gap), y0 = r*(effRowHeight+gap);
           // Pick one annotation per cell (latest takes precedence over initial)
           // and record which phase it attaches to so we can draw a leader line.
           const annLatest = annByKey[row.year + '|latest'];
@@ -2086,17 +2087,14 @@ function CohortRibbon({ data, width=720, cols=4, rowHeight=72, gap=16, highlight
           const annText = annLatest || annInitial || null;
           const annPhaseIdx = annLatest ? 1 : (annInitial ? 0 : null);
           return (
-            <g key={row.year} transform={`translate(${x0},${y0})`} style={{opacity: groupOpacity, transition: 'opacity 220ms ease'}}>
-              {isHL && (
-                <rect x={-6} y={-6} width={cellW+12} height={effRowHeight+6}
-                      fill="none" stroke="var(--accent)" strokeWidth={1.25}
-                      style={{pointerEvents:'none'}}/>
-              )}
-              <text x={0} y={12} fontSize={12} fontWeight={isHL ? 700 : 600} fill="var(--ink)" style={{fontFamily:'var(--serif)'}}>Cohort {row.year}{isHL ? ' · highlighted' : ''}</text>
+            <g key={row.year} transform={`translate(${x0},${y0})`}>
+              <text x={0} y={12} fontSize={12} fontWeight={600} fill="var(--ink)" style={{fontFamily:'var(--serif)'}}>Cohort {row.year}</text>
               <text x={cellW} y={12} textAnchor="end" fontSize={11} fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtN(row.claims)} claims</text>
               {['initial','latest'].map((phase, pi) => (
                 <g key={phase} transform={`translate(0, ${20 + pi*(ribbonH+8)})`}>
-                  <text x={-4} y={ribbonH-3} textAnchor="end" fontSize={10} fill="var(--muted)" style={{fontFamily:'var(--serif)'}}>{phase === 'initial' ? 'At first decision' : 'Latest'}</text>
+                  {c === 0 && (
+                    <text x={-10} y={ribbonH-3} textAnchor="end" fontSize={10} fill="var(--muted)" style={{fontFamily:'var(--serif)'}}>{phase === 'initial' ? 'At first decision' : 'Latest'}</text>
+                  )}
                   {stack(row, phase).map(seg => (
                     <rect key={seg.b} x={seg.x} y={0} width={Math.max(0, seg.w-0.5)} height={ribbonH}
                       fill={COHORT_COLORS[seg.b]} fillOpacity={0.85}

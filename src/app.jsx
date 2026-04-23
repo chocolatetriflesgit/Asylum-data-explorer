@@ -34,7 +34,7 @@ function Masthead() {
   const d = latest.d;
   return (
     <div style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
-      <div className="masthead-inner" style={{maxWidth:1240,margin:'0 auto',padding:'4px 48px',display:'flex',justifyContent:'flex-end',alignItems:'center',gap:16}}>
+      <div className="masthead-inner" style={{maxWidth:1240,margin:'0 auto',padding:'8px 48px',display:'flex',justifyContent:'flex-end',alignItems:'center',gap:16}}>
         <span className="uc" style={{color:'var(--muted)'}}>Data through {fmtMasthead(d)}</span>
       </div>
     </div>
@@ -113,7 +113,7 @@ function SearchModal({ open, onClose, onPick }) {
           <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/></svg>
           <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search stories and datasets (e.g. ‘grant rate’, Asy_D01)…"
             style={{flex:1,border:'none',outline:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:17,color:'var(--ink)'}}/>
-          <span className="mono" style={{fontSize:11,color:'var(--muted-2)',border:'1px solid var(--rule-2)',padding:'2px 5px'}}>esc</span>
+          <span className="mono" style={{fontSize:11,color:'var(--muted-2)',border:'1px solid var(--rule-2)',padding:'4px 8px'}}>esc</span>
         </div>
         <div style={{maxHeight:'50vh',overflowY:'auto'}}>
           {items.length === 0 ? (

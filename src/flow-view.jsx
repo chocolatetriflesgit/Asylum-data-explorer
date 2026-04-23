@@ -39,9 +39,23 @@ const ROUTE_OF_ENTRY_NODES = [
   { sub: 'Other',                                  group: 'Other',                 color: '#888888' },
 ];
 
-// Build the four-column system flow. Only col-3 appeal outcomes remain mocked
-// (closes when R6 / Asy_D04 pipeline lands).
-function buildSystemFlow() {
+// Enumerate the calendar years present in ROUTE_OF_ENTRY_QUARTERLY (quarters
+// are labelled e.g. "2024 Q1"), sorted ascending. Used to populate the
+// year-selector above the system-flow sankey.
+function systemFlowYears() {
+  const route = typeof ROUTE_OF_ENTRY_QUARTERLY !== 'undefined' ? ROUTE_OF_ENTRY_QUARTERLY : [];
+  const set = new Set();
+  for (const r of route) {
+    const y = parseInt(String(r.q).split(' ')[0], 10);
+    if (!Number.isNaN(y)) set.add(y);
+  }
+  return [...set].sort((a, b) => a - b);
+}
+
+// Build the four-column system flow for a specific calendar year. Falls back
+// to ROUTE_OF_ENTRY_META.year when no year is passed. Only col-3 appeal
+// outcomes remain mocked (closes when R6 / Asy_D04 pipeline lands).
+function buildSystemFlow(selectedYear) {
   const route = typeof ROUTE_OF_ENTRY_QUARTERLY !== 'undefined' ? ROUTE_OF_ENTRY_QUARTERLY : [];
   const routeMeta = typeof ROUTE_OF_ENTRY_META !== 'undefined' ? ROUTE_OF_ENTRY_META : null;
   const decisions = typeof DECISIONS_LATEST !== 'undefined' ? DECISIONS_LATEST
@@ -49,7 +63,7 @@ function buildSystemFlow() {
 
   if (!route.length) return { nodes: [], links: [], year: null };
 
-  const year = routeMeta?.year;
+  const year = selectedYear ?? routeMeta?.year;
   const yearPrefix = year != null ? String(year) + ' ' : null;
   const yearRows = yearPrefix
     ? route.filter(r => r.q.indexOf(yearPrefix) === 0)
@@ -86,21 +100,26 @@ function buildSystemFlow() {
   const refused      = Math.round(appsTotal * refusedShare);
   const withdrawn    = appsTotal - granted - humanitarian - refused;
 
-  // Col 3 — "Latest outcome" (real, when OUTCOME_COHORT_ANNUAL has data).
-  // Aggregate the initial-vs-latest deltas across cohorts that overlap the
-  // display year. For each initial bucket we compute what share of that
+  // Col 3 — "Latest outcome" (real, when OUTCOME_COHORT_ANNUAL has data for
+  // the selected year). For each initial bucket we compute what share of that
   // bucket landed in each latest bucket; col-2 → col-3 links are sized
-  // accordingly so column totals match initial totals.
+  // accordingly so column totals match initial totals. The cohort file is
+  // keyed by year-of-claim, so a 2020 sankey uses 2020's cohort, a 2022
+  // sankey uses 2022's, etc. — this makes the modelled column genuinely
+  // year-specific (older cohorts show more appeals resolution; newer cohorts
+  // show a larger still-pending tail). When no cohort row exists for the
+  // selected year (e.g. 2025, still being claimed), we fall back to the
+  // pooled transitions across all cohorts and flag that in the return value.
   const cohortRows = (typeof OUTCOME_COHORT_ANNUAL !== 'undefined' && Array.isArray(OUTCOME_COHORT_ANNUAL))
     ? OUTCOME_COHORT_ANNUAL : [];
+  const yearCohortRows = cohortRows.filter(r => r.year === year);
+  const usedCohortRows = yearCohortRows.length ? yearCohortRows : cohortRows;
+  const cohortModelIsPooled = yearCohortRows.length === 0 && cohortRows.length > 0;
   let latestNodes = [], latestLinks = [];
-  if (cohortRows.length) {
-    // Aggregate initial + latest buckets across all cohort rows (defensible:
-    // the share of initial→latest transitions is approximately stable across
-    // cohort years, so pooling them gives a stronger signal than one year).
+  if (usedCohortRows.length) {
     const init = { protection:0, otherLeave:0, refusals:0, withdrawals:0, admin:0, notYet:0 };
     const latest = { protection:0, otherLeave:0, refusals:0, withdrawals:0, admin:0, notYet:0 };
-    for (const r of cohortRows) {
+    for (const r of usedCohortRows) {
       for (const k in init) { init[k] += r.initial?.[k] || 0; latest[k] += r.latest?.[k] || 0; }
     }
     const initTotal = Object.values(init).reduce((s,v)=>s+v,0) || 1;
@@ -159,7 +178,12 @@ function buildSystemFlow() {
     ...latestLinks,
   ];
 
-  return { nodes, links, year, hasLatest: latestNodes.length > 0 };
+  return {
+    nodes, links, year,
+    hasLatest: latestNodes.length > 0,
+    cohortModelIsPooled,
+    cohortYearsAvailable: [...new Set(cohortRows.map(r => r.year))].sort((a,b)=>a-b),
+  };
 }
 
 function buildSankeyData() {
@@ -236,7 +260,32 @@ function FlowKPI({ label, value, note }) {
 
 function FlowView({ setRoute }) {
   const { nodes, links } = React.useMemo(() => buildSankeyData(), []);
-  const system = React.useMemo(() => buildSystemFlow(), []);
+  const availableYears = React.useMemo(() => systemFlowYears(), []);
+  const defaultYear = (typeof ROUTE_OF_ENTRY_META !== 'undefined' ? ROUTE_OF_ENTRY_META?.year : null)
+    ?? (availableYears.length ? availableYears[availableYears.length - 1] : null);
+  const [systemYearSel, setSystemYearSel] = React.useState(defaultYear);
+  const [compareYears, setCompareYears] = React.useState([]);
+  // `includePrimary` lets the user drop the sankey year from the table while
+  // keeping it in the sankey. Resets to true whenever the sankey year changes
+  // so the new primary year always shows up on first sight.
+  const [includePrimary, setIncludePrimary] = React.useState(true);
+  const system = React.useMemo(() => buildSystemFlow(systemYearSel), [systemYearSel]);
+  // Drop any compare year that coincides with the sankey year — the sankey
+  // year is always the first table column and can't be compared with itself.
+  React.useEffect(() => {
+    setCompareYears(xs => xs.filter(y => y !== systemYearSel));
+    setIncludePrimary(true);
+  }, [systemYearSel]);
+  const tableYears = React.useMemo(() => {
+    const all = [];
+    if (includePrimary && systemYearSel != null) all.push(systemYearSel);
+    all.push(...compareYears);
+    return [...new Set(all)].sort((a, b) => a - b);
+  }, [systemYearSel, compareYears, includePrimary]);
+  const tableSystems = React.useMemo(
+    () => tableYears.map(y => ({ year: y, sys: buildSystemFlow(y) })),
+    [tableYears]
+  );
   const [compact, setCompact] = React.useState(window.innerWidth < 768);
   React.useEffect(() => {
     const handler = () => setCompact(window.innerWidth < 768);
@@ -281,22 +330,57 @@ function FlowView({ setRoute }) {
           Each diagram reads <em>left to right</em>. Every ribbon is a group of people, and the width of the ribbon is how many — wider means more.
           Splits show where that group divided: granted, refused, withdrawn, or still pending.
           Hover a ribbon or a bar to see the underlying figure.
-          The <b style={{color:'var(--ink)',fontWeight:600}}>2022 cohort</b> is highlighted below — a useful starting point because the 2022 surge produced the largest cohort in the series and its initial-vs-latest delta is the most studied.
+          The <b style={{color:'var(--ink)',fontWeight:600}}>2022 cohort</b> is a useful reference point — the 2022 surge produced the largest cohort in the series and its initial-vs-latest delta is the most studied.
         </div>
       </aside>
 
       {/* System flow — three or four column view depending on Asy_D04 availability. */}
       <div style={{marginTop:4,marginBottom:8}}>
         <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>System flow · {systemYear ?? year}</div>
-        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 6px'}}>
+        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 10px'}}>
           {system.hasLatest
             ? 'Entry → Application → Initial decision → Latest outcome'
             : 'Entry → Application → Initial decision'}
         </h2>
+        {availableYears.length > 1 && (
+          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginTop:2}}>
+            <span className="uc" style={{color:'var(--muted)',fontSize:10.5,letterSpacing:0.4}}>Year</span>
+            <div role="radiogroup" aria-label="System-flow year" style={{display:'inline-flex',border:'1px solid var(--rule)',background:'var(--bg-2)'}}>
+              {availableYears.map((y, i) => {
+                const active = y === systemYearSel;
+                return (
+                  <button
+                    key={y}
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setSystemYearSel(y)}
+                    style={{
+                      padding:'6px 12px',
+                      fontFamily:'var(--mono)',
+                      fontSize:12,
+                      letterSpacing:0.3,
+                      border:'none',
+                      borderLeft: i === 0 ? 'none' : '1px solid var(--rule)',
+                      background: active ? 'var(--accent)' : 'transparent',
+                      color: active ? '#fff' : 'var(--ink-2)',
+                      cursor:'pointer',
+                    }}>
+                    {y}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
       {system.hasLatest && (
-        <div style={{marginBottom:10,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent-warn)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:940}}>
+        <div style={{marginBottom:10,padding:'12px 16px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent-warn)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:940}}>
           <strong style={{fontWeight:500}}>The fourth column is an indicative proxy using cohort outcome changes; it is not an appeals dataset.</strong> The Home Office has not republished appeals statistics since their case-working system migration. Paler ribbons and dashed node outlines mark this column as modelled, not measured.
+          {system.cohortModelIsPooled && system.cohortYearsAvailable?.length > 0 && (
+            <div style={{marginTop:8,paddingTop:8,borderTop:'1px dotted var(--rule-2)',fontStyle:'italic',color:'var(--muted)'}}>
+              No {systemYearSel} cohort data yet — this year is still being claimed. Fourth-column proportions are pooled across cohorts {system.cohortYearsAvailable[0]}–{system.cohortYearsAvailable[system.cohortYearsAvailable.length - 1]}.
+            </div>
+          )}
         </div>
       )}
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
@@ -308,6 +392,163 @@ function FlowView({ setRoute }) {
           </div>
         )}
       </div>
+
+      {system.nodes.length > 0 && (
+        <details style={{marginTop:12,border:'1px solid var(--rule)',background:'#fff'}}>
+          <summary style={{cursor:'pointer',listStyle:'none',padding:'10px 16px',display:'flex',justifyContent:'space-between',alignItems:'baseline',borderBottom:'1px solid var(--rule-2)'}}>
+            <span className="uc" style={{color:'var(--muted)',fontSize:10.5,letterSpacing:0.4}}>
+              Data table · {tableYears.length === 0 ? 'no years selected' : tableYears.join(' vs ')}
+            </span>
+            <span style={{fontSize:11,color:'var(--muted-2)',fontStyle:'italic'}}>click to expand ▾</span>
+          </summary>
+          <div style={{padding:'14px 16px 18px'}}>
+            {/* Compare-years chips. The sankey's primary year is highlighted
+                but also toggleable, so readers can hide it from the table
+                while it still drives the chart. */}
+            {availableYears.length > 1 && (
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:12,fontFamily:'var(--serif)'}}>
+                <span className="uc" style={{color:'var(--muted)',fontSize:10.5,letterSpacing:0.4,marginRight:2}}>Compare</span>
+                {availableYears.map(y => {
+                  const isPrimary = y === systemYearSel;
+                  const isActive = isPrimary ? includePrimary : compareYears.includes(y);
+                  return (
+                    <button
+                      key={y}
+                      onClick={() => {
+                        if (isPrimary) {
+                          setIncludePrimary(v => !v);
+                        } else {
+                          setCompareYears(xs => xs.includes(y) ? xs.filter(v => v !== y) : [...xs, y]);
+                        }
+                      }}
+                      title={isPrimary
+                        ? (isActive ? `Hide ${y} from the table (chart keeps it)` : `Show ${y} in the table`)
+                        : (isActive ? `Remove ${y}` : `Add ${y}`)}
+                      style={{
+                        fontFamily:'var(--mono)',
+                        fontSize:11.5,
+                        letterSpacing:0.3,
+                        padding:'4px 10px',
+                        border: isPrimary
+                          ? (isActive ? '1px solid var(--accent)' : '1px solid var(--accent)')
+                          : '1px solid var(--rule)',
+                        background: isPrimary
+                          ? (isActive ? 'var(--accent)' : 'transparent')
+                          : (isActive ? 'var(--bg-3)' : 'transparent'),
+                        color: isPrimary
+                          ? (isActive ? '#fff' : 'var(--accent)')
+                          : (isActive ? 'var(--ink)' : 'var(--muted)'),
+                        cursor:'pointer',
+                      }}>
+                      {y}{isPrimary ? (isActive ? ' ·' : '') : (isActive ? ' ×' : '')}
+                    </button>
+                  );
+                })}
+                {(compareYears.length > 0 || !includePrimary) && (
+                  <button onClick={() => { setCompareYears([]); setIncludePrimary(true); }}
+                    style={{marginLeft:4,fontFamily:'var(--serif)',fontSize:11,fontStyle:'italic',color:'var(--muted)',background:'transparent',border:'none',cursor:'pointer',padding:'4px 6px'}}>
+                    reset
+                  </button>
+                )}
+              </div>
+            )}
+            {tableYears.length === 0 ? (
+              <div style={{padding:'24px 4px',fontSize:13,color:'var(--muted)',fontStyle:'italic',fontFamily:'var(--serif)'}}>
+                No years selected. Click a year chip above to show it in the table.
+              </div>
+            ) : (
+            <div style={{overflowX:'auto'}}>
+              {(() => {
+                const colLabels = {
+                  0: 'Entry route',
+                  1: 'Application',
+                  2: 'Initial decision',
+                  3: 'Latest outcome',
+                };
+                // Union nodes across selected years so a route present in some
+                // years but absent in others still appears as a row (with — in
+                // the years where it was filtered out for being zero).
+                const nodeMap = new Map();
+                const colSeen = new Set();
+                for (const { sys } of tableSystems) {
+                  for (const n of sys.nodes) {
+                    colSeen.add(n.col);
+                    if (!nodeMap.has(n.id)) {
+                      nodeMap.set(n.id, { id: n.id, label: n.label, col: n.col, color: n.color, mocked: n.mocked });
+                    }
+                  }
+                }
+                const colOrder = [0, 1, 2, 3].filter(c => colSeen.has(c));
+                // Per-year lookup maps
+                const lookup = tableSystems.map(({ year: y, sys }) => {
+                  const m = new Map();
+                  for (const n of sys.nodes) m.set(n.id, n.value);
+                  const apps = sys.nodes.find(n => n.col === 1)?.value || 0;
+                  return { year: y, byId: m, apps };
+                });
+                const fmtPct = (v, apps) => apps ? `${(v / apps * 100).toFixed(1)}%` : '—';
+                return (
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:14.5,fontFamily:'var(--serif)',tableLayout:'fixed'}}>
+                    <colgroup>
+                      <col style={{width:110}}/>
+                      <col style={{width:220}}/>
+                      {lookup.map(L => <col key={L.year}/>)}
+                    </colgroup>
+                    <thead>
+                      <tr style={{color:'var(--muted)'}}>
+                        <th style={{padding:'11px 12px',fontSize:11.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,borderBottom:'1px solid var(--rule-2)',textAlign:'center'}}>Stage</th>
+                        <th style={{padding:'11px 12px',fontSize:11.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,borderBottom:'1px solid var(--rule-2)',textAlign:'center'}}>Category</th>
+                        {lookup.map(L => (
+                          <th key={L.year} style={{padding:'11px 12px',fontSize:11.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'center',borderBottom:'1px solid var(--rule-2)',color: L.year === systemYearSel ? 'var(--accent)' : 'var(--muted)',whiteSpace:'nowrap'}}>
+                            {L.year}{L.year === systemYearSel ? ' ·' : ''}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {colOrder.flatMap(c => {
+                        const nodesInCol = [...nodeMap.values()].filter(n => n.col === c);
+                        return nodesInCol.map((n, i) => (
+                          <tr key={n.id} style={{borderBottom:'1px dotted var(--rule-2)'}}>
+                            <td style={{padding:'11px 12px',color: i === 0 ? 'var(--ink-2)' : 'transparent',fontSize:11.5,letterSpacing:0.3,textTransform:'uppercase',verticalAlign:'middle',textAlign:'center',lineHeight:1.35}}>
+                              {i === 0 ? colLabels[c] : ''}
+                            </td>
+                            <td style={{padding:'11px 12px',color:'var(--ink)',lineHeight:1.4,wordBreak:'break-word',textAlign:'center',verticalAlign:'middle'}}>
+                              <span style={{display:'inline-block',width:10,height:10,background:n.color,marginRight:8,verticalAlign:'middle',border: n.mocked ? '1px dashed var(--muted)' : 'none',flexShrink:0}}/>
+                              {n.label}
+                              {n.mocked && <span style={{color:'var(--muted-2)',fontStyle:'italic',fontSize:12,marginLeft:6}}>· modelled</span>}
+                            </td>
+                            {lookup.map(L => {
+                              const v = L.byId.get(n.id);
+                              const has = v != null;
+                              return (
+                                <td key={L.year} className="tnum" style={{padding:'11px 12px',textAlign:'center',verticalAlign:'middle',whiteSpace:'nowrap',lineHeight:1.4}}>
+                                  {has ? (
+                                    <>
+                                      <div>{fmtN(v)}</div>
+                                      <div style={{fontSize:12,color:'var(--muted-2)',marginTop:2}}>{fmtPct(v, L.apps)}</div>
+                                    </>
+                                  ) : (
+                                    <span style={{color:'var(--muted-2)'}}>—</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ));
+                      })}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+            )}
+            <div style={{marginTop:10,fontSize:11,color:'var(--muted-2)',lineHeight:1.5}}>
+              Entry routes are summed across all four quarters of each year from Asy_D01a. Initial-decision shares use the latest Asy_D02 split applied to that year's application total. Latest-outcome values carry a dashed swatch where they are modelled from cohort initial-vs-latest deltas (Asy_D04) rather than measured appeals data.
+            </div>
+          </div>
+        </details>
+      )}
 
       <div style={{marginTop:12,padding:'10px 14px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:900}}>
         {system.hasLatest ? (
@@ -358,7 +599,6 @@ function FlowView({ setRoute }) {
           data={buildCohortAggregate()}
           width={1120}
           cols={4}
-          highlightYear={2022}
           annotations={[
             { year: 2022, phase: 'initial', text: 'most granted on first decision' },
             { year: 2022, phase: 'latest',  text: 'still-pending tail much smaller' },

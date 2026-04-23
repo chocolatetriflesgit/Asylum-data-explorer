@@ -261,7 +261,7 @@ function DashboardView({ setRoute }) {
             }}
             title="Jump to range filter"
             style={{
-              fontFamily:'var(--mono, var(--serif))',fontSize:11,padding:'3px 10px',
+              fontFamily:'var(--mono, var(--serif))',fontSize:11,padding:'5px 10px',
               border:'1px solid var(--rule-2)',background:'var(--bg-2)',color:'var(--ink-2)',
               letterSpacing:0.04,cursor:'pointer',
             }}>
@@ -863,7 +863,7 @@ function DashboardView({ setRoute }) {
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}>
                   <thead>
                     <tr>
-                      <th className="uc" style={{padding:'0 0 12px',textAlign:'left',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>Scheme</th>
+                      <th className="uc" style={{padding:'0 10px 12px 0',textAlign:'left',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>Scheme</th>
                       {resettlementYears.map(y => (
                         <th key={y} className="uc" style={{padding:'0 0 12px',paddingLeft:16,textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>{y}</th>
                       ))}
@@ -875,6 +875,7 @@ function DashboardView({ setRoute }) {
                         <SchemeCell name={r.name} colorIdx={i}/>
                         {resettlementYears.map((y,j) => (
                           <td key={y} className="tnum" style={{padding:'13px 0',paddingLeft:16,textAlign:'right',color: j===resettlementYears.length-1 ? 'var(--ink)' : 'var(--muted)',fontWeight: j===resettlementYears.length-1 ? 500 : 400}}>{r[y]!=null ? fmtN(r[y]) : '—'}</td>
+
                         ))}
                       </tr>
                     ))}
@@ -884,10 +885,10 @@ function DashboardView({ setRoute }) {
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}>
                   <thead>
                     <tr>
-                      <th className="uc" style={{padding:'0 0 12px',textAlign:'left',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>Scheme</th>
-                      <th className="uc" style={{padding:'0 0 12px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>2024 arrivals</th>
-                      <th className="uc" style={{padding:'0 0 12px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>Share</th>
-                      <th className="uc" style={{padding:'0 0 12px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>2022–23 <span style={{fontStyle:'italic',fontWeight:400,textTransform:'none'}}>data pending</span></th>
+                      <th className="uc" style={{padding:'0 10px 12px 0',textAlign:'left',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>Scheme</th>
+                      <th className="uc" style={{padding:'0 10px 12px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>2024 arrivals</th>
+                      <th className="uc" style={{padding:'0 10px 12px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>Share</th>
+                      <th className="uc" style={{padding:'0 0 12px 10px',textAlign:'right',fontWeight:500,color:'var(--muted)',borderBottom:'2px solid var(--accent)'}}>2022–23 <span style={{fontStyle:'italic',fontWeight:400,textTransform:'none'}}>data pending</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -896,17 +897,17 @@ function DashboardView({ setRoute }) {
                       return (
                         <tr key={r.name} style={{borderBottom:'1px solid var(--rule)'}}>
                           <SchemeCell name={r.name} colorIdx={i}/>
-                          <td className="tnum" style={{padding:'13px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
-                          <td className="tnum" style={{padding:'13px 0',textAlign:'right',color:'var(--muted)'}}>{Math.round(r.v/total*100)}%</td>
-                          <td className="tnum" style={{padding:'13px 0',textAlign:'right',color:'var(--muted-2)',fontStyle:'italic'}}>—</td>
+                          <td className="tnum" style={{padding:'13px 10px',textAlign:'right'}}>{fmtN(r.v)}</td>
+                          <td className="tnum" style={{padding:'13px 10px',textAlign:'right',color:'var(--muted)'}}>{Math.round(r.v/total*100)}%</td>
+                          <td className="tnum" style={{padding:'13px 0 13px 10px',textAlign:'right',color:'var(--muted-2)',fontStyle:'italic'}}>—</td>
                         </tr>
                       );
                     })}
                     <tr>
-                      <td style={{padding:'13px 0',color:'var(--ink)',fontWeight:500,fontStyle:'italic'}}>Total</td>
-                      <td className="tnum" style={{padding:'13px 0',textAlign:'right',fontWeight:500}}>{fmtN(RESETTLEMENT.reduce((s,x)=>s+x.v,0))}</td>
-                      <td className="tnum" style={{padding:'13px 0',textAlign:'right',color:'var(--muted)'}}>100%</td>
-                      <td className="tnum" style={{padding:'13px 0',textAlign:'right',color:'var(--muted-2)'}}>—</td>
+                      <td style={{padding:'13px 10px 13px 0',color:'var(--ink)',fontWeight:500,fontStyle:'italic'}}>Total</td>
+                      <td className="tnum" style={{padding:'13px 10px',textAlign:'right',fontWeight:500}}>{fmtN(RESETTLEMENT.reduce((s,x)=>s+x.v,0))}</td>
+                      <td className="tnum" style={{padding:'13px 10px',textAlign:'right',color:'var(--muted)'}}>100%</td>
+                      <td className="tnum" style={{padding:'13px 0 13px 10px',textAlign:'right',color:'var(--muted-2)'}}>—</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1066,7 +1067,7 @@ function DashSectionHeader({ kicker, title, accent, cadence }) {
         <h2 style={{fontFamily:'var(--serif)',fontSize:26,fontWeight:500,letterSpacing:-0.2,margin:0,color:'var(--ink)'}}>{title}</h2>
       </div>
       <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-        {cadence && <div className="uc" style={{color:'var(--muted-2)',fontSize:10.5,border:'1px solid var(--rule-2)',padding:'2px 7px',background:'var(--bg-2)'}}>{cadence}</div>}
+        {cadence && <div className="uc" style={{color:'var(--muted-2)',fontSize:10.5,border:'1px solid var(--rule-2)',padding:'4px 8px',background:'var(--bg-2)'}}>{cadence}</div>}
         <div className="uc" style={{color:'var(--muted)'}}>↓ Export section</div>
       </div>
     </div>
@@ -1267,17 +1268,17 @@ function NationalitiesTable({ data }) {
           </colgroup>
           <thead style={{position:'sticky',top:0,background:'#fff'}}>
             <tr>
-              <th className="uc" onClick={click('name')} style={{textAlign:'left',padding:'6px 8px 6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>Nationality{arrow('name')}</th>
-              <th className="uc" onClick={click('v')}    style={{textAlign:'right',padding:'6px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Apps{arrow('v')}</th>
-              <th className="uc" onClick={click('grant')}style={{textAlign:'right',padding:'6px 0 6px 16px',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Grant{arrow('grant')}</th>
+              <th className="uc" onClick={click('name')} style={{textAlign:'left',padding:'8px 8px 8px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>Nationality{arrow('name')}</th>
+              <th className="uc" onClick={click('v')}    style={{textAlign:'right',padding:'8px 0',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Apps{arrow('v')}</th>
+              <th className="uc" onClick={click('grant')}style={{textAlign:'right',padding:'8px 0 8px 16px',fontWeight:500,color:'var(--muted)',borderBottom:'1px solid var(--rule)',cursor:'pointer'}}>Grant{arrow('grant')}</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((r,i)=>(
               <tr key={r.name} style={{borderBottom:'1px dotted var(--rule)'}}>
-                <td style={{padding:'5px 8px 5px 0',color:'var(--ink)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={r.name}>{r.name}</td>
-                <td className="tnum" style={{padding:'5px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
-                <td style={{padding:'5px 0 5px 16px',textAlign:'right'}}>
+                <td style={{padding:'7px 8px 7px 0',color:'var(--ink)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={r.name}>{r.name}</td>
+                <td className="tnum" style={{padding:'7px 0',textAlign:'right'}}>{fmtN(r.v)}</td>
+                <td style={{padding:'7px 0 7px 16px',textAlign:'right'}}>
                   {r.grant != null ? (
                     <div style={{display:'inline-flex',alignItems:'center',gap:6,justifyContent:'flex-end',width:'100%'}}>
                       <div style={{position:'relative',width:56,height:8,background:'var(--bg-2)'}} title={`${Math.round(r.grant*100)}%`}>

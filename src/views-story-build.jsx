@@ -360,7 +360,7 @@ function DatasetsView({ setRoute }) {
                                 <thead>
                                   <tr>
                                     {schemaKeys.map(k => (
-                                      <th key={k} style={{textAlign:'left',padding:'4px 8px',color:'var(--muted)',borderBottom:'1px solid var(--rule-2)',fontWeight:500}}>
+                                      <th key={k} style={{textAlign:'left',padding:'8px 10px',color:'var(--muted)',borderBottom:'1px solid var(--rule-2)',fontWeight:500}}>
                                         {k}
                                       </th>
                                     ))}
@@ -370,7 +370,7 @@ function DatasetsView({ setRoute }) {
                                   {preview.rows.map((row, i) => (
                                     <tr key={i}>
                                       {schemaKeys.map(k => (
-                                        <td key={k} style={{padding:'4px 8px',color:'var(--ink-2)',borderBottom:'1px dotted var(--rule-2)',whiteSpace:'nowrap',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis'}}>
+                                        <td key={k} style={{padding:'8px 10px',color:'var(--ink-2)',borderBottom:'1px dotted var(--rule-2)',whiteSpace:'nowrap',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis'}}>
                                           {typeof row[k] === 'object' ? JSON.stringify(row[k]).slice(0,40) : String(row[k])}
                                         </td>
                                       ))}

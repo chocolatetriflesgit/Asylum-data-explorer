@@ -574,7 +574,7 @@ function AtlasView({ setRoute }) {
                       <span style={{display:'flex',gap:10,alignItems:'baseline'}}>
                         {selectedNats.length > 0 && (
                           <button onClick={()=>setSelectedNats([])}
-                            style={{fontSize:11,color:'var(--accent)',background:'transparent',border:'1px solid var(--accent)',padding:'2px 8px',textTransform:'none',letterSpacing:0,fontFamily:'var(--serif)',cursor:'pointer'}}>
+                            style={{fontSize:11,color:'var(--accent)',background:'transparent',border:'1px solid var(--accent)',padding:'4px 10px',textTransform:'none',letterSpacing:0,fontFamily:'var(--serif)',cursor:'pointer'}}>
                             Clear all
                           </button>
                         )}
@@ -585,7 +585,7 @@ function AtlasView({ setRoute }) {
                       <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:10}}>
                         {selectedNats.map(n => (
                           <button key={n} onClick={()=>toggleNat(n)}
-                            style={{fontSize:11,padding:'3px 8px 3px 10px',background:'var(--bg-2)',border:'1px solid var(--rule-2)',color:'var(--ink-2)',fontFamily:'var(--serif)',cursor:'pointer'}}>
+                            style={{fontSize:11,padding:'5px 10px 5px 12px',background:'var(--bg-2)',border:'1px solid var(--rule-2)',color:'var(--ink-2)',fontFamily:'var(--serif)',cursor:'pointer'}}>
                             {n} <span style={{color:'var(--muted)',marginLeft:4}}>×</span>
                           </button>
                         ))}
@@ -609,7 +609,7 @@ function AtlasView({ setRoute }) {
                       <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:8}}>
                         {topCountries.map(c => (
                           <button key={c.name} onClick={()=>toggleNat(c.name)}
-                            style={{fontSize:11.5,padding:'2px 8px',background: selectedNats.includes(c.name) ? 'var(--accent)' : 'var(--bg-2)',
+                            style={{fontSize:11.5,padding:'4px 10px',background: selectedNats.includes(c.name) ? 'var(--accent)' : 'var(--bg-2)',
                                     color: selectedNats.includes(c.name) ? '#fff' : 'var(--ink-2)',
                                     border:'1px solid var(--rule-2)',fontFamily:'var(--serif)',cursor:'pointer'}}>
                             {c.name}
