@@ -464,28 +464,44 @@ def test_deaths_globals_shape():
     g = _load_globals(DEATHS_JS)
     assert "DEATHS_DAILY" in g
     assert "DEATHS_ANNUAL" in g
+    assert "DEATHS_ANNUAL_BY_CATEGORY" in g
     assert "DEATHS_META" in g
     assert isinstance(g["DEATHS_DAILY"], list)
     assert isinstance(g["DEATHS_ANNUAL"], list)
+    by_cat = g["DEATHS_ANNUAL_BY_CATEGORY"]
+    assert set(by_cat.keys()) == {"years", "sea", "land", "other"}
+    assert len(by_cat["sea"]) == len(by_cat["years"])
+    assert len(by_cat["land"]) == len(by_cat["years"])
+    assert len(by_cat["other"]) == len(by_cat["years"])
     meta = g["DEATHS_META"]
     assert meta.get("provider") == "IOM Missing Migrants Project"
 
 
 def test_deaths_annual_totals_consistent():
-    """If non-stub, each annual row's total equals dead+missing, and daily
-    totals summed by year match annual totals."""
+    """If non-stub, each annual row's total equals dead+missing, daily
+    totals summed by year match annual totals, and the per-category
+    breakdown sums back to total."""
     g = _load_globals(DEATHS_JS)
     if g["DEATHS_META"].get("pending"):
         pytest.skip("Deaths data pending first fetch")
     for r in g["DEATHS_ANNUAL"]:
         assert r["dead"] + r["missing"] == r["total"], r
+        assert r["sea"] + r["land"] + r["other"] == r["total"], r
     by_year: dict[int, int] = {}
     for d in g["DEATHS_DAILY"]:
+        assert d["category"] in {"sea", "land", "other"}, d
         y = int(d["d"][:4])
         by_year[y] = by_year.get(y, 0) + d["dead"] + d["missing"]
     for r in g["DEATHS_ANNUAL"]:
         if by_year.get(r["y"], 0):
             assert by_year[r["y"]] == r["total"], (r, by_year.get(r["y"]))
+    # DEATHS_ANNUAL_BY_CATEGORY must mirror DEATHS_ANNUAL row-for-row.
+    by_cat = g["DEATHS_ANNUAL_BY_CATEGORY"]
+    assert by_cat["years"] == [r["y"] for r in g["DEATHS_ANNUAL"]]
+    for i, r in enumerate(g["DEATHS_ANNUAL"]):
+        assert by_cat["sea"][i] == r["sea"]
+        assert by_cat["land"][i] == r["land"]
+        assert by_cat["other"][i] == r["other"]
 
 
 def test_support_tiers_annual_monotone_and_consistent():

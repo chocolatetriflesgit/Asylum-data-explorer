@@ -536,6 +536,36 @@ const DATASET_OPTIONS = [
     })(),
     series: [],
   },
+  {
+    // Channel deaths split by Cause-of-Death category. Source: IOM Missing
+    // Migrants Project, restricted to IOM's "Mainland Europe to the UK"
+    // route. "At sea" = drowning incidents (small boats, open water).
+    // "On land" = vehicle / lorry / Eurotunnel deaths.  "Other" =
+    // sickness, violence, accidental, mixed/unknown.  Pre-2018 entries
+    // are mostly land — small-boat crossings only became a regular
+    // route from 2018 onwards.
+    id: 'deaths',
+    label: 'Channel deaths (sea vs land)',
+    render: 'multi',
+    color: 'var(--accent-warn)',
+    note: 'IOM Missing Migrants Project — undercount likely; only verifiable incidents are recorded.',
+    multi: (() => {
+      const c = typeof DEATHS_ANNUAL_BY_CATEGORY !== 'undefined' ? DEATHS_ANNUAL_BY_CATEGORY : null;
+      if (!c || !Array.isArray(c.years) || c.years.length === 0) {
+        return { years: [], series: [], colors: [] };
+      }
+      return {
+        years: c.years,
+        series: [
+          { name: 'At sea (drowning)',         data: c.sea },
+          { name: 'On land (vehicle / tunnel)', data: c.land },
+          { name: 'Other / unknown',            data: c.other },
+        ],
+        colors: ['var(--accent-warn)', 'var(--accent-2)', 'var(--muted-2)'],
+      };
+    })(),
+    series: [],
+  },
 ];
 
 const GRANULARITIES = ['daily','weekly','monthly','quarterly','annual'];
@@ -622,6 +652,7 @@ function BuildView({ setRoute }) {
     { label: 'Backlog since 2018',            cfg: { ds:'backlog', chartType:'line', granularity:'annual', range:[2018, DATA_MAX_YEAR] } },
     { label: 'Resettlement by scheme',        cfg: { ds:'resettlement', chartType:'stacked' } },
     { label: 'Hotels occupancy',              cfg: { ds:'hotels', chartType:'line' } },
+    { label: 'Channel deaths · sea vs land',  cfg: { ds:'deaths', chartType:'line' } },
   ];
   const applyPreset = (cfg) => {
     if (cfg.ds) setDs(cfg.ds);
