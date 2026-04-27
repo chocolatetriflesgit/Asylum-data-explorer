@@ -163,3 +163,14 @@ Failure modes: if the fetcher can't find the ODS link, the Action fails loudly. 
 - Routing / layout questions → read `src/root.jsx` and `src/app.jsx`.
 - Chart API questions → read `src/charts.jsx`.
 - Methodology / caveats → read the `notes` array in `BOATS_META`, which lifts the Notes sheet from the source ODS verbatim.
+
+## Verification section near the top of CLAUDE.md, above any task-specific guidance.\n\n## Verification
+- Always verify UI changes via preview_eval/screenshot AND DOM inspection (screenshot tool occasionally hangs/times out — DOM inspection is the reliable fallback).
+- After any chart/layout edit, check the preview renders before declaring done.
+
+## Project Layout or ## Charts section.\n\n## Targeting Charts
+This project has multiple chart surfaces (dashboard view AND 'Build a chart' view). Before editing chart styling/axes, confirm WHICH chart the user means and grep for all instances — fixes often need to apply to one specific view, not all.
+
+## Conventions or ## Domain Notes section.\n\n## Regional Groupings
+- Central Asia and Caucasus are SEPARATE regions, do not combine them.
+- When changing page titles/branding, also update the header masthead (not just <title>).
