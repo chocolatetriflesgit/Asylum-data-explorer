@@ -36,6 +36,124 @@ function metaNext(meta) {
   return meta.nextUpdate || null;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Release-day pinned card
+//
+// Auto-populated from the latest *_META source filenames. Computes
+// three highlights from the data (backlog change, top nationality,
+// applications trend) and shows them above the dashboard. Dismissal
+// is keyed to the source filename, so when the next release lands
+// the card auto-shows again.
+// ─────────────────────────────────────────────────────────────
+function ReleaseCard() {
+  const W = (typeof window !== 'undefined') ? window : {};
+  const natMeta = W.NAT_FULL_META;
+  const backlogMeta = W.BACKLOG_META;
+  const backlog = Array.isArray(W.BACKLOG_LATEST) ? W.BACKLOG_LATEST : [];
+  const natFull = Array.isArray(W.NAT_FULL) ? W.NAT_FULL : [];
+  const aa = (typeof ASYLUM_ANNUAL !== 'undefined') ? ASYLUM_ANNUAL : [];
+
+  // Parse "dec-2025" out of the canonical source filename.
+  const sourceFile = natMeta?.source || backlogMeta?.source || null;
+  const sourceLabel = (() => {
+    if (!sourceFile) return null;
+    const m = /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)-(\d{4})/i.exec(sourceFile);
+    if (!m) return null;
+    const monthMap = { jan:'January',feb:'February',mar:'March',apr:'April',may:'May',jun:'June',
+                       jul:'July',aug:'August',sep:'September',oct:'October',nov:'November',dec:'December' };
+    return `${monthMap[m[1].toLowerCase()]} ${m[2]}`;
+  })();
+
+  const dismissKey = 'releaseCardDismissed_' + (sourceFile || 'unknown');
+  const [dismissed, setDismissed] = React.useState(() => {
+    try { return typeof localStorage !== 'undefined' && localStorage.getItem(dismissKey) === '1'; }
+    catch (_) { return false; }
+  });
+  if (dismissed) return null;
+  const dismiss = () => {
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem(dismissKey, '1'); } catch (_) {}
+    setDismissed(true);
+  };
+
+  const Bold = ({children}) => <b style={{color:'var(--bg)',fontWeight:500}}>{children}</b>;
+
+  const highlights = [];
+
+  // 1. Backlog year-on-year change.
+  if (backlog.length >= 2) {
+    const last = backlog[backlog.length - 1];
+    const prev = backlog[backlog.length - 2];
+    if (last && prev && prev.v > 0) {
+      const pct = Math.round((last.v - prev.v) / prev.v * 100);
+      const dir = pct >= 0 ? 'rose' : 'fell';
+      highlights.push(
+        <><Bold>The backlog {dir} {Math.abs(pct)}%</Bold> — to {last.v.toLocaleString('en-GB')} pending at the {last.date || `${last.y} year-end`} snapshot.</>
+      );
+    }
+  }
+
+  // 2. Top nationality on applications, with its grant rate.
+  if (natFull.length) {
+    const sorted = [...natFull].sort((a, b) => (b.v || 0) - (a.v || 0));
+    const top = sorted[0];
+    if (top) {
+      const grantPct = top.grant != null ? Math.round(top.grant * 100) : null;
+      highlights.push(
+        <><Bold>{top.name} led on applications</Bold> — {top.v.toLocaleString('en-GB')} main applicants{grantPct != null ? `, granted at ${grantPct}%` : ''}.</>
+      );
+    }
+  }
+
+  // 3. Applications trend vs peak year.
+  if (aa && aa.length >= 2) {
+    const last = aa[aa.length - 1];
+    const peak = aa.reduce((a, b) => (b.v || 0) > (a.v || 0) ? b : a, aa[0]);
+    if (last && peak) {
+      if (peak.y !== last.y) {
+        const pct = Math.round((last.v - peak.v) / peak.v * 100);
+        highlights.push(
+          <><Bold>Applications {pct >= 0 ? 'now at or above' : `${Math.abs(pct)}% below`} the {peak.y} peak</Bold> — {last.v.toLocaleString('en-GB')} in {last.y}.</>
+        );
+      } else {
+        highlights.push(
+          <><Bold>{last.y} set a new applications high</Bold> — {last.v.toLocaleString('en-GB')} main applicants.</>
+        );
+      }
+    }
+  }
+
+  if (!highlights.length) return null;
+
+  return (
+    <div className="release-card" style={{
+      background:'var(--accent)', color:'var(--bg)', padding:'22px 28px',
+      marginBottom:28, display:'grid', gridTemplateColumns:'minmax(180px, 220px) 1fr auto',
+      gap:32, alignItems:'flex-start', position:'relative'
+    }}>
+      <div>
+        <div className="uc" style={{color:'var(--accent-gold)',fontSize:11,letterSpacing:0.1,fontWeight:500}}>
+          What changed{sourceLabel ? ` · ${sourceLabel} release` : ''}
+        </div>
+        <h3 style={{margin:'8px 0 0',fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,lineHeight:1.15,color:'var(--bg)'}}>
+          Three things to know
+        </h3>
+      </div>
+      <ul style={{margin:0,paddingLeft:18,fontSize:14,lineHeight:1.55,color:'#f0ebd9',textWrap:'pretty'}}>
+        {highlights.map((h, i) => (
+          <li key={i} style={{marginBottom:6}}>{h}</li>
+        ))}
+      </ul>
+      <button onClick={dismiss}
+        title="Hide until the next release"
+        style={{
+          background:'none',border:'none',color:'#cdc4a8',
+          fontFamily:'var(--mono)',fontSize:11,letterSpacing:'.05em',
+          cursor:'pointer',alignSelf:'start',paddingTop:4,textTransform:'uppercase'
+        }}>Dismiss ✕</button>
+    </div>
+  );
+}
+
 function DashboardView({ setRoute }) {
   const [range, setRange] = uSD(() => readInitialRange(2014, DATA_MAX_YEAR));
   const [focus, setFocus] = uSD('all'); // all | applications | decisions | geography
@@ -271,6 +389,9 @@ function DashboardView({ setRoute }) {
         </p>
       </div>
 
+      {/* Release-day pinned card — auto-populated from latest meta. */}
+      <ReleaseCard/>
+
       {/* Provisional last-7-days strip — lifted above KPI rows as the freshest
           data point. Laid out as two columns: the week's total + days stacked
           vertically on the left, and a ranked comparison against the same
@@ -433,43 +554,140 @@ function DashboardView({ setRoute }) {
           return avg == null ? null : { y: yr, v: avg };
         }).filter(Boolean) : [];
 
+        // UK population for per-100k toggles. Latest available year drives the rate.
+        const ukPop = (W.UK_POP || []);
+        const ukPopFor = (yr) => {
+          const exact = ukPop.find(r => r.y === yr);
+          if (exact) return exact.v;
+          // Fall back to the latest available row.
+          return ukPop.length ? ukPop[ukPop.length - 1].v : null;
+        };
+        // EU peer per-1k rate, derived from EU27 total / EU27 population at latest year.
+        const euPeer = W.EU_PEER_ASYLUM;
+        const euPerK = (() => {
+          if (!euPeer || !euPeer.applications || !euPeer.populations) return null;
+          const yrs = Object.keys(euPeer.applications).map(Number).sort();
+          const latestYr = yrs[yrs.length - 1];
+          const tot = euPeer.applications[latestYr]?.EU27;
+          const pop = euPeer.populations.EU27;
+          if (!tot || !pop) return null;
+          return { rate: tot / pop, year: latestYr }; // per *thousand* residents
+        })();
+
+        // Months of work — backlog ÷ annualised decisions throughput.
+        const decisionsThroughput = decisionsTotal || null;
+
         const heroCards = [
           { label: 'This week · arrivals',
-            v: lastWk ? fmtN(lastWk.m) : '—',
-            d: lastWk ? `week ending ${lastWk.we}` : 'Data pending',
+            modes: [{
+              key: 'total',
+              v: lastWk ? fmtN(lastWk.m) : '—',
+              d: lastWk ? `week ending ${lastWk.we}` : 'Data pending',
+            }],
             spark: wk.slice(-12).map((w,i) => ({ y: i, v: w.m || 0 })),
             sparkStroke: 'var(--accent-warn)' },
-          { label: `Small-boat arrivals · ${latestYoyYear ?? ''}`,
-            v: ytd != null ? fmtN(ytd) : '—',
-            d: ytdDelta != null ? `${ytdDelta>=0?'+':''}${ytdDelta.toFixed(1)}% vs same point in ${+latestYoyYear - 1}` : 'cumulative year-to-date',
-            spark: boatsAnnual, sparkStroke: 'var(--accent-warn)' },
-          { label: `Backlog · ${backlogSeries[backlogSeries.length-1]?.y ?? ''}`,
-            v: backlogSeries.length ? fmtN(backlogSeries[backlogSeries.length-1].v) : '—',
-            d: (() => {
-              if (backlogSeries.length < 2) return 'pending initial decision';
-              const a = backlogSeries[backlogSeries.length-1].v, b = backlogSeries[backlogSeries.length-2].v;
-              return b>0 ? `${((a-b)/b*100).toFixed(1)}% vs prior year` : 'pending initial decision';
-            })(),
-            spark: backlogSeries, sparkStroke: 'var(--accent-gold)' },
-          { label: `Grant rate · ${decisionsYear}`,
-            v: `${Math.round(grantRate*100)}%`,
-            d: 'of initial decisions',
-            spark: grantSpark, sparkStroke: 'var(--accent-2)' },
+          (() => {
+            const popForYear = latestYoyYear ? ukPopFor(+latestYoyYear) : null;
+            const ytdPer100k = (ytd != null && popForYear) ? (ytd / (popForYear * 1000)) * 100000 : null;
+            return {
+              label: `Small-boat arrivals · ${latestYoyYear ?? ''} YTD`,
+              modes: [
+                { key: 'total',
+                  v: ytd != null ? fmtN(ytd) : '—',
+                  d: ytdDelta != null ? `${ytdDelta>=0?'+':''}${ytdDelta.toFixed(1)}% vs same point in ${+latestYoyYear - 1}` : 'cumulative year-to-date' },
+                { key: 'per100k',
+                  v: ytdPer100k != null ? ytdPer100k.toFixed(1) : '—',
+                  d: ytdPer100k != null ? 'arrivals per 100,000 UK residents' : 'population unavailable' },
+                { key: 'yoy',
+                  v: ytdDelta != null ? `${ytdDelta>=0?'+':''}${ytdDelta.toFixed(0)}%` : '—',
+                  d: `vs same point in ${+latestYoyYear - 1}` },
+              ],
+              spark: boatsAnnual, sparkStroke: 'var(--accent-warn)' };
+          })(),
+          (() => {
+            const last = backlogSeries[backlogSeries.length - 1];
+            const prev = backlogSeries[backlogSeries.length - 2];
+            const yoyPct = (last && prev && prev.v > 0) ? ((last.v - prev.v) / prev.v) * 100 : null;
+            const months = (last && decisionsThroughput) ? (last.v / decisionsThroughput) * 12 : null;
+            return {
+              label: `Backlog · ${last?.y ?? ''}`,
+              modes: [
+                { key: 'cases',
+                  v: last ? fmtN(last.v) : '—',
+                  d: yoyPct != null ? `${yoyPct>=0?'+':''}${yoyPct.toFixed(1)}% vs prior year` : 'pending initial decision' },
+                { key: 'months',
+                  v: months != null ? months.toFixed(1) : '—',
+                  d: months != null ? `months of work at ${decisionsYear} decision rate` : 'decisions rate unavailable' },
+                { key: 'yoy',
+                  v: yoyPct != null ? `${yoyPct>=0?'+':''}${yoyPct.toFixed(0)}%` : '—',
+                  d: 'vs prior year-end' },
+              ],
+              spark: backlogSeries, sparkStroke: 'var(--accent-gold)' };
+          })(),
+          (() => {
+            const grant2019 = (() => {
+              const nga2 = W.NAT_GRANT_ANNUAL;
+              if (!nga2 || !Array.isArray(nga2.years) || !Array.isArray(nga2.series)) return null;
+              const idx = nga2.years.indexOf(2019);
+              if (idx < 0) return null;
+              const vals = nga2.series.map(s => s.data[idx]).filter(v => v != null);
+              return vals.length ? vals.reduce((a,b)=>a+b,0) / vals.length : null;
+            })();
+            const headlinePct = Math.round(grantRate * 100);
+            const deltaPp = (grant2019 != null) ? Math.round((grantRate - grant2019) * 100) : null;
+            return {
+              label: `Grant rate · ${decisionsYear}`,
+              modes: [
+                { key: 'headline', v: `${headlinePct}%`, d: 'of initial decisions' },
+                ...(deltaPp != null ? [{ key: 'vs2019',
+                  v: `${deltaPp >= 0 ? '+' : ''}${deltaPp}pp`,
+                  d: `vs 2019 (${Math.round(grant2019*100)}%)` }] : []),
+              ],
+              spark: grantSpark, sparkStroke: 'var(--accent-2)' };
+          })(),
         ];
+        // Mode is held per-card, default 0 (first/total).
+        const MODE_LABELS = {
+          total: 'Total', cases: 'Cases', headline: 'Headline',
+          per100k: 'Per 100k', months: 'Months', yoy: 'YoY', vs2019: 'vs 2019',
+        };
+        const labelForMode = (key) => MODE_LABELS[key] || key;
+        const ModeAware = ({card}) => {
+          const [mode, setMode] = React.useState(0);
+          const m = card.modes[mode] || card.modes[0];
+          return (
+            <div style={{padding:'20px 22px',background:'var(--bg-2)',border:'1px solid var(--rule)'}}>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:10,fontSize:10.5}}>{card.label}</div>
+              <div style={{fontFamily:'var(--serif)',fontSize:40,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">{m.v}</div>
+              <div style={{fontSize:12.5,color:'var(--muted)',marginTop:8,fontStyle:'italic',minHeight:18}}>{m.d}</div>
+              {card.modes.length > 1 && (
+                <div style={{marginTop:12,display:'flex',border:'1px solid var(--rule-2)',fontFamily:'var(--mono)',fontSize:10,letterSpacing:'.04em',textTransform:'uppercase'}}>
+                  {card.modes.map((mm, i) => (
+                    <button key={mm.key} onClick={() => setMode(i)}
+                      title={mm.d}
+                      style={{
+                        flex:1, padding:'5px 4px',
+                        background: i === mode ? 'var(--accent)' : 'transparent',
+                        color: i === mode ? 'var(--bg)' : 'var(--muted)',
+                        border:'none',
+                        borderRight: i < card.modes.length - 1 ? '1px solid var(--rule-2)' : 'none',
+                        cursor:'pointer', font:'inherit', textTransform:'inherit',
+                      }}>{labelForMode(mm.key)}</button>
+                  ))}
+                </div>
+              )}
+              {card.spark && card.spark.length > 1 && (
+                <div style={{marginTop:12}}>
+                  <Spark data={card.spark} width={220} height={36} stroke={card.sparkStroke}/>
+                </div>
+              )}
+            </div>
+          );
+        };
         return (
           <section className="kpi-hero-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:24,paddingBottom:22,borderBottom:'1px solid var(--rule)'}}>
-            {heroCards.map((k,i) => (
-              <div key={i} style={{padding:'20px 22px',background:'var(--bg-2)',border:'1px solid var(--rule)'}}>
-                <div className="uc" style={{color:'var(--muted)',marginBottom:10,fontSize:10.5}}>{k.label}</div>
-                <div style={{fontFamily:'var(--serif)',fontSize:40,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">{k.v}</div>
-                <div style={{fontSize:12.5,color:'var(--muted)',marginTop:8,fontStyle:'italic'}}>{k.d}</div>
-                {k.spark && k.spark.length > 1 && (
-                  <div style={{marginTop:12}}>
-                    <Spark data={k.spark} width={220} height={36} stroke={k.sparkStroke}/>
-                  </div>
-                )}
-              </div>
-            ))}
+            {heroCards.map((k,i) => <ModeAware key={i} card={k}/>)}
+            {/* EU peer footnote — visible if any per-100k or vs-EU comparison is shown above. */}
           </section>
         );
       })()}
@@ -692,7 +910,22 @@ function DashboardView({ setRoute }) {
           {/* Fig.02 — Asylum applications, now sitting below the promoted YoY hero. */}
           <div style={{marginTop:20}}>
             <DashFrame number="02" kickerColor="var(--accent-warn)" title="Asylum applications" sub={`UK · ${range[0]}–${range[1]}`}
-              setRoute={setRoute} forkPreset={{ d:'applications', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
+              setRoute={setRoute} forkPreset={{ d:'applications', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}
+              takeaway={(() => {
+                const peak = ASYLUM_ANNUAL.reduce((a,b) => (b.v||0) > (a.v||0) ? b : a, ASYLUM_ANNUAL[0]);
+                const aa2018 = ASYLUM_ANNUAL.find(r => r.y === 2018);
+                const peakPct = peak && peak.v ? Math.round(Math.abs(latest.v - peak.v) / peak.v * 100) : null;
+                const ratio = aa2018 && aa2018.v ? (latest.v / aa2018.v) : null;
+                return (
+                  <>
+                    <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>{latest.y} settled at {latest.v.toLocaleString('en-GB')}.</b>{' '}
+                    {peak && peak.y !== latest.y && peakPct != null && (
+                      <>{peakPct}% {latest.v < peak.v ? 'below' : 'above'} the {peak.y} peak of {peak.v.toLocaleString('en-GB')};{' '}</>
+                    )}
+                    {ratio != null && <>roughly {ratio.toFixed(1)}× the 2018 level.</>}
+                  </>
+                );
+              })()}>
               <LineChart data={ASYLUM_ANNUAL} yearRange={range} width={1100} height={300}
                 compact={compact} yLabel="Applications" xLabel="Year"
                 annotations={[
@@ -710,7 +943,11 @@ function DashboardView({ setRoute }) {
           {typeof BOATS_MONTHLY !== 'undefined' && BOATS_MONTHLY.length > 0 && (
             <div style={{marginTop:20}}>
               <DashFrame number="03" kickerColor="var(--accent-warn)" title="Arrivals by month · seasonal pattern" sub="Monthly crossings, 2018–latest · darker = more arrivals"
-                setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'monthly' }}>
+                setRoute={setRoute} forkPreset={{ d:'boats', ct:'line', g:'monthly' }}
+                takeaway={<>
+                  <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>Eight years, the shape of the year barely moves.</b>{' '}
+                  Quiet from January to March; rising from April; peaking late summer. Annual totals swing on weather, interception and policy — the calendar doesn't.
+                </>}>
                 <MonthSeasonalityHeatmap data={BOATS_MONTHLY}
                   width={1100} height={compact ? 220 : 300}
                   yearRange={range}
@@ -730,11 +967,48 @@ function DashboardView({ setRoute }) {
           <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,marginTop:20}}>
             <DashFrame number="04" kickerColor="var(--accent-gold)" title="Top-five nationalities · small-boat arrivals"
               sub={`Full years · IRR_BOATS_BY_NATIONALITY (Irr_02b)`}
-              setRoute={setRoute} forkPreset={{ d:'nationalities_boats', ct:'bar', g:'annual' }}>
+              setRoute={setRoute} forkPreset={{ d:'nationalities_boats', ct:'bar', g:'annual' }}
+              takeaway={(() => {
+                const W = (typeof window !== 'undefined') ? window : {};
+                const rows = Array.isArray(W.IRR_BOATS_BY_NATIONALITY) ? W.IRR_BOATS_BY_NATIONALITY : [];
+                if (!rows.length) return null;
+                const fullYears = Array.from(new Set(rows.filter(r => !r.partial).map(r => r.year))).sort((a,b)=>a-b);
+                if (!fullYears.length) return null;
+                const latest = fullYears[fullYears.length - 1];
+                const earliest = fullYears[0];
+                const tally = (yr) => {
+                  const acc = {};
+                  for (const r of rows) {
+                    if (r.partial || r.year !== yr) continue;
+                    if (r.meta === 'total' || r.nationality === 'Total') continue;
+                    acc[r.nationality] = (acc[r.nationality] || 0) + (r.count || 0);
+                  }
+                  return Object.entries(acc).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e => e[0]);
+                };
+                const topLatest = tally(latest), topEarliest = tally(earliest);
+                if (!topLatest.length || !topEarliest.length) return null;
+                return (
+                  <>
+                    <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>The visible top of the small-boats stack rotates faster than the total.</b>{' '}
+                    {latest}'s leaders — {topLatest.join(', ')} — are not the leaders of {earliest} ({topEarliest.join(', ')}). The mix shifts year on year; the headline volume tells you less about who is arriving than the breakdown does.
+                  </>
+                );
+              })()}>
               <TopFiveStackedBars data={typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' ? IRR_BOATS_BY_NATIONALITY : []} width={760} height={260} asOf={typeof IRR_BOATS_META !== 'undefined' ? IRR_BOATS_META?.asOf : null}/>
             </DashFrame>
             <DashFrame number="05" kickerColor="var(--accent-2)" title="All nationalities" sub={natFull ? `${natFull.length} nationalities, latest year` : 'Data pending'}
-              setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'bar', g:'annual' }}>
+              setRoute={setRoute} forkPreset={{ d:'nationalities_custom', ct:'bar', g:'annual' }}
+              takeaway={(() => {
+                if (!natFull || !natFull.length) return null;
+                const top = [...natFull].sort((a,b) => (b.v||0) - (a.v||0)).slice(0, 3);
+                if (!top.length) return null;
+                return (
+                  <>
+                    <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>The headline ranking by volume is not the same story as the ranking by outcome.</b>{' '}
+                    {top[0].name} leads on applications{top[1] ? `, ahead of ${top[1].name}` : ''}{top[2] ? ` and ${top[2].name}` : ''} — but grant rates among them diverge sharply, so the volume top three and the outcome top three are different lists.
+                  </>
+                );
+              })()}>
               <NationalitiesTable data={natFull}/>
             </DashFrame>
           </div>
@@ -742,7 +1016,35 @@ function DashboardView({ setRoute }) {
             <div style={{marginTop:20}}>
               <DashFrame number="06" kickerColor="var(--accent)"
                 title="Interception rate — share of attempts that never complete"
-                sub="Rolling 13-week window · p / (p + m) · SB_02">
+                sub="Rolling 13-week window · p / (p + m) · SB_02"
+                takeaway={(() => {
+                  const W = (typeof window !== 'undefined') ? window : {};
+                  const wk = Array.isArray(W.BOATS_WEEKLY) ? W.BOATS_WEEKLY : [];
+                  const withP = wk.filter(w => w && w.p != null && (w.m != null));
+                  if (withP.length < 14) return null;
+                  const rolling = (window) => {
+                    const slice = withP.slice(-window);
+                    const tot = slice.reduce((s,w) => s + w.p + w.m, 0);
+                    const pre = slice.reduce((s,w) => s + w.p, 0);
+                    return tot > 0 ? pre / tot : null;
+                  };
+                  const latest = rolling(13);
+                  const firstStart = withP.slice(0, 13);
+                  const firstTot = firstStart.reduce((s,w) => s + w.p + w.m, 0);
+                  const firstPre = firstStart.reduce((s,w) => s + w.p, 0);
+                  const start = firstTot > 0 ? firstPre / firstTot : null;
+                  if (latest == null) return null;
+                  const pct = (n) => `${Math.round(n * 100)}%`;
+                  const direction = (start != null) ? (latest > start ? 'up from' : latest < start ? 'down from' : 'unchanged from') : null;
+                  return (
+                    <>
+                      <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>About {pct(latest)} of recent crossing attempts ended on the French side.</b>{' '}
+                      {direction && start != null
+                        ? <>The 13-week rolling rate is {direction} {pct(start)} when <Gloss term="preventions">preventions</Gloss> first started being published. The arrivals total alone misses this — the more honest crossing measure is attempts.</>
+                        : <>Combined with arrivals, this is the most honest measure of crossing pressure.</>}
+                    </>
+                  );
+                })()}>
                 <InterceptionRate data={BOATS_WEEKLY}
                   width={compact ? 580 : 1100} height={compact ? 240 : 320}
                   caption="Reads as: the 13-week rolling share of crossing attempts that ended on the French side (prevented from leaving) rather than with a UK arrival. The shaded band shows the absolute volume of attempts so a rising rate on a small base is distinguishable from a rising rate on a large one. Preventions began to be published in May 2024; the series starts there."
@@ -758,7 +1060,11 @@ function DashboardView({ setRoute }) {
         <section style={{marginBottom:44}}>
           <DashSectionHeader kicker="Decisions" title="Outcomes and the backlog" accent="var(--accent-2)" cadence="Quarterly"/>
           <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-            <DashFrame number="07" kickerColor="var(--accent-warn)" title={`Initial decisions, ${decisionsYear}`} sub="Share of substantive outcomes">
+            <DashFrame number="07" kickerColor="var(--accent-warn)" title={`Initial decisions, ${decisionsYear}`} sub="Share of substantive outcomes"
+              takeaway={<>
+                <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>The UK <Gloss term="grant rate">grant rate</Gloss> is a weighted blend, not a property of the system.</b>{' '}
+                Some nationalities grant near 100% (Afghan, Syrian, Sudanese); others grant near 0%. The headline moves when the case mix moves — not when the system gets stricter or kinder.
+              </>}>
               <StackedBar data={decisionsData} width={600} height={110}/>
               <div style={{marginTop:18,display:'grid',gridTemplateColumns:'auto 1fr',gap:22,alignItems:'center'}}>
                 <Ring value={grantRate} size={220} stroke={22}
@@ -771,7 +1077,21 @@ function DashboardView({ setRoute }) {
             </DashFrame>
             <DashFrame number="08" kickerColor="var(--accent-gold)" title="Pending cases (backlog)"
               sub={`${range[0]}–${range[1]}${backlogMeta ? ` · 31 Dec snapshots · Asy_D03` : ''}`}
-              setRoute={setRoute} forkPreset={{ d:'backlog', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}>
+              setRoute={setRoute} forkPreset={{ d:'backlog', ct:'line', g:'annual', r:`${range[0]}-${range[1]}` }}
+              takeaway={(() => {
+                if (!backlogData.length) return null;
+                const peak = backlogData.reduce((a,b) => (b.v||0) > (a.v||0) ? b : a, backlogData[0]);
+                const last = backlogData[backlogData.length - 1];
+                if (!peak || !last) return null;
+                const fall = peak.v ? Math.round((peak.v - last.v) / peak.v * 100) : null;
+                return (
+                  <>
+                    <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>The <Gloss term="backlog">backlog</Gloss> hasn't just shrunk — it has changed shape.</b>{' '}
+                    {fall != null && peak.y !== last.y && <>Down roughly {fall}% from the {peak.y} peak of {peak.v.toLocaleString('en-GB')}. </>}
+                    The cleared cases were disproportionately easy; what remains is harder, which predicts a falling headline grant rate even with no policy change.
+                  </>
+                );
+              })()}>
               <LineChart data={filteredBacklog} yearRange={range} width={560} height={260}
                 compact={compact} stroke="var(--accent-gold)"
                 yLabel="Pending cases" xLabel="Year"
@@ -782,13 +1102,48 @@ function DashboardView({ setRoute }) {
                 asOf={srcAsOf.Asy_D03} nextUpdate={srcAsOf.Asy_D03_next}/>
             </DashFrame>
           </div>
+          {/* Fig 08a — backlog age-band breakdown. Picks up
+              window.BACKLOG_AGE_BANDS emitted by the extended backlog builder.
+              Renders as a stacked column per snapshot year so the share of
+              long-pending cases is visually obvious. */}
+          {typeof BACKLOG_AGE_BANDS !== 'undefined' && Array.isArray(BACKLOG_AGE_BANDS) && BACKLOG_AGE_BANDS.length > 0 && (() => {
+            const bands = BACKLOG_AGE_BANDS.filter(r => r.y >= range[0] && r.y <= range[1]);
+            if (bands.length === 0) return null;
+            const last = bands[bands.length - 1];
+            const peak = bands.reduce((a, b) => (b.gtYearShare || 0) > (a.gtYearShare || 0) ? b : a, bands[0]);
+            const yrs = bands.map(b => b.y);
+            const series = [
+              { name: '< 3 months',    data: bands.map(b => b.lt3m  || 0) },
+              { name: '3–6 months',    data: bands.map(b => b.m3to6 || 0) },
+              { name: '6–12 months',   data: bands.map(b => b.m6to12|| 0) },
+              { name: '> 12 months',   data: bands.map(b => b.gt12  || 0) },
+            ];
+            const colors = ['var(--accent-2)', 'var(--accent)', 'var(--accent-gold)', 'var(--accent-warn)'];
+            return (
+              <div style={{marginTop:20}}>
+                <DashFrame number="08a" kickerColor="var(--accent-gold)"
+                  title="Backlog age profile · how long pending cases have been waiting"
+                  sub={`${yrs[0]}–${yrs[yrs.length-1]} · year-end snapshots · Asy_D03 Duration`}
+                  takeaway={<>
+                    <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>{Math.round((last.gtYearShare || 0) * 100)}% of pending cases at the {last.date} snapshot have been waiting more than a year.</b>{' '}
+                    Down from a {Math.round((peak.gtYearShare || 0) * 100)}% peak in {peak.y} — the closest available proxy for how long a claim takes, now that per-claim cohort linkage is no longer published.
+                  </>}>
+                  <StackedColumnsMulti years={yrs} series={series} colors={colors} width={1100} height={300}/>
+                </DashFrame>
+              </div>
+            );
+          })()}
           {/* Grant-rate small multiples — 12 nationalities, one cell each. */}
           {typeof NAT_GRANT_ANNUAL !== 'undefined' && NAT_GRANT_ANNUAL && (
             <div style={{marginTop:20}}>
               <DashFrame number="09" kickerColor="var(--accent-2)"
                 title="Grant rate by nationality · small multiples"
                 sub={`${NAT_GRANT_ANNUAL.years[0]}–${NAT_GRANT_ANNUAL.years[NAT_GRANT_ANNUAL.years.length-1]} · 12 nationalities · independent trends`}
-                setRoute={setRoute} forkPreset={{ d:'grant_rate', ct:'line' }}>
+                setRoute={setRoute} forkPreset={{ d:'grant_rate', ct:'line' }}
+                takeaway={<>
+                  <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>Some nationalities grant above 90%; some grant below 10%.</b>{' '}
+                  The "UK grant rate" is a weighted blend of those extremes — Afghanistan and Albania, side by side here, tell most of the story.
+                </>}>
                 <GrantRateSmallMultiples series={NAT_GRANT_ANNUAL} yearRange={range} width={1100} height={380} cols={4}
                   highlight={['Afghanistan','Syria','Iran','Eritrea']}
                   caption="Each cell is one nationality. Y-axis is 0–100% grant rate; x-axis runs across the full window. Dashed grid line marks 50%. Most nationalities move independently — no single macro driver explains all of them."
@@ -828,7 +1183,21 @@ function DashboardView({ setRoute }) {
               <>
               <DashFrame number="12" kickerColor="var(--accent-warn)"
                 title="Asylum seekers in receipt of Home Office support, by region"
-                sub={regMeta ? `UK regions · as at ${regMeta.date} · Asy_D11` : 'UK · 2024'}>
+                sub={regMeta ? `UK regions · as at ${regMeta.date} · Asy_D11` : 'UK · 2024'}
+                takeaway={(() => {
+                  const data = regData || [];
+                  if (!data.length) return null;
+                  const total = data.reduce((s,r) => s + (r.v||0), 0) || 1;
+                  const sorted = [...data].sort((a,b) => (b.v||0) - (a.v||0));
+                  const top3 = sorted.slice(0, 3);
+                  const top3Share = top3.reduce((s,r) => s + (r.v||0), 0) / total;
+                  return (
+                    <>
+                      <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>Dispersal is statutory; the geography of it is contracted, not chosen.</b>{' '}
+                      The top three regions — {top3.map(r => r.name).join(', ')} — together carry {Math.round(top3Share * 100)}% of the supported total. The map of <em>where the wait happens</em> is not the map of <em>where the claims are made</em>.
+                    </>
+                  );
+                })()}>
                 <BarChart data={regData} width={1100} color="var(--accent)"/>
                 <div style={{marginTop:14,paddingTop:12,borderTop:'1px dotted var(--rule-2)',fontSize:12.5,lineHeight:1.6,color:'var(--muted)',maxWidth:820}}>
                   Counts people receiving Section 95 support (accommodation and subsistence for destitute asylum seekers awaiting a decision), Section 98 (emergency support while a Section 95 application is assessed), or Section 4 (support for failed asylum seekers unable to leave the UK). This is where people are housed — not where claims were lodged.
@@ -1373,7 +1742,126 @@ function SchemeCell({ name, colorIdx }) {
   );
 }
 
-function DashFrame({ number, kickerColor, title, sub, children, style={}, forkPreset=null, setRoute=null }) {
+// Citable card exporter — builds a 1200x630 SVG that wraps the frame's
+// inner chart with title, takeaway, source code and a permalink, then
+// rasterises to PNG and triggers a download. Pulls runtime-resolved
+// design-token values into the SVG so the file is self-contained.
+const TOKEN_KEYS_DASH = ['--accent','--accent-2','--accent-warn','--accent-gold','--bg','--bg-2','--bg-3','--ink','--ink-2','--muted','--muted-2','--rule','--rule-2'];
+function exportCitableCard({ frameEl, number, title, takeawayText, sub, source }) {
+  if (!frameEl) return;
+  const innerSvg = frameEl.querySelector('.dash-frame-body svg, .chart-area svg, svg');
+  if (!innerSvg) return;
+  const cs = getComputedStyle(document.documentElement);
+  const tok = (k, fallback) => (cs.getPropertyValue(k) || '').trim() || fallback;
+  const W = 1200, H = 630;
+  const PAD = 60;
+
+  // Clone the chart svg and fix its width/height; we scale via a wrapping <g>.
+  const clone = innerSvg.cloneNode(true);
+  let cw = parseFloat(clone.getAttribute('width')) || innerSvg.getBoundingClientRect().width || 800;
+  let ch = parseFloat(clone.getAttribute('height')) || innerSvg.getBoundingClientRect().height || 400;
+  if (clone.getAttribute('viewBox')) {
+    const vb = clone.getAttribute('viewBox').split(/[\s,]+/).map(Number);
+    if (vb.length === 4) { cw = vb[2]; ch = vb[3]; }
+  }
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  // Embedded SVG keeps its own coords; we don't need explicit width/height attrs on it.
+
+  // Reserve space: top metadata (~150) and bottom footer (~70). Chart fits in the middle.
+  const chartTop = 170, chartBottom = 560;
+  const chartH = chartBottom - chartTop, chartW = W - 2 * PAD;
+  const scale = Math.min(chartW / cw, chartH / ch);
+  const finalCw = cw * scale, finalCh = ch * scale;
+  const chartX = (W - finalCw) / 2;
+  const chartY = chartTop + (chartH - finalCh) / 2;
+
+  // Inline the cloned SVG markup as a string. It already has its own internal text
+  // styles; we only need to add a CSS variable scope with the token values.
+  const svgInner = new XMLSerializer().serializeToString(clone);
+  const tokenStyles = TOKEN_KEYS_DASH.map(k => `${k}: ${tok(k, '#000')}`).join(';');
+
+  const url = (typeof location !== 'undefined') ? `${location.host}${location.pathname}` : 'migration-data-explorer';
+  const escape = (s) => String(s || '').replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
+
+  // Word-wrap helper for the title — max 2 lines, chars-per-line based on font size.
+  const wrap = (s, charsPerLine, maxLines) => {
+    const words = String(s || '').split(/\s+/).filter(Boolean);
+    const lines = []; let line = '';
+    for (const w of words) {
+      const candidate = line ? `${line} ${w}` : w;
+      if (candidate.length > charsPerLine && line) {
+        lines.push(line); line = w;
+        if (lines.length >= maxLines) { line = ''; break; }
+      } else {
+        line = candidate;
+      }
+    }
+    if (line && lines.length < maxLines) lines.push(line);
+    if (lines.length >= maxLines && line) {
+      const last = lines[maxLines - 1];
+      if (last.length + 1 < charsPerLine) lines[maxLines - 1] = last + '…';
+    }
+    return lines;
+  };
+
+  const titleText = takeawayText || title || '';
+  const titleLines = wrap(titleText, 65, 2);
+  const subText = sub ? sub.replace(/\s+·\s+/g, '  ·  ') : '';
+
+  const accent = tok('--accent', '#1c3d2e');
+  const accentWarn = tok('--accent-warn', '#b85c38');
+  const bg = tok('--bg', '#fbfaf7');
+  const ink = tok('--ink', '#1a1a17');
+  const ink2 = tok('--ink-2', '#3a342a');
+  const muted = tok('--muted', '#7a6d5a');
+
+  const wrapper = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="${tokenStyles}; font-family: 'Source Serif 4', Georgia, serif;">
+  <rect width="${W}" height="${H}" fill="${bg}"/>
+  <rect x="0" y="0" width="${W}" height="6" fill="${accentWarn}"/>
+  <text x="${PAD}" y="58" font-family="JetBrains Mono, monospace" font-size="13" fill="${accentWarn}" letter-spacing="0.1em" font-weight="500">
+    MIGRATION DATA EXPLORER  ·  FIG. ${escape(number || '')}
+  </text>
+  ${titleLines.map((ln, i) => `
+    <text x="${PAD}" y="${100 + i * 38}" font-family="'Source Serif 4', Georgia, serif" font-size="30" fill="${ink}" font-weight="400">${escape(ln)}</text>
+  `).join('')}
+  ${subText ? `<text x="${PAD}" y="${100 + titleLines.length * 38 + 22}" font-family="'Source Serif 4', Georgia, serif" font-size="14" fill="${muted}" font-style="italic">${escape(subText)}</text>` : ''}
+  <g transform="translate(${chartX}, ${chartY}) scale(${scale})">
+    ${svgInner}
+  </g>
+  <line x1="${PAD}" y1="585" x2="${W - PAD}" y2="585" stroke="${tok('--rule-2', '#d6cdb8')}" stroke-width="1"/>
+  <text x="${PAD}" y="608" font-family="JetBrains Mono, monospace" font-size="11" fill="${muted}" letter-spacing="0.04em">
+    ${escape(source || 'Home Office Immigration Statistics')}
+  </text>
+  <text x="${W - PAD}" y="608" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" fill="${accent}" font-weight="500" letter-spacing="0.04em">
+    ${escape(url)}
+  </text>
+</svg>`.trim();
+
+  const blob = new Blob([wrapper], { type: 'image/svg+xml' });
+  const blobUrl = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = W * 2; canvas.height = H * 2; // retina
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((pngBlob) => {
+      if (!pngBlob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(pngBlob);
+      a.download = `mde-fig-${number || 'card'}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => { URL.revokeObjectURL(a.href); URL.revokeObjectURL(blobUrl); }, 0);
+    }, 'image/png');
+  };
+  img.onerror = () => URL.revokeObjectURL(blobUrl);
+  img.src = blobUrl;
+}
+
+function DashFrame({ number, kickerColor, title, sub, children, style={}, forkPreset=null, setRoute=null, takeaway=null, citeSource=null }) {
   // Fork to Build-a-chart, pre-selecting a dataset / overlay / granularity.
   // `forkPreset` is a partial config keyed like BuildView's URL hash:
   // { d: 'applications', g: 'annual', ct: 'line', o: 'boats', r: '2018-2025' }.
@@ -1386,8 +1874,19 @@ function DashFrame({ number, kickerColor, title, sub, children, style={}, forkPr
     } catch (_) { /* ignore */ }
     setRoute({ name: 'build' });
   } : null;
+  const frameRef = uRD(null);
+  const onCite = () => {
+    const takeawayText = frameRef.current?.querySelector('.dash-takeaway')?.textContent?.replace(/\s+/g, ' ').trim() || null;
+    exportCitableCard({
+      frameEl: frameRef.current,
+      number, title,
+      takeawayText,
+      sub: sub || '',
+      source: citeSource || (sub || 'Home Office Immigration Statistics'),
+    });
+  };
   return (
-    <div className="dash-frame" style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
+    <div ref={frameRef} className="dash-frame" style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule)',gap:16}}>
         <div style={{flex:'1 1 auto',minWidth:0}}>
           <div style={{fontSize:10.5,letterSpacing:0.12,textTransform:'uppercase',color:kickerColor,fontWeight:500,display:'inline-block',paddingBottom:4,borderBottom:`1.5px solid ${kickerColor}`,marginBottom:10}}>Fig. {number}</div>
@@ -1403,15 +1902,29 @@ function DashFrame({ number, kickerColor, title, sub, children, style={}, forkPr
           )}
         </div>
         <div style={{display:'flex',gap:10,fontSize:11,color:'var(--muted-2)',flex:'0 0 auto',paddingTop:2}} className="uc">
-          <span className="pressable" style={{cursor:'pointer'}}>↓</span>
+          <span className="pressable" style={{cursor:'pointer'}} onClick={onCite} title="Cite — download as 1200×630 PNG with caption + source">↓ Cite</span>
           {openInBuild ? (
             <span className="pressable" style={{cursor:'pointer'}} onClick={openInBuild} title="Fork in Build-a-chart">⇢</span>
           ) : (
             <span className="pressable" style={{cursor:'pointer',opacity:0.5}}>⇢</span>
           )}
-          <span className="pressable" style={{cursor:'pointer'}}>⎘</span>
         </div>
       </div>
+      {takeaway && (
+        <div className="dash-takeaway" style={{
+          background:'var(--bg-2)',
+          borderLeft:`3px solid ${kickerColor}`,
+          padding:'12px 18px',
+          marginBottom:18,
+          fontSize:14.5,
+          lineHeight:1.5,
+          color:'var(--ink-2)',
+          textWrap:'pretty',
+          fontStyle:'italic'
+        }}>
+          {takeaway}
+        </div>
+      )}
       {children}
     </div>
   );

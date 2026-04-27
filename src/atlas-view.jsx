@@ -294,6 +294,185 @@ function AtlasSelectedTable({ selectedNats, onRemove }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Country-context strip
+//
+// External signal that helps a reader interpret why someone might be
+// arriving from country X. Four cells: Freedom House status (with
+// score), UCDP conflict events (events + deaths), UNHCR persons of
+// concern from the origin, World Bank GDP per capita PPP. Each cell
+// shows its own as-of year and source code; missing fields render as
+// a discreet em-dash so the reader can see the gap.
+// ─────────────────────────────────────────────────────────────
+function AtlasCountryContextStrip({ selectedNats }) {
+  const W = (typeof window !== 'undefined') ? window : {};
+  const ctx = W.COUNTRY_CONTEXT || null;
+  const ctxMeta = W.COUNTRY_CONTEXT_META || null;
+  if (!ctx || !selectedNats || !selectedNats.length) return null;
+
+  // Map the first selected name → ISO3 via WORLD_MAP.
+  const worldMap = Array.isArray(W.WORLD_MAP) ? W.WORLD_MAP : [];
+  const isoByName = {};
+  for (const c of worldMap) if (c.iso && c.name) isoByName[c.name] = c.iso;
+  const name = selectedNats[0];
+  const iso = isoByName[name];
+  const entry = iso ? ctx[iso] : null;
+  if (!entry) {
+    // Show a neutral placeholder when we can't resolve — keeps the layout
+    // consistent and signals that we're aware of the gap.
+    return (
+      <div style={{background:'#fff',border:'1px solid var(--rule)',padding:'14px 18px',fontSize:12.5,color:'var(--muted)',fontStyle:'italic'}}>
+        No external context available for {name}{!iso ? ' (no ISO3 match)' : ''}. Sources update annually; rerun the country-context build to refresh.
+      </div>
+    );
+  }
+
+  const fmtNum = (n) => n == null ? '—' : n.toLocaleString('en-GB');
+  const fmtThousands = (n) => {
+    if (n == null) return '—';
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}m`;
+    if (n >= 10_000) return `${Math.round(n / 1000)}k`;
+    if (n >= 1_000) return `${(n / 1000).toFixed(1)}k`;
+    return n.toLocaleString('en-GB');
+  };
+  const statusColour = (s) => s === 'Free' ? 'var(--accent-2)' : s === 'Partly Free' ? 'var(--accent-warn)' : s === 'Not Free' ? 'var(--ink)' : 'var(--muted)';
+
+  const Cell = ({ label, value, valueColour, source }) => (
+    <div style={{background:'var(--bg)',padding:'12px 14px'}}>
+      <div className="uc" style={{fontSize:10,color:'var(--muted)',marginBottom:6,letterSpacing:'.06em'}}>{label}</div>
+      <div style={{fontFamily:'var(--serif)',fontSize:14.5,fontWeight:500,color: valueColour || 'var(--ink)',lineHeight:1.2}}>{value}</div>
+      {source && <div style={{fontFamily:'var(--mono)',fontSize:9.5,color:'var(--muted-2)',marginTop:4,letterSpacing:'.04em'}}>{source}</div>}
+    </div>
+  );
+
+  const fh = entry.freedomHouse;
+  const ucdp = entry.ucdp;
+  const unhcr = entry.unhcr;
+  const gdp = entry.gdpPerCapitaPPP;
+
+  return (
+    <div style={{background:'#fff',border:'1px solid var(--rule)',padding:'18px 22px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:12,gap:14,flexWrap:'wrap'}}>
+        <h4 style={{margin:0,fontFamily:'var(--serif)',fontSize:15,fontWeight:500,letterSpacing:-0.1}}>
+          Context · {name}
+        </h4>
+        {ctxMeta && ctxMeta.sources && (
+          <div className="uc" style={{color:'var(--muted)',fontSize:10}}>
+            Annual signal from {ctxMeta.sources.length} source{ctxMeta.sources.length === 1 ? '' : 's'}
+          </div>
+        )}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
+        <Cell
+          label="Freedom House status"
+          value={fh ? `${fh.status}${fh.score != null ? ` · ${fh.score}/100` : ''}` : '—'}
+          valueColour={fh ? statusColour(fh.status) : 'var(--muted)'}
+          source={fh ? `freedomhouse.org · ${fh.year}` : 'no data'}/>
+        <Cell
+          label="UCDP conflict events"
+          value={ucdp
+            ? `${fmtNum(ucdp.events)}${ucdp.deaths ? ` · ${fmtThousands(ucdp.deaths)} deaths` : ''}`
+            : '— · token-gated'}
+          source={ucdp ? `UCDP GED · ${ucdp.year}` : 'requires UCDP_API_TOKEN'}/>
+        <Cell
+          label="UNHCR persons of concern"
+          value={unhcr ? fmtThousands(unhcr.total) : '—'}
+          source={unhcr ? `UNHCR · ${unhcr.year}` : 'no data'}/>
+        <Cell
+          label="GDP per capita · PPP"
+          value={gdp ? `$${fmtNum(Math.round(gdp.value))}` : '—'}
+          source={gdp ? `World Bank · ${gdp.year}` : 'no data'}/>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Two-country compare card
+//
+// Renders only when ≥2 origins are selected. Picks the first two,
+// labels them A (terracotta) and B (forest), and shows 4 metrics
+// side-by-side: applications volume, initial grant rate, small-boat
+// arrivals (latest non-partial year), and returns (latest year).
+// ─────────────────────────────────────────────────────────────
+function AtlasCompareCard({ selectedNats, onSwap }) {
+  if (!selectedNats || selectedNats.length < 2) return null;
+  const [a, b] = selectedNats;
+
+  const W = (typeof window !== 'undefined') ? window : {};
+  const natFull = Array.isArray(W.NAT_FULL) ? W.NAT_FULL : [];
+  const irrBoats = Array.isArray(W.IRR_BOATS_BY_NATIONALITY) ? W.IRR_BOATS_BY_NATIONALITY : [];
+  const returns = Array.isArray(W.RETURNS_BY_NATIONALITY) ? W.RETURNS_BY_NATIONALITY : [];
+
+  const findApp = (n) => natFull.find(r => r.name === n);
+  const apps = { a: findApp(a), b: findApp(b) };
+
+  // Latest non-partial small-boats year, per country.
+  const boatsByYear = (n) => {
+    const rows = irrBoats.filter(r => r.nationality === n && !r.partial);
+    if (!rows.length) return null;
+    const latest = Math.max(...rows.map(r => r.year));
+    const row = rows.find(r => r.year === latest);
+    return row ? { year: latest, count: row.count } : null;
+  };
+  const boats = { a: boatsByYear(a), b: boatsByYear(b) };
+
+  const findReturns = (n) => returns.find(r => r.name === n);
+  const ret = { a: findReturns(a), b: findReturns(b) };
+
+  const fmtNum = (n) => n == null ? '—' : n.toLocaleString('en-GB');
+  const fmtPct = (g) => g == null ? '—' : `${Math.round(g * 100)}%`;
+
+  const Cell = ({ label, valA, valB }) => (
+    <div style={{padding:'14px 16px',background:'var(--bg-2)',border:'1px solid var(--rule)'}}>
+      <div className="uc" style={{color:'var(--muted)',fontSize:10,letterSpacing:'.06em',marginBottom:10}}>{label}</div>
+      <div style={{display:'flex',justifyContent:'space-between',fontSize:14,color:'var(--ink-2)',marginBottom:6,fontVariantNumeric:'tabular-nums'}}>
+        <span style={{color:'var(--muted)'}}>A · {a}</span>
+        <b style={{fontWeight:500,color:'var(--accent-warn)'}}>{valA}</b>
+      </div>
+      <div style={{display:'flex',justifyContent:'space-between',fontSize:14,color:'var(--ink-2)',fontVariantNumeric:'tabular-nums'}}>
+        <span style={{color:'var(--muted)'}}>B · {b}</span>
+        <b style={{fontWeight:500,color:'var(--accent-2)'}}>{valB}</b>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 24px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:16,gap:16,flexWrap:'wrap'}}>
+        <h4 style={{margin:0,fontFamily:'var(--serif)',fontSize:17,fontWeight:500,letterSpacing:-0.15}}>Compare two countries</h4>
+        <div style={{display:'flex',gap:10,fontFamily:'var(--mono)',fontSize:11,color:'var(--muted)',alignItems:'center'}}>
+          <span style={{padding:'4px 10px',border:'1px solid var(--rule-2)',background:'var(--bg-2)',color:'var(--ink-2)'}}>
+            <b style={{color:'var(--accent-warn)',fontWeight:500,marginRight:4}}>A</b> {a}
+          </span>
+          <span style={{padding:'4px 10px',border:'1px solid var(--rule-2)',background:'var(--bg-2)',color:'var(--ink-2)'}}>
+            <b style={{color:'var(--accent-2)',fontWeight:500,marginRight:4}}>B</b> {b}
+          </span>
+          {onSwap && selectedNats.length === 2 && (
+            <button onClick={onSwap} title="Swap A and B"
+              style={{background:'transparent',border:'1px solid var(--rule-2)',padding:'4px 10px',color:'var(--accent)',cursor:'pointer',fontFamily:'var(--mono)',fontSize:11,letterSpacing:'.04em'}}>
+              swap ⇄
+            </button>
+          )}
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:12}}>
+        <Cell label="Applications · latest year"
+          valA={fmtNum(apps.a?.v)} valB={fmtNum(apps.b?.v)}/>
+        <Cell label="Initial grant rate"
+          valA={fmtPct(apps.a?.grant)} valB={fmtPct(apps.b?.grant)}/>
+        <Cell label={boats.a?.year || boats.b?.year ? `Small-boat arrivals · ${boats.a?.year || boats.b?.year}` : 'Small-boat arrivals'}
+          valA={boats.a ? fmtNum(boats.a.count) : '—'} valB={boats.b ? fmtNum(boats.b.count) : '—'}/>
+        <Cell label="Returns · latest year"
+          valA={fmtNum(ret.a?.total)} valB={fmtNum(ret.b?.total)}/>
+      </div>
+      <div style={{marginTop:14,fontSize:11,color:'var(--muted-2)',fontStyle:'italic',lineHeight:1.45,maxWidth:'72ch'}}>
+        Pick any two origins — A is the first selected, B is the second. The dashboard's <em>"time to decide"</em> figure is excluded here because the workflow-system change broke per-claim linkage; we'll bring it back when the data does.
+      </div>
+    </div>
+  );
+}
+
 function AtlasDetail({ selectedNats, setRoute }) {
   const [showLabels, setShowLabels] = uSA(false);
   if (!selectedNats.length) {
@@ -445,6 +624,122 @@ function topQoQMover() {
   return best;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Ranked list of origin countries — sits beside the choropleth.
+//
+// Choropleths are bad at ordering and bad at comparing physically
+// unequal regions; a sorted list answers "which countries are biggest /
+// rising fastest?" in a way the map can't. Sparklines come from
+// NAT_QUARTERLY where available; trend arrows are derived from the
+// first vs last halves of the same series.
+// ─────────────────────────────────────────────────────────────
+function AtlasRankedList({ countryValues, metricLabel, selectedNames, onSelect, limit = 25 }) {
+  const W = (typeof window !== 'undefined') ? window : {};
+  const nq = W.NAT_QUARTERLY;
+
+  const seriesByName = uMA(() => {
+    if (!nq || !Array.isArray(nq.series)) return {};
+    const out = {};
+    for (const s of nq.series) out[s.name] = s.data;
+    return out;
+  }, [nq]);
+
+  const sorted = uMA(() => {
+    return Object.entries(countryValues || {})
+      .filter(([_, v]) => typeof v === 'number' && v > 0)
+      .sort(([_, a], [__, b]) => b - a)
+      .slice(0, limit);
+  }, [countryValues, limit]);
+
+  const fmt = (v) => v >= 10000 ? `${(v/1000).toFixed(1)}k` : v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`;
+
+  const arrowFor = (data) => {
+    if (!Array.isArray(data) || data.length < 4) return null;
+    const win = Math.max(2, Math.floor(data.length / 2));
+    const early = data.slice(0, win).reduce((a, b) => a + (b || 0), 0) / win;
+    const late = data.slice(-win).reduce((a, b) => a + (b || 0), 0) / win;
+    if (!early) return null;
+    const pct = (late - early) / early;
+    if (pct > 0.5) return { label: '▲▲▲', up: true };
+    if (pct > 0.2) return { label: '▲▲', up: true };
+    if (pct > 0.05) return { label: '▲', up: true };
+    if (pct < -0.5) return { label: '▼▼▼', up: false };
+    if (pct < -0.2) return { label: '▼▼', up: false };
+    if (pct < -0.05) return { label: '▼', up: false };
+    return { label: '·', up: null };
+  };
+
+  const buildSparkPath = (data, w = 80, h = 18) => {
+    if (!data || data.length < 2) return null;
+    const vals = data.map(v => (v == null ? 0 : v));
+    const max = Math.max(...vals) || 1;
+    const min = Math.min(...vals);
+    const range = max - min || 1;
+    return vals.map((v, i) => {
+      const x = (i / (vals.length - 1)) * w;
+      const y = h - ((v - min) / range) * (h - 2) - 1;
+      return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+    }).join(' ');
+  };
+
+  return (
+    <div className="atlas-ranked" style={{background:'var(--bg)',border:'1px solid var(--rule)',display:'flex',flexDirection:'column'}}>
+      <div style={{padding:'14px 18px',borderBottom:'1px solid var(--rule)',display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+        <h4 style={{margin:0,fontSize:14,fontWeight:500,letterSpacing:-0.1,fontFamily:'var(--serif)'}}>Top origins</h4>
+        <span className="uc" style={{color:'var(--muted)',fontSize:10}}>By {metricLabel.toLowerCase()}</span>
+      </div>
+      <div style={{flex:1,overflowY:'auto',maxHeight:540}}>
+        {sorted.length === 0 ? (
+          <div style={{padding:'18px',fontSize:12.5,color:'var(--muted)',fontStyle:'italic'}}>No countries to rank for this metric.</div>
+        ) : sorted.map(([name, v], i) => {
+          const data = seriesByName[name];
+          const arrow = arrowFor(data);
+          const path = buildSparkPath(data);
+          const on = selectedNames.includes(name);
+          return (
+            <div key={name}
+              onClick={() => onSelect && onSelect(name)}
+              style={{
+                display:'grid',
+                gridTemplateColumns:'26px 1fr 56px 80px 30px',
+                gap:10, padding:'8px 18px',
+                borderBottom:'1px solid var(--rule)',
+                alignItems:'center', fontSize:13.5,
+                cursor: onSelect ? 'pointer' : 'default',
+                background: on ? 'var(--bg-3)' : 'transparent',
+                transition:'background .12s'
+              }}
+              onMouseEnter={e=>{if(!on) e.currentTarget.style.background='var(--bg-2)'}}
+              onMouseLeave={e=>{if(!on) e.currentTarget.style.background='transparent'}}>
+              <div style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--muted)'}}>{String(i+1).padStart(2,'0')}</div>
+              <div style={{color:'var(--ink-2)',textWrap:'pretty',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{name}</div>
+              <div style={{fontFamily:'var(--mono)',fontSize:11.5,textAlign:'right',color:'var(--ink-2)'}} className="tnum">{fmt(v)}</div>
+              <div style={{height:18}}>
+                {path ? (
+                  <svg width={80} height={18} style={{display:'block'}}>
+                    <path d={path} fill="none"
+                      stroke={arrow?.up ? 'var(--accent-warn)' : (arrow?.up === false ? 'var(--muted-2)' : 'var(--accent)')}
+                      strokeWidth="1.4"/>
+                  </svg>
+                ) : (
+                  <span style={{fontSize:10,color:'var(--muted-2)'}}>—</span>
+                )}
+              </div>
+              <div style={{
+                fontFamily:'var(--mono)', fontSize:10, textAlign:'right', letterSpacing:'.02em',
+                color: arrow?.up ? 'var(--accent-warn)' : (arrow?.up === false ? 'var(--muted-2)' : 'var(--muted)')
+              }}>{arrow?.label || ''}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{padding:'10px 18px',fontFamily:'var(--mono)',fontSize:10,color:'var(--muted)',borderTop:'1px solid var(--rule)',letterSpacing:'.04em'}}>
+        Top {sorted.length} of {Object.keys(countryValues || {}).length} · trend arrows from quarterly series where available
+      </div>
+    </div>
+  );
+}
+
 function AtlasView({ setRoute }) {
   const defaultSelection = uMA(() => {
     const top = topQoQMover();
@@ -536,6 +831,36 @@ function AtlasView({ setRoute }) {
           Choropleth of asylum applicants by country of origin. Click any country to see applicants, grant rate, returns, and age disputes in one panel.
         </p>
       </div>
+      {/* Page-level takeaway — auto-derived from current metric. */}
+      {(() => {
+        const natFull = (typeof NAT_FULL !== 'undefined') ? NAT_FULL : [];
+        if (!natFull.length) return null;
+        const sorted = [...natFull].sort((a,b) => (b.v || 0) - (a.v || 0));
+        const top = sorted[0], second = sorted[1];
+        if (!top || !second) return null;
+        const grantTop = top.grant != null ? Math.round(top.grant * 100) : null;
+        const grantSecond = second.grant != null ? Math.round(second.grant * 100) : null;
+        return (
+          <div style={{
+            background:'var(--bg-2)',
+            borderLeft:'3px solid var(--accent-warn)',
+            padding:'12px 18px',
+            marginBottom:16,
+            fontSize:14.5,
+            lineHeight:1.5,
+            color:'var(--ink-2)',
+            textWrap:'pretty',
+            fontStyle:'italic',
+            maxWidth:'90ch'
+          }}>
+            <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>Volume and outcome point in different directions.</b>{' '}
+            {top.name} leads on applications{second ? ` ahead of ${second.name}` : ''}
+            {grantTop != null && grantSecond != null
+              ? <> — but <Gloss term="grant rate">grant rates</Gloss> diverge sharply ({top.name} {grantTop}% vs {second.name} {grantSecond}%), so the volume top and the outcome top are different lists.</>
+              : '.'}
+          </div>
+        );
+      })()}
       <div style={{display:'flex',gap:6,marginBottom:16}}>
         {ATLAS_METRIC_OPTIONS.map(m => {
           const available = m.needsData ? m.needsData() : true;
@@ -557,6 +882,7 @@ function AtlasView({ setRoute }) {
         })}
       </div>
       <div className="atlas-layout" style={{display:'flex',flexDirection:'column',gap:28}}>
+        <div className="atlas-top" style={{display:'grid',gridTemplateColumns:'minmax(0, 1.55fr) minmax(280px, 1fr)',gap:24,alignItems:'start'}}>
         <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'12px'}}>
           <AtlasChoropleth countryValues={countryValues} selectedNames={selectedNats} onSelect={handleSelect} metricLabel={metricLabel.toLowerCase()} bivariate={bivariate} zoom={zoom}/>
           <AtlasLegend countryValues={countryValues} metricLabel={metricLabel} bivariate={bivariate}/>
@@ -627,9 +953,335 @@ function AtlasView({ setRoute }) {
             })()}
           </div>
         </div>
+        <AtlasRankedList countryValues={countryValues} metricLabel={metricLabel} selectedNames={selectedNats} onSelect={handleSelect}/>
+        </div>
+        <AtlasCountryContextStrip selectedNats={selectedNats}/>
+        {selectedNats.length >= 2 && (
+          <AtlasCompareCard selectedNats={selectedNats} onSwap={() => setSelectedNats(prev => prev.length >= 2 ? [prev[1], prev[0], ...prev.slice(2)] : prev)}/>
+        )}
         <AtlasDetail selectedNats={selectedNats} setRoute={setRoute}/>
+        <UKAtlasSection/>
       </div>
     </main>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// UK Atlas — choropleth of LADs + ranked list + LA detail panel +
+// "Where you live" postcode lookup (via the free postcodes.io API).
+//
+// Reads three globals:
+//   UK_LAD_MAP            — pre-projected SVG paths per LAD (build_uk_map.py)
+//   SUPPORT_LA_LATEST     — latest snapshot of supported asylum seekers per LAD
+//   SUPPORT_LA_QUARTERLY  — last ~5 years of quarterly snapshots (compact)
+// ─────────────────────────────────────────────────────────────
+
+const UK_PALETTE = ['#f5ecd8', '#e5d3a4', '#d4b86a', '#b85c38', '#7a3d1f', '#1c3d2e'];
+
+function ukColourFor(value, max) {
+  if (value == null || value <= 0 || max <= 0) return 'var(--bg-2)';
+  const t = Math.sqrt(value / max);
+  const idx = Math.min(UK_PALETTE.length - 1, Math.floor(t * UK_PALETTE.length));
+  return UK_PALETTE[idx];
+}
+
+function UKChoropleth({ map, valueByCode, selectedCode, onSelect }) {
+  const meta = (typeof window !== 'undefined') ? window.UK_MAP_META : null;
+  const W = meta?.viewBox?.w || 600, H = meta?.viewBox?.h || 1100;
+  const max = Math.max(...Object.values(valueByCode).filter(v => v > 0), 1);
+  const [hovered, setHovered] = uSA(null);
+  return (
+    <div style={{background:'#fff',border:'1px solid var(--rule)',padding:14,position:'relative'}}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+        style={{display:'block',width:'100%',height:'auto',maxHeight:600}}
+        onMouseLeave={() => setHovered(null)}>
+        {map.map(c => {
+          const v = valueByCode[c.code];
+          const isSelected = c.code === selectedCode;
+          return (
+            <path key={c.code} d={c.d}
+              fill={ukColourFor(v, max)}
+              stroke={isSelected ? 'var(--accent-warn)' : 'rgba(0,0,0,0.18)'}
+              strokeWidth={isSelected ? 1.6 : 0.4}
+              style={{cursor:'pointer',transition:'stroke-width .12s'}}
+              onClick={() => onSelect(c.code)}
+              onMouseEnter={() => setHovered({code: c.code, name: c.name, v})}>
+              <title>{c.name}{v != null ? ` · ${v.toLocaleString('en-GB')} supported` : ''}</title>
+            </path>
+          );
+        })}
+      </svg>
+      {hovered && (
+        <div style={{position:'absolute',left:14,bottom:14,background:'rgba(251,250,247,.92)',padding:'6px 10px',border:'1px solid var(--rule-2)',fontFamily:'var(--mono)',fontSize:10.5,color:'var(--muted)',pointerEvents:'none'}}>
+          <span style={{color:'var(--ink-2)',fontFamily:'var(--serif)',fontSize:12}}>{hovered.name}</span>
+          {hovered.v != null && <span> · <b style={{color:'var(--accent-warn)',fontWeight:500}}>{hovered.v.toLocaleString('en-GB')}</b> supported</span>}
+        </div>
+      )}
+      <div style={{display:'flex',gap:10,alignItems:'center',marginTop:10,fontFamily:'var(--mono)',fontSize:10,color:'var(--muted)',letterSpacing:'.04em'}}>
+        <span>FEW</span>
+        {UK_PALETTE.map((c,i) => <span key={i} style={{display:'inline-block',width:14,height:10,background:c}}/>)}
+        <span>MANY</span>
+        <span style={{marginLeft:'auto',color:'var(--muted-2)'}}>UK_LAD_MAP · {map.length} LADs</span>
+      </div>
+    </div>
+  );
+}
+
+function UKRankedList({ rows, selectedCode, onSelect, limit = 25 }) {
+  const fmtN = v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`;
+  const top = rows.slice(0, limit);
+  return (
+    <div style={{background:'var(--bg)',border:'1px solid var(--rule)',display:'flex',flexDirection:'column'}}>
+      <div style={{padding:'14px 18px',borderBottom:'1px solid var(--rule)',display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+        <h4 style={{margin:0,fontSize:14,fontWeight:500,letterSpacing:-0.1,fontFamily:'var(--serif)'}}>Top local authorities</h4>
+        <span className="uc" style={{color:'var(--muted)',fontSize:10}}>By people supported</span>
+      </div>
+      <div style={{flex:1,overflowY:'auto',maxHeight:560}}>
+        {top.map((r, i) => {
+          const on = r.code === selectedCode;
+          return (
+            <div key={r.code}
+              onClick={() => onSelect(r.code)}
+              style={{
+                display:'grid', gridTemplateColumns:'26px 1fr 56px',
+                gap:10, padding:'8px 18px', borderBottom:'1px solid var(--rule)',
+                alignItems:'center', fontSize:13.5,
+                cursor:'pointer',
+                background: on ? 'var(--bg-3)' : 'transparent',
+                transition:'background .12s'
+              }}
+              onMouseEnter={e => { if (!on) e.currentTarget.style.background = 'var(--bg-2)'; }}
+              onMouseLeave={e => { if (!on) e.currentTarget.style.background = 'transparent'; }}>
+              <div style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--muted)'}}>{String(i+1).padStart(2,'0')}</div>
+              <div style={{color:'var(--ink-2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                {r.name} <span style={{color:'var(--muted-2)',fontSize:11}}>· {r.country}</span>
+              </div>
+              <div style={{fontFamily:'var(--mono)',fontSize:11.5,textAlign:'right'}} className="tnum">{fmtN(r.total)}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{padding:'10px 18px',fontFamily:'var(--mono)',fontSize:10,color:'var(--muted)',borderTop:'1px solid var(--rule)',letterSpacing:'.04em'}}>
+        Top {top.length} of {rows.length} · click to focus on the map
+      </div>
+    </div>
+  );
+}
+
+function UKLAPanel({ row, quarterly, mapRow }) {
+  if (!row) return null;
+  const series = (quarterly || [])
+    .filter(q => q.code === row.code)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const values = series.map(q => q.v);
+  const dates = series.map(q => q.date);
+  const first = values[0], last = values[values.length - 1];
+  const change = (first != null && first > 0 && last != null) ? ((last - first) / first) * 100 : null;
+
+  // Sparkline
+  const sparkW = 600, sparkH = 70, pad = 4;
+  const max = Math.max(...values, 1), min = Math.min(...values, 0);
+  const xAt = i => pad + (i / Math.max(values.length - 1, 1)) * (sparkW - 2 * pad);
+  const yAt = v => sparkH - pad - ((v - min) / (max - min || 1)) * (sparkH - 2 * pad);
+  const sparkPath = values.map((v, i) => `${i === 0 ? 'M' : 'L'}${xAt(i)},${yAt(v)}`).join(' ');
+
+  const Tier = ({ label, value, share }) => (
+    <div style={{padding:'10px 14px',background:'var(--bg-2)',border:'1px solid var(--rule)'}}>
+      <div className="uc" style={{color:'var(--muted)',fontSize:10,marginBottom:6}}>{label}</div>
+      <div style={{fontFamily:'var(--serif)',fontSize:18,fontWeight:500,color:'var(--ink)'}} className="tnum">{value.toLocaleString('en-GB')}</div>
+      {share != null && <div style={{fontSize:11.5,color:'var(--muted)',marginTop:2,fontStyle:'italic'}}>{Math.round(share*100)}% of total</div>}
+    </div>
+  );
+
+  return (
+    <div style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px',marginTop:24}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:16,gap:14,flexWrap:'wrap'}}>
+        <div>
+          <h3 style={{margin:0,fontFamily:'var(--serif)',fontSize:24,fontWeight:400,letterSpacing:-0.3}}>{row.name}</h3>
+          <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginTop:4}}>{row.region || row.country} · {row.code}</div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:38,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}}>{row.total.toLocaleString('en-GB')}</div>
+          <div style={{fontSize:12,color:'var(--muted)',marginTop:4,fontStyle:'italic'}}>people in supported accommodation</div>
+          {change != null && dates.length > 1 && (
+            <div style={{fontSize:12,marginTop:4,color: change >= 0 ? 'var(--accent-warn)' : 'var(--accent-2)',fontFamily:'var(--mono)',letterSpacing:'.04em'}}>
+              {change >= 0 ? '▲ ' : '▼ '}{Math.abs(change).toFixed(0)}% since {dates[0]}
+            </div>
+          )}
+        </div>
+      </div>
+      {values.length > 1 && (
+        <svg width="100%" viewBox={`0 0 ${sparkW} ${sparkH}`} preserveAspectRatio="none"
+          style={{display:'block',height:70,marginBottom:14,borderBottom:'1px solid var(--rule)'}}>
+          <path d={sparkPath} fill="none" stroke="var(--accent-warn)" strokeWidth="1.6"/>
+          <circle cx={xAt(values.length - 1)} cy={yAt(last)} r="3.5" fill="var(--accent-warn)"/>
+        </svg>
+      )}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+        <Tier label="Section 95" value={row.s95} share={row.total ? row.s95/row.total : null}/>
+        <Tier label="Section 98" value={row.s98} share={row.total ? row.s98/row.total : null}/>
+        <Tier label="Section 4" value={row.s4} share={row.total ? row.s4/row.total : null}/>
+      </div>
+      <div style={{marginTop:14,fontFamily:'var(--mono)',fontSize:10.5,color:'var(--muted)',letterSpacing:'.04em'}}>
+        Asy_D11 · last {values.length} quarterly snapshot{values.length === 1 ? '' : 's'}
+      </div>
+    </div>
+  );
+}
+
+function WhereYouLive({ supportRows, onPick }) {
+  const [postcode, setPostcode] = uSA('');
+  const [loading, setLoading] = uSA(false);
+  const [error, setError] = uSA(null);
+  const [info, setInfo] = uSA(null);
+
+  const lookup = async () => {
+    const trimmed = postcode.trim().toUpperCase().replace(/\s+/g, '');
+    if (!trimmed) return;
+    setLoading(true); setError(null);
+    try {
+      const r = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(trimmed)}`);
+      if (!r.ok) {
+        // Try outcode lookup as a fallback for partial postcodes.
+        const r2 = await fetch(`https://api.postcodes.io/outcodes/${encodeURIComponent(trimmed.slice(0, -3) || trimmed)}`);
+        if (!r2.ok) throw new Error("That postcode wasn't recognised. Try a full UK postcode (e.g. SW1A 1AA).");
+        const body2 = await r2.json();
+        const result = body2.result;
+        const districts = Array.isArray(result.admin_district) ? result.admin_district : [];
+        const match = districts.length ? supportRows.find(s => s.name === districts[0]) : null;
+        setInfo({ admin_district: districts.join(' / '), region: result.region?.[0] || result.country?.[0], parliamentary_constituency_2024: result.parliamentary_constituency?.[0], _outcode: true, ladRow: match });
+        if (match && onPick) onPick(match);
+        return;
+      }
+      const body = await r.json();
+      const result = body.result;
+      const match = supportRows.find(s => s.name === result.admin_district);
+      setInfo({ ...result, ladRow: match });
+      if (match && onPick) onPick(match);
+    } catch (e) {
+      setError(e.message || 'Lookup failed.');
+      setInfo(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="where-you-live" style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px',marginTop:24,display:'grid',gridTemplateColumns:'minmax(0, 1fr) minmax(0, 1.3fr)',gap:30,alignItems:'start'}}>
+      <div>
+        <div className="uc" style={{color:'var(--accent-warn)',marginBottom:8,paddingBottom:4,borderBottom:'1.5px solid var(--accent-warn)',display:'inline-block'}}>Where you live</div>
+        <h4 style={{margin:'4px 0 8px',fontSize:18,fontWeight:500,letterSpacing:-0.2,fontFamily:'var(--serif)'}}>Enter a UK postcode</h4>
+        <p style={{margin:'0 0 14px',fontSize:13.5,color:'var(--muted)',fontStyle:'italic',textWrap:'pretty'}}>
+          We'll look up your local authority and show how the national figures land where you are. Lookup runs in your browser via <a href="https://postcodes.io" target="_blank" rel="noopener" style={{color:'var(--accent)'}}>postcodes.io</a> — nothing is stored.
+        </p>
+        <div style={{display:'flex',border:'1px solid var(--rule-2)',background:'#fff'}}>
+          <input value={postcode} onChange={e=>setPostcode(e.target.value)}
+            placeholder="e.g. SW1A 1AA"
+            onKeyDown={e => { if (e.key === 'Enter') lookup(); }}
+            style={{flex:1,border:'none',padding:'10px 12px',fontSize:14,fontFamily:'var(--serif)',background:'transparent',outline:'none'}}/>
+          <button onClick={lookup} disabled={loading || !postcode.trim()}
+            style={{padding:'10px 16px',background:'var(--accent)',color:'var(--bg)',border:'none',fontFamily:'var(--mono)',fontSize:11,letterSpacing:'.06em',cursor: loading?'wait':'pointer',textTransform:'uppercase'}}>
+            {loading ? '…' : 'Look up'}
+          </button>
+        </div>
+        {error && <div style={{marginTop:10,fontSize:12,color:'var(--accent-warn)',fontStyle:'italic'}}>{error}</div>}
+        <div style={{marginTop:10,fontFamily:'var(--mono)',fontSize:10.5,color:'var(--muted-2)',letterSpacing:'.04em'}}>
+          No tracking · postcodes.io · public data
+        </div>
+      </div>
+      <div style={{paddingLeft:24,borderLeft:'1px solid var(--rule)'}}>
+        {info ? (
+          <>
+            <div className="uc" style={{color:'var(--accent)',fontSize:10}}>
+              {info.parliamentary_constituency_2024 || info.parliamentary_constituency || 'Constituency'}
+            </div>
+            <h5 style={{margin:'4px 0 12px',fontSize:16,fontWeight:500}}>
+              {info.admin_district}
+              {info.region && <i style={{fontStyle:'italic',color:'var(--muted)',fontWeight:400,fontSize:13,marginLeft:6}}>· {info.region}</i>}
+            </h5>
+            {info.ladRow ? (
+              <>
+                <div style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid var(--rule)',fontSize:13.5}}>
+                  <span style={{color:'var(--ink-2)'}}>People in supported accommodation</span>
+                  <span className="tnum" style={{fontFamily:'var(--mono)'}}><b style={{fontWeight:500,color:'var(--ink)'}}>{info.ladRow.total.toLocaleString('en-GB')}</b></span>
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid var(--rule)',fontSize:13.5}}>
+                  <span style={{color:'var(--ink-2)'}}>Section 95 · accommodation + subsistence</span>
+                  <span className="tnum" style={{fontFamily:'var(--mono)'}}>{info.ladRow.s95.toLocaleString('en-GB')}</span>
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid var(--rule)',fontSize:13.5}}>
+                  <span style={{color:'var(--ink-2)'}}>Section 98 · emergency support</span>
+                  <span className="tnum" style={{fontFamily:'var(--mono)'}}>{info.ladRow.s98.toLocaleString('en-GB')}</span>
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',padding:'9px 0',fontSize:13.5}}>
+                  <span style={{color:'var(--ink-2)'}}>Section 4 · failed claims unable to leave</span>
+                  <span className="tnum" style={{fontFamily:'var(--mono)'}}>{info.ladRow.s4.toLocaleString('en-GB')}</span>
+                </div>
+                <div style={{marginTop:14,fontSize:11.5,color:'var(--muted)',fontStyle:'italic'}}>
+                  Map and panel above are now centred on {info.ladRow.name}. Dispersal is statutory; the geography is contracted, not chosen by councils.
+                </div>
+              </>
+            ) : (
+              <div style={{fontSize:13,color:'var(--muted)',fontStyle:'italic',textWrap:'pretty'}}>
+                Found the constituency, but couldn't match it to a local-authority row in our data{info._outcode ? ' (outcode straddles boundaries — try a full postcode)' : ''}. Local-authority names sometimes differ between sources; we'll iron those out.
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{fontSize:13,color:'var(--muted)',fontStyle:'italic',textWrap:'pretty'}}>
+            Postcode results land here. Hit Enter or click <span style={{fontFamily:'var(--mono)',fontSize:11}}>LOOK UP</span>. Try one of: <code style={{fontFamily:'var(--mono)',fontSize:12}}>SW1A 1AA</code>, <code style={{fontFamily:'var(--mono)',fontSize:12}}>M1 1AA</code>, <code style={{fontFamily:'var(--mono)',fontSize:12}}>BS1 1AA</code>.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UKAtlasSection() {
+  const W = (typeof window !== 'undefined') ? window : {};
+  const map = Array.isArray(W.UK_LAD_MAP) ? W.UK_LAD_MAP : [];
+  const support = Array.isArray(W.SUPPORT_LA_LATEST) ? W.SUPPORT_LA_LATEST : [];
+  const quarterly = Array.isArray(W.SUPPORT_LA_QUARTERLY) ? W.SUPPORT_LA_QUARTERLY : [];
+  const meta = W.SUPPORT_LA_META;
+  if (!map.length || !support.length) return null;
+
+  const [selectedCode, setSelectedCode] = uSA(support[0]?.code || null);
+
+  const valueByCode = uMA(() => {
+    const out = {};
+    for (const r of support) out[r.code] = r.total;
+    return out;
+  }, [support]);
+  const selectedRow = support.find(r => r.code === selectedCode);
+
+  // Page-level computed takeaway.
+  const total = uMA(() => support.reduce((s, r) => s + (r.total || 0), 0), [support]);
+  const top3 = support.slice(0, 3);
+  const top3Share = top3.length && total ? top3.reduce((s, r) => s + r.total, 0) / total : 0;
+
+  return (
+    <section style={{borderTop:'1px solid var(--rule)',paddingTop:36,marginTop:40}}>
+      <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-warn)'}}>The UK in detail</div>
+      <h2 style={{fontFamily:'var(--serif)',fontSize:30,letterSpacing:-0.4,fontWeight:400,margin:'0 0 8px'}}>Where the wait happens.</h2>
+      <p style={{fontSize:15,color:'var(--ink-2)',maxWidth:'70ch',margin:'0 0 6px',lineHeight:1.5}}>
+        Asylum seekers receiving Home Office support, by Local Authority District. {meta?.date ? `Snapshot as at ${meta.date}.` : ''} The map of <em>where the wait happens</em> is contracted, not chosen by councils — dispersal is statutory.
+      </p>
+      <div style={{
+        background:'var(--bg-2)',borderLeft:'3px solid var(--accent-warn)',
+        padding:'12px 18px',marginBottom:18,fontSize:14.5,lineHeight:1.5,color:'var(--ink-2)',
+        textWrap:'pretty',fontStyle:'italic',maxWidth:'90ch'
+      }}>
+        <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>The top three local authorities — {top3.map(r => r.name).join(', ')} — host {Math.round(top3Share * 100)}% of the {total.toLocaleString('en-GB')} people on Home Office support.</b>{' '}
+        Most LADs host none, or fewer than 50; a long tail.
+      </div>
+
+      <div className="uk-atlas-grid" style={{display:'grid',gridTemplateColumns:'minmax(0, 1.55fr) minmax(280px, 1fr)',gap:24,alignItems:'start'}}>
+        <UKChoropleth map={map} valueByCode={valueByCode} selectedCode={selectedCode} onSelect={setSelectedCode}/>
+        <UKRankedList rows={support} selectedCode={selectedCode} onSelect={setSelectedCode}/>
+      </div>
+      <UKLAPanel row={selectedRow} quarterly={quarterly}/>
+      <WhereYouLive supportRows={support} onPick={(row) => setSelectedCode(row.code)}/>
+    </section>
   );
 }
 

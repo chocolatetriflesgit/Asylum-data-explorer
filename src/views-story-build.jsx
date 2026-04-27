@@ -639,6 +639,50 @@ function BuildView({ setRoute }) {
 
   const previewRef = React.useRef(null);
 
+  // Seeded questions — the first thing a cold visitor sees. The review
+  // calls this the most engagement-positive change to the Build view:
+  // a question is more inviting than a dataset menu. Each card loads
+  // the closest configuration we can express with the current data.
+  const SEEDED_QUESTIONS = [
+    {
+      kicker: 'Seasonality',
+      question: 'Has the seasonality of small-boat crossings changed since 2020?',
+      hint: 'Year-on-year monthly cadence — same shape every year, or shifting?',
+      preview: 'BOATS_MONTHLY · monthly · 2020 →',
+      cfg: { ds:'boats', chartType:'line', granularity:'monthly', range:[2020, DATA_MAX_YEAR] },
+    },
+    {
+      kicker: 'Outcomes',
+      question: "Which nationality's grant rate has changed most since the 2022 surge?",
+      hint: 'Top 8 nationalities, slope from 2022 → latest.',
+      preview: 'NAT_GRANT_ANNUAL · line · 2022 →',
+      cfg: { ds:'grant_rate', chartType:'line', granularity:'annual',
+             selectedNats:['Pakistan','Afghanistan','Iran','Eritrea','Syria','Albania','Bangladesh','India'],
+             range:[2022, DATA_MAX_YEAR] },
+    },
+    {
+      kicker: 'Channel',
+      question: 'Has the gap between arrivals and preventions widened or narrowed?',
+      hint: 'Weekly arrivals with preventions overlaid since they began being reported.',
+      preview: 'BOATS_WEEKLY · weekly · preventions',
+      cfg: { ds:'boats', chartType:'line', granularity:'weekly' },
+    },
+    {
+      kicker: 'International',
+      question: 'How does the UK compare to France on application volume since 2014?',
+      hint: 'UK applications since 2014 — France comparison is on the roadmap (see plan).',
+      preview: 'ASYLUM_ANNUAL · annual · 2014 →',
+      cfg: { ds:'applications', chartType:'line', granularity:'annual', range:[2014, DATA_MAX_YEAR] },
+    },
+    {
+      kicker: 'Backlog',
+      question: 'What share of the backlog is over a year old?',
+      hint: 'Headline backlog now; age-band breakdown lands with the next pipeline change.',
+      preview: 'BACKLOG_LATEST · annual',
+      cfg: { ds:'backlog', chartType:'line', granularity:'annual', range:[2018, DATA_MAX_YEAR] },
+    },
+  ];
+
   // Curated entry points. Each preset fills in the handful of config
   // knobs a reader would have to set by hand to reproduce a familiar
   // chart from the stories / dashboard. Click → apply.
@@ -825,10 +869,41 @@ function BuildView({ setRoute }) {
         <p style={{fontSize:17,color:'var(--ink-2)',maxWidth:640,margin:0,lineHeight:1.5}}>Pick a dataset, a time range, and a chart type. Download as PNG or SVG, or share the URL — Build preserves every setting in the hash.</p>
       </div>
 
+      {/* Seeded questions — the engagement-positive entry point. Each card
+          loads a chart configuration the reader can then modify in the
+          controls below. */}
+      <div style={{marginBottom:28,background:'#fff',border:'1px solid var(--rule)',padding:'28px 32px'}}>
+        <h3 style={{margin:'0 0 6px',fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3}}>Start with a question</h3>
+        <p style={{margin:'0 0 22px',color:'var(--muted)',fontSize:14,fontStyle:'italic',maxWidth:'60ch'}}>
+          Or skip ahead and pick a dataset and chart type yourself below.
+        </p>
+        <div className="seeded-questions" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
+          {SEEDED_QUESTIONS.map((q, i) => (
+            <button key={q.kicker} onClick={() => applyPreset(q.cfg)}
+              style={{
+                background:'#fff',border:'none',padding:'20px 22px',
+                display:'flex',flexDirection:'column',gap:8,minHeight:140,
+                cursor:'pointer',textAlign:'left',transition:'background .12s',
+                fontFamily:'inherit',color:'inherit',
+                gridColumn: (i === SEEDED_QUESTIONS.length - 1 && SEEDED_QUESTIONS.length % 2 === 1) ? '1 / -1' : 'auto',
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-2)'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='#fff'}}>
+              <div className="uc" style={{color:'var(--accent-warn)',fontSize:10}}>{q.kicker}</div>
+              <h4 style={{margin:'2px 0 0',fontFamily:'var(--serif)',fontSize:17,fontWeight:500,letterSpacing:-0.15,textWrap:'balance',color:'var(--ink)',lineHeight:1.3}}>
+                {q.question}
+              </h4>
+              <p style={{margin:0,fontSize:13,color:'var(--muted)',fontStyle:'italic',flex:1,textWrap:'pretty'}}>{q.hint}</p>
+              <div style={{fontFamily:'var(--mono)',fontSize:10.5,color:'var(--accent)',letterSpacing:'.05em',marginTop:4}}>→ {q.preview}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Preset gallery — curated starting points. Clicking re-fills the
           controls below; the URL updates to match so the preset is shareable. */}
       <div style={{marginBottom:28}}>
-        <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Start from a preset</div>
+        <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>Or start from a preset</div>
         <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
           {BUILD_PRESETS.map(p => (
             <button key={p.label} onClick={()=>applyPreset(p.cfg)}

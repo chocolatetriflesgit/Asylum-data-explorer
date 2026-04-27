@@ -108,6 +108,18 @@ jobs:
       - name: Build support regions data module
         run: python scripts/build_support_regions.py cache/support-local-authority-datasets-*.xlsx data/
 
+      - name: Build support-by-LAD data module
+        run: python scripts/build_support_la.py cache/support-local-authority-datasets-*.xlsx data/
+
+      # UK Local Authority District boundaries — committed once a year by ONS.
+      # Skip if cached; the build will fall back to the existing cache otherwise.
+      - name: Fetch ONS LAD boundaries
+        run: python scripts/fetch_uk_geo.py
+        continue-on-error: true
+
+      - name: Build UK map data module
+        run: python scripts/build_uk_map.py
+
       - name: Fetch IOM Missing Migrants CSV
         run: python scripts/fetch_deaths.py
         continue-on-error: true  # IOM is out-of-band; don't fail the job if their URL blips.
@@ -125,6 +137,29 @@ jobs:
 
       - name: Build provisional data module
         run: python scripts/build_provisional.py
+
+      # ─────────────────────────────────────────────────────────
+      # External country-context sources for the Atlas. All four
+      # are annual feeds, so a daily run is wasteful — but cheap.
+      # UCDP requires UCDP_API_TOKEN as a repo secret; if it isn't
+      # set the fetcher exits with code 2 and we move on.
+      # ─────────────────────────────────────────────────────────
+      - name: Fetch World Bank GDP per capita
+        run: python scripts/fetch_worldbank.py
+        continue-on-error: true
+
+      - name: Fetch Freedom House FIW
+        run: python scripts/fetch_freedomhouse.py
+        continue-on-error: true
+
+      - name: Fetch UCDP conflict events
+        env:
+          UCDP_API_TOKEN: ${{ secrets.UCDP_API_TOKEN }}
+        run: python scripts/fetch_ucdp.py
+        continue-on-error: true
+
+      - name: Build country-context data module
+        run: python scripts/build_country_context.py
 
       - name: Re-bundle index.html
         run: python scripts/bundle.py
