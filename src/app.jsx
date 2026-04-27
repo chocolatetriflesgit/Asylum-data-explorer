@@ -2,6 +2,29 @@
 
 const { useState, useEffect, useRef, useMemo } = React;
 
+// ─────────────────────────────────────────────────────────────
+// Glossary tooltip — wraps a term with a hover popover.
+// Looks the term up in window.GLOSSARY (lower-cased key). If the
+// term is missing, renders the children unchanged so the rest of
+// the prose still flows.
+// ─────────────────────────────────────────────────────────────
+function Gloss({ term, children }) {
+  const W = (typeof window !== 'undefined') ? window : {};
+  const dict = W.GLOSSARY || {};
+  const key = (term || (typeof children === 'string' ? children : '')).toLowerCase().trim();
+  const entry = dict[key];
+  if (!entry) return <>{children}</>;
+  return (
+    <span className="gloss" tabIndex={0}>
+      {children}
+      <span className="gloss-pop" role="tooltip">
+        {entry.body}
+        {entry.source && <span className="src">{entry.source}</span>}
+      </span>
+    </span>
+  );
+}
+
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accent": "#1c3d2e"
 }/*EDITMODE-END*/;
@@ -279,89 +302,274 @@ function StoryHero({ kind }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// "This week at the border" hero
+//
+// Auto-generated from BOATS_WEEKLY. Compares the latest week against
+// the same week last year and against the five-year average for the
+// same week-of-year, then computes a streak of consecutive weeks on
+// the same side of that average. All copy is templated from those
+// values — no number is hand-typed.
+// ─────────────────────────────────────────────────────────────
+function ThisWeekHero({ setRoute }) {
+  const W = (typeof window !== 'undefined') ? window : {};
+  const weekly = Array.isArray(W.BOATS_WEEKLY) ? W.BOATS_WEEKLY : [];
+  if (!weekly.length) return null;
+  const last = weekly[weekly.length - 1];
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const FULL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const weDate = new Date(last.we + 'T00:00:00Z');
+  const weStr = `${weDate.getUTCDate()} ${MONTHS[weDate.getUTCMonth()]}`;
+  const monthName = FULL_MONTHS[weDate.getUTCMonth()];
+
+  const doy = (d) => {
+    const start = new Date(Date.UTC(d.getUTCFullYear(), 0, 0));
+    return Math.floor((d - start) / 86400000);
+  };
+  const lastDOY = doy(weDate);
+
+  // For each prior year, find the closest week-ending within ±3 days of the same DOY.
+  const sameWeekByYear = {};
+  for (const r of weekly) {
+    if (r.we === last.we) continue;
+    const rd = new Date(r.we + 'T00:00:00Z');
+    const yr = String(rd.getUTCFullYear());
+    const rdoy = doy(rd);
+    if (Math.abs(rdoy - lastDOY) > 3) continue;
+    const cur = sameWeekByYear[yr];
+    if (!cur || Math.abs(doy(new Date(cur.we + 'T00:00:00Z')) - lastDOY) > Math.abs(rdoy - lastDOY)) {
+      sameWeekByYear[yr] = r;
+    }
+  }
+
+  const lastYear = String(weDate.getUTCFullYear() - 1);
+  const yoy = sameWeekByYear[lastYear];
+  const yoyPct = (yoy && yoy.m > 0) ? Math.round((last.m - yoy.m) / yoy.m * 100) : null;
+
+  const cutoff = weDate.getUTCFullYear() - 5;
+  const priorVals = Object.entries(sameWeekByYear)
+    .filter(([y]) => parseInt(y) >= cutoff && parseInt(y) < weDate.getUTCFullYear())
+    .map(([_, r]) => r.m);
+  const fiveYrAvg = priorVals.length >= 3 ? priorVals.reduce((a,b)=>a+b,0) / priorVals.length : null;
+  const fiveYrPct = (fiveYrAvg != null) ? Math.round((last.m - fiveYrAvg) / Math.max(fiveYrAvg, 1) * 100) : null;
+
+  // Streak: consecutive recent weeks on the same side of their own 5-year average.
+  const streak = (() => {
+    if (fiveYrAvg == null) return null;
+    const sign = last.m >= fiveYrAvg ? 1 : -1;
+    let n = 1;
+    for (let i = weekly.length - 2; i >= 0 && i >= weekly.length - 16; i--) {
+      const r = weekly[i];
+      const rd = new Date(r.we + 'T00:00:00Z');
+      const ryr = rd.getUTCFullYear();
+      const rdoy = doy(rd);
+      const priors = [];
+      for (let yr = ryr - 5; yr < ryr; yr++) {
+        const best = weekly.find(p => {
+          if (p.we.slice(0, 4) !== String(yr)) return false;
+          const pd = new Date(p.we + 'T00:00:00Z');
+          return Math.abs(doy(pd) - rdoy) <= 3;
+        });
+        if (best) priors.push(best.m);
+      }
+      if (priors.length < 3) break;
+      const avg = priors.reduce((a, b) => a + b, 0) / priors.length;
+      const rSign = r.m >= avg ? 1 : -1;
+      if (rSign !== sign) break;
+      n++;
+    }
+    return { n, sign };
+  })();
+
+  const ord = (n) => ['','First','Second','Third','Fourth','Fifth','Sixth','Seventh','Eighth'][n] || `${n}th`;
+  const heroLine = (() => {
+    const parts = [];
+    if (streak && streak.n >= 2 && fiveYrAvg != null) {
+      const dir = streak.sign > 0 ? 'above' : 'below';
+      parts.push(`${ord(streak.n)} consecutive week ${dir} the five-year average for ${monthName}.`);
+    } else if (fiveYrPct != null) {
+      if (Math.abs(fiveYrPct) < 10) {
+        parts.push(`Roughly in line with the five-year average for ${monthName}.`);
+      } else {
+        const dir = fiveYrPct > 0 ? 'above' : 'below';
+        parts.push(`${Math.abs(fiveYrPct)}% ${dir} the five-year average for ${monthName}.`);
+      }
+    }
+    if (last.p != null && last.p > 0 && last.m != null) {
+      const tot = last.m + last.p;
+      const arrivedShare = tot > 0 ? Math.round(last.m / tot * 100) : null;
+      if (arrivedShare != null) {
+        parts.push(`${last.p.toLocaleString('en-GB')} prevented on the French side — about ${arrivedShare}% of recorded attempts arrived.`);
+      }
+    }
+    return parts.join(' ');
+  })();
+
+  // Sparkline: last 16 weeks with the 5-year-average drawn as a horizontal dashed line.
+  const recent = weekly.slice(-16);
+  const maxV = Math.max(...recent.map(r => r.m), fiveYrAvg || 0) * 1.1 || 1;
+  const sparkW = 600, sparkH = 64, sparkPad = 4;
+  const xAt = (i) => sparkPad + (i / Math.max(recent.length - 1, 1)) * (sparkW - 2 * sparkPad);
+  const yAt = (v) => sparkH - sparkPad - (v / maxV) * (sparkH - 2 * sparkPad);
+  const sparkPath = recent.map((r, i) => `${i === 0 ? 'M' : 'L'}${xAt(i)},${yAt(r.m)}`).join(' ');
+  const lastIdx = recent.length - 1;
+
+  const arrow = (n) => n == null ? '' : n > 0 ? '▲' : n < 0 ? '▼' : '·';
+  const colour = (n) => n == null ? 'var(--muted)' : (n > 0 ? 'var(--accent-warn)' : 'var(--accent-2)');
+
+  return (
+    <div style={{
+      background:'var(--bg)', border:'1px solid var(--rule)', borderTop:'3px solid var(--accent-warn)',
+      padding:'34px 36px 30px', position:'relative'
+    }}>
+      <div className="uc" style={{
+        color:'var(--accent-warn)', display:'inline-block',
+        paddingBottom:4, borderBottom:'1.5px solid var(--accent-warn)', marginBottom:18, fontWeight:500
+      }}>This week at the border · week ending {weStr}</div>
+      <div className="tnum" style={{
+        fontSize:60, fontWeight:400, letterSpacing:-1.4, lineHeight:1, margin:'6px 0 8px',
+        fontFamily:'var(--serif)', color:'var(--ink)'
+      }}>{last.m.toLocaleString('en-GB')}</div>
+      <div style={{
+        fontFamily:'var(--mono)', fontSize:13, marginBottom:18, display:'flex', gap:14, flexWrap:'wrap', alignItems:'baseline'
+      }}>
+        {yoyPct != null && (
+          <span style={{color:colour(yoyPct)}}>
+            {arrow(yoyPct)} <b style={{fontWeight:500}}>{Math.abs(yoyPct)}%</b> vs same week {lastYear}
+          </span>
+        )}
+        {fiveYrPct != null && (
+          <span style={{color:colour(fiveYrPct)}}>
+            ·  {arrow(fiveYrPct)} {Math.abs(fiveYrPct)}% vs five-year average
+          </span>
+        )}
+      </div>
+      {heroLine && (
+        <p style={{
+          fontSize:17, lineHeight:1.45, color:'var(--ink-2)', margin:'0 0 18px',
+          fontStyle:'italic', textWrap:'pretty'
+        }}>
+          {heroLine}
+          <span style={{
+            display:'block', fontStyle:'normal', color:'var(--muted)',
+            fontSize:11, fontFamily:'var(--mono)', marginTop:6, letterSpacing:'.04em'
+          }}>BOATS_WEEKLY · auto-generated</span>
+        </p>
+      )}
+      <svg width={sparkW} height={sparkH} viewBox={`0 0 ${sparkW} ${sparkH}`} preserveAspectRatio="none"
+        style={{display:'block', width:'100%', height:64, marginBottom:14, borderBottom:'1px solid var(--rule)'}}>
+        {fiveYrAvg != null && (
+          <line x1={0} y1={yAt(fiveYrAvg)} x2={sparkW} y2={yAt(fiveYrAvg)}
+            stroke="var(--rule-2)" strokeWidth="1" strokeDasharray="2 3"/>
+        )}
+        <path d={sparkPath} fill="none" stroke="var(--accent-warn)" strokeWidth="1.8"/>
+        <circle cx={xAt(lastIdx)} cy={yAt(recent[lastIdx].m)} r="4" fill="var(--accent-warn)"/>
+      </svg>
+      <div style={{display:'flex', gap:18, fontSize:13, flexWrap:'wrap'}}>
+        <button onClick={() => setRoute({name:'dashboard'})}
+          style={{background:'none', border:'none', color:'var(--accent)', borderBottom:'1px solid var(--rule-2)',
+            paddingBottom:1, cursor:'pointer', fontFamily:'var(--serif)', fontSize:13}}>
+          See seasonal pattern →
+        </button>
+        <button onClick={() => setRoute({name:'build'})}
+          style={{background:'none', border:'none', color:'var(--accent)', borderBottom:'1px solid var(--rule-2)',
+            paddingBottom:1, cursor:'pointer', fontFamily:'var(--serif)', fontSize:13}}>
+          Open in Build →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// "Numbers in the news" band
+//
+// Reads window.NEWS_BAND (hand-curated weekly in
+// data/news-band-data.js). Renders 3–4 figures being publicly argued
+// about, each with a one-line clarification grounded in our data.
+// Returns null if the global is missing or has no items.
+// ─────────────────────────────────────────────────────────────
+function NewsBand({ setRoute }) {
+  const W = (typeof window !== 'undefined') ? window : {};
+  const band = W.NEWS_BAND;
+  if (!band || !Array.isArray(band.items) || !band.items.length) return null;
+  const fmtUpdated = (() => {
+    if (!band.updated) return null;
+    const d = new Date(band.updated + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return band.updated;
+    const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d.getUTCDate()} ${M[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  })();
+  const headline = band.fallback ? 'Numbers worth knowing' : <>Numbers <em style={{color:'var(--accent-warn)',fontStyle:'italic'}}>in the news</em></>;
+  return (
+    <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'36px 48px 8px',borderBottom:'1px solid var(--rule)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:18,gap:16,flexWrap:'wrap'}}>
+        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,margin:0,letterSpacing:-0.2}}>{headline}</h2>
+        <div className="uc" style={{color:'var(--muted)'}}>
+          {band.fallback ? 'Evergreen denominators' : 'Curated · updated weekly'}
+          {fmtUpdated && <span style={{marginLeft:10,color:'var(--muted-2)'}}>· {fmtUpdated}</span>}
+        </div>
+      </div>
+      <div className="news-band-row" style={{display:'grid',gridTemplateColumns:`repeat(${band.items.length},1fr)`,gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
+        {band.items.map((it, i) => (
+          <button key={i}
+            onClick={() => it.route && setRoute(it.route)}
+            style={{background:'var(--bg)',border:'none',padding:'20px 22px',display:'flex',flexDirection:'column',gap:8,minHeight:170,cursor:it.route?'pointer':'default',textAlign:'left',transition:'background .12s',fontFamily:'inherit',color:'inherit'}}
+            onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-2)'}}
+            onMouseLeave={e=>{e.currentTarget.style.background='var(--bg)'}}>
+            <div className="uc" style={{color:'var(--muted)',fontSize:10}}>
+              {it.glossTerm
+                ? <Gloss term={it.glossTerm}>{it.kicker}</Gloss>
+                : it.kicker}
+            </div>
+            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:30,letterSpacing:-0.5,fontWeight:400,lineHeight:1,margin:'2px 0 6px',color:'var(--ink)'}}>{it.number}</div>
+            <div style={{fontSize:13.5,lineHeight:1.45,color:'var(--ink-2)',textWrap:'pretty',flex:1}}>{it.context}</div>
+            {it.source && (
+              <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--muted)',letterSpacing:'.04em',marginTop:6}}>{it.source}</div>
+            )}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Index view
 // ─────────────────────────────────────────────────────────────
 function IndexView({ setRoute }) {
   const featured = STORIES[0];
   const rest = STORIES.slice(1);
 
-  // "This week" dateline — small-boats weekly latest + YoY delta (same week prior year).
-  const weekly = (typeof window !== 'undefined' && Array.isArray(window.BOATS_WEEKLY)) ? window.BOATS_WEEKLY : [];
-  const latestWk = weekly.length ? weekly[weekly.length - 1] : null;
-  // Look back ~52 rows for the same week-ending in the prior year.
-  const priorWk = latestWk && weekly.length > 52
-    ? weekly.slice(0, -52).reverse().find(r => r && typeof r.m === 'number')
-    : null;
-  const dline = latestWk ? (() => {
-    const d = new Date(latestWk.we + 'T00:00:00Z');
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const weStr = `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-    let delta = null;
-    if (priorWk && priorWk.m > 0 && typeof latestWk.m === 'number') {
-      const diff = latestWk.m - priorWk.m;
-      const pct = Math.round((diff / priorWk.m) * 100);
-      const priorYr = priorWk.we.slice(0, 4);
-      delta = { diff, pct, priorYr };
-    }
-    return { weStr, delta, m: latestWk.m };
-  })() : null;
-
   return (
     <main className="fade-enter">
-      {dline && (
-        <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'14px 48px',borderBottom:'1px solid var(--rule)',display:'flex',gap:18,alignItems:'baseline',flexWrap:'wrap'}}>
-          <span className="uc" style={{color:'var(--accent-warn)',fontWeight:500}}>Small-boat arrivals · week ending {dline.weStr}</span>
-          <span className="tnum" style={{fontFamily:'var(--serif)',fontSize:19,fontWeight:500,color:'var(--ink)'}}>{dline.m.toLocaleString()}</span>
-          {dline.delta && (
-            <span style={{fontSize:13,color: dline.delta.diff >= 0 ? 'var(--accent-warn)' : 'var(--accent-2)',fontStyle:'italic'}}>
-              {dline.delta.diff >= 0 ? '+' : ''}{dline.delta.pct}% vs same week {dline.delta.priorYr}
-            </span>
-          )}
-        </section>
-      )}
-      {/* hero / featured story */}
-      <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'56px 48px 40px',borderBottom:'1px solid var(--rule)'}}>
-        <div className="hero-grid" style={{display:'grid',gridTemplateColumns:'minmax(320px,420px) 1fr',gap:72,alignItems:'start'}}>
-          <div>
-            <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:18}}>
-              <span style={{background:'var(--accent-warn)',color:'var(--bg)',padding:'4px 9px',fontSize:10.5,letterSpacing:1.2,textTransform:'uppercase'}}>Featured</span>
-              <span className="uc" style={{color:'var(--muted)',paddingBottom:4,borderBottom:'1.5px solid var(--accent-2)'}}>{featured.kicker} · {featured.date}</span>
+      {/* hero: this-week-at-the-border (left) + featured story aside (right) */}
+      <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 44px',borderBottom:'1px solid var(--rule)'}}>
+        <div className="hero-grid" style={{display:'grid',gridTemplateColumns:'1.35fr 1fr',gap:56,alignItems:'start'}}>
+          <ThisWeekHero setRoute={setRoute}/>
+          <aside style={{paddingTop:8}}>
+            <div className="uc" style={{color:'var(--muted)',paddingBottom:4,borderBottom:'1.5px solid var(--accent-2)',display:'inline-block',marginBottom:10}}>
+              Featured story · {featured.kicker} · {featured.date}
             </div>
-            <h1 style={{fontFamily:'var(--serif)',fontSize:56,lineHeight:1,letterSpacing:-0.8,margin:'0 0 22px',fontWeight:400,color:'var(--ink)',textWrap:'balance'}}>
-              The <em style={{fontStyle:'italic',color:'var(--accent)'}}>long tail</em><br/>of the 2022 surge
+            <h1 style={{fontFamily:'var(--serif)',fontSize:34,lineHeight:1.1,letterSpacing:-0.4,margin:'12px 0 14px',fontWeight:400,color:'var(--ink)',textWrap:'balance'}}>
+              <em style={{fontStyle:'italic',color:'var(--accent)'}}>{featured.title}</em>
             </h1>
-            <p style={{fontSize:17.5,lineHeight:1.55,color:'var(--ink-2)',margin:'0 0 24px',textWrap:'pretty'}}>
-              {featured.dek} Eleven years of data, told in four charts — and the questions the numbers don't answer.
+            <p style={{fontSize:15.5,lineHeight:1.55,color:'var(--ink-2)',margin:'0 0 20px',textWrap:'pretty'}}>
+              {featured.dek}
             </p>
-            <div style={{display:'flex',gap:20,alignItems:'center',fontSize:13,color:'var(--muted)'}}>
+            <div style={{display:'flex',gap:18,alignItems:'center',fontSize:13,color:'var(--muted)',flexWrap:'wrap'}}>
               <button onClick={()=>setRoute({name:'story',id:featured.id})}
-                style={{background:'var(--accent)',color:'var(--bg)',padding:'10px 18px',fontSize:13,letterSpacing:0.04,fontFamily:'var(--serif)'}}>
+                style={{background:'var(--accent)',color:'var(--bg)',padding:'9px 16px',fontSize:12.5,letterSpacing:0.04,fontFamily:'var(--serif)',border:'none',cursor:'pointer'}}>
                 Read the story →
               </button>
-              <span>{featured.reading} read</span>
+              <span style={{fontFamily:'var(--mono)',fontSize:11,letterSpacing:'.05em'}}>{featured.author} · {featured.reading} read</span>
             </div>
-          </div>
-          <div>
-            <div style={{background:'var(--bg-2)',padding:'28px 32px',border:'1px solid var(--rule)'}}>
-              <LineChart
-                data={ASYLUM_ANNUAL}
-                overlay={ASYLUM_ANNUAL.map(r => ({ y: r.y, v: r.boats }))}
-                overlayLabel="Small-boat arrivals"
-                title="Asylum applications, UK"
-                subtitle="Applications annual · dashed line = small-boat arrivals · UK, 2014–2025"
-                source="Home Office Immigration Statistics · Asy_D01 + SB_01"
-                annotations={[
-                  { y: 2023, label: 'Peak: 84,425', dx: -140, dy: -12 },
-                  { y: 2022, label: 'Boats peak · ~55% of applications', dx: -170, dy: 40 },
-                  { y: 2020, label: 'Pandemic', dx: -70, dy: 60 },
-                ]}
-                caption="Main applicants only. Excludes dependants. Dashed line shows small-boat arrivals on the same axis — their share of applications crossed 50% in 2022. Latest year is provisional and may be revised in the next quarterly release."
-                width={720} height={320}
-              />
-            </div>
-          </div>
+          </aside>
         </div>
       </section>
+
+      {/* Numbers in the news — hand-curated band, weekly */}
+      <NewsBand setRoute={setRoute}/>
 
       {/* Key numbers strip — computed from latest globals */}
       <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px',borderBottom:'1px solid var(--rule)'}}>
