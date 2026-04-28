@@ -47,17 +47,13 @@ function latestDataThrough() {
   if (!candidates.length) return null;
   return candidates.reduce((a,b) => a.d > b.d ? a : b);
 }
-function fmtMasthead(d) {
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
 function Masthead() {
   const latest = latestDataThrough();
   return (
     <div style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
       <div className="masthead-inner" style={{maxWidth:1240,margin:'0 auto',padding:'8px 48px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:24}}>
         <span style={{fontFamily:'var(--serif)',fontStyle:'italic',fontSize:12,color:'var(--muted)'}}>Unofficial — not affiliated with the Home Office</span>
-        {latest && <span className="uc" style={{color:'var(--muted)'}}>Data through {fmtMasthead(latest.d)}</span>}
+        {latest && <span className="uc" style={{color:'var(--muted)'}}>Data through {fmtUTC(latest.d)}</span>}
       </div>
     </div>
   );
@@ -315,11 +311,9 @@ function ThisWeekHero({ setRoute }) {
   if (!weekly.length) return null;
   const last = weekly[weekly.length - 1];
 
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const FULL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const weDate = new Date(last.we + 'T00:00:00Z');
-  const weStr = `${weDate.getUTCDate()} ${MONTHS[weDate.getUTCMonth()]}`;
-  const monthName = FULL_MONTHS[weDate.getUTCMonth()];
+  const weStr = `${weDate.getUTCDate()} ${MONTHS_SHORT[weDate.getUTCMonth()]}`;
+  const monthName = MONTHS_LONG[weDate.getUTCMonth()];
 
   const doy = (d) => {
     const start = new Date(Date.UTC(d.getUTCFullYear(), 0, 0));
@@ -496,8 +490,7 @@ function NewsBand({ setRoute }) {
     if (!band.updated) return null;
     const d = new Date(band.updated + 'T00:00:00Z');
     if (isNaN(d.getTime())) return band.updated;
-    const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return `${d.getUTCDate()} ${M[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+    return `${d.getUTCDate()} ${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
   })();
   const headline = band.fallback ? 'Numbers worth knowing' : <>Numbers <em style={{color:'var(--accent-warn)',fontStyle:'italic'}}>in the news</em></>;
   return (

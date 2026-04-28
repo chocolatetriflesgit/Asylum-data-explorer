@@ -71,8 +71,6 @@ def _find_time_series_ods(html: str, base_url: str) -> str:
         if "time-series" in filename or "time_series" in filename:
             score += 5
         candidates.append((href, label + " | " + filename))
-        # Prioritise higher scores while keeping all as fallback
-        candidates.sort(key=lambda _hx: 0)  # stable
 
     if not candidates:
         raise RuntimeError(
