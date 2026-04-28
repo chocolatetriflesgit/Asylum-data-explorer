@@ -1506,16 +1506,14 @@ function _fmtLogDate(raw) {
   if (/^\d{1,2}\s+[A-Za-z]+\s+\d{4}$/.test(String(raw))) return String(raw);
   const d = new Date(raw);
   if (isNaN(d)) return String(raw);
-  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+  return d.getUTCDate() + ' ' + MONTHS_LONG[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
 }
 
 function _logSortKey(raw) {
   if (!raw) return 0;
   if (/^\d{1,2}\s+[A-Za-z]+\s+\d{4}$/.test(String(raw))) {
     const parts = String(raw).split(/\s+/);
-    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    const mi = MONTHS.indexOf(parts[1]);
+    const mi = MONTHS_LONG.indexOf(parts[1]);
     if (mi < 0) return 0;
     return Date.UTC(+parts[2], mi, +parts[0]);
   }

@@ -31,8 +31,7 @@ function fmtShortDate(value) {
   if (typeof value !== 'string' && typeof value !== 'number') return null;
   const d = new Date(value);
   if (isNaN(d)) return String(value);
-  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${String(d.getUTCDate()).padStart(2,'0')} ${M[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
 // Registry of Home Office / other publication codes → gov.uk landing page.
@@ -408,7 +407,6 @@ function YoYCumulative({
   const y = v => pad.t + (1 - v / yMax) * ih;
 
   // Day-of-year → month-label positions (1 Jan, 1 Feb, ... 1 Dec).
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   // Approximate month starts on a 366-day axis (use non-leap cum days).
   const MONTH_STARTS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
 
@@ -455,7 +453,7 @@ function YoYCumulative({
         {/* Month ticks on x-axis */}
         {MONTH_STARTS.map((doy, mi) => (
           <text key={mi} x={x(doy + 14)} y={H - pad.b + 18} textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)'}}>{MONTHS[mi]}</text>
+            style={{fontFamily:'var(--serif)'}}>{MONTHS_SHORT[mi]}</text>
         ))}
         <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="var(--rule-2)"/>
         {/* Axis titles */}
@@ -764,7 +762,6 @@ function SeasonalHeatMap({
   };
 
   // Month marker positions (approximate: week of month-start / 7).
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const monthWeeks = [1, 5, 9, 14, 18, 22, 27, 31, 35, 40, 44, 48];
 
   return (
@@ -786,7 +783,7 @@ function SeasonalHeatMap({
         {monthWeeks.map((w, i) => (
           <text key={`m-${i}`} x={pad.l + cellW * (w - 0.5)} y={H - pad.b + 18}
             textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)'}}>{MONTHS[i]}</text>
+            style={{fontFamily:'var(--serif)'}}>{MONTHS_SHORT[i]}</text>
         ))}
         {/* Axis titles */}
         {yLabel && (
@@ -2654,7 +2651,6 @@ function MonthSeasonalityHeatmap({
   const vals = data.map(r => r.m).filter(v => v != null && v > 0);
   const maxV = Math.max(1, ...vals);
 
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const pad = { t: 34, r: 24, b: 26, l: 54 };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   const cellW = iw / 12;
@@ -2680,7 +2676,7 @@ function MonthSeasonalityHeatmap({
       )}
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
         {/* month headers */}
-        {MONTHS.map((m, i) => (
+        {MONTHS_SHORT.map((m, i) => (
           <text key={`m-${m}`}
             x={pad.l + cellW * (i + 0.5)} y={pad.t - 10}
             textAnchor="middle" fontSize="11" fill="var(--muted)"
@@ -2712,7 +2708,7 @@ function MonthSeasonalityHeatmap({
                       fill={colorFor(v)}
                       stroke="var(--rule)" strokeWidth="0.5"
                       onMouseMove={e => show(e,
-                        <span><b>{MONTHS[i]} {yr}</b> · <span className="tnum">{fmtN(v)}</span> migrants</span>)}
+                        <span><b>{MONTHS_SHORT[i]} {yr}</b> · <span className="tnum">{fmtN(v)}</span> migrants</span>)}
                       onMouseLeave={hide}
                       style={{cursor:'crosshair'}}/>
                     {showLabel && (
@@ -2805,8 +2801,7 @@ function ThisWeekRanked({
   const sorted = [...rows].sort((a, b) => b.m - a.m);
   const rank = sorted.findIndex(r => r.y === targetYear) + 1;
 
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const dateStr = `${String(target.getUTCDate()).padStart(2,'0')} ${MONTHS[target.getUTCMonth()]}`;
+  const dateStr = `${String(target.getUTCDate()).padStart(2,'0')} ${MONTHS_SHORT[target.getUTCMonth()]}`;
 
   const pad = { t: 36, r: 70, b: 18, l: 54 };
   const rowH = 30;

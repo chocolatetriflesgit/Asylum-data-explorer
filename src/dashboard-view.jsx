@@ -232,7 +232,7 @@ function DashboardView({ setRoute }) {
   const _fmtMonth = (ym) => {
     if (!ym || ym.length < 7) return ym ?? '';
     const [y, m] = ym.split('-');
-    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(+m)-1] || m;
+    const mn = MONTHS_SHORT[(+m)-1] || m;
     return `${mn} ${y.slice(2)}`;
   };
   const _aggregateByMonth = (field) => {
@@ -342,7 +342,7 @@ function DashboardView({ setRoute }) {
       const date = new Date(row.d + 'T00:00:00Z');
       const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][date.getUTCDay()];
       const day = date.getUTCDate();
-      const month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getUTCMonth()];
+      const month = MONTHS_SHORT[date.getUTCMonth()];
       return { ...row, superseded, label: `${dayName} ${day} ${month}`, correction: correctionByRow.get(idx) || null };
     });
   }, [provisional, provisionalMeta, canonicalLatest]);

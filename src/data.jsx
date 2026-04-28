@@ -8,6 +8,12 @@
 
 const _W = (typeof window !== 'undefined') ? window : {};
 
+// Shared month-name lookups. Used by every short-date formatter and by chart
+// axis labels. Defined here so the bundle exposes them once to every later
+// JSX file (data.jsx is concatenated first; see scripts/bundle.py).
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS_LONG  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
 // UK asylum applications 2014–latest (main applicants, annual).
 //
 // `.v` is hand-maintained for 2014–(latest-1) because no pipeline global
@@ -279,9 +285,8 @@ function metaDate(meta) {
   if (!raw) return '—';
   const d = new Date(raw);
   if (isNaN(d)) return String(raw);
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dd = String(d.getUTCDate()).padStart(2, '0');
-  return `${dd} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  return `${dd} ${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 const W = (typeof window !== 'undefined') ? window : {};
 
@@ -315,8 +320,7 @@ function nextTuesday() {
 }
 function fmtUTC(d) {
   if (!d) return '—';
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 const NEXT_RELEASE = {
   quarterlyISS: () => fmtUTC(nextQuarterlyISS()),
