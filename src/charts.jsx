@@ -23,6 +23,13 @@ const fmtK = v => {
 };
 const fmtN = v => v.toLocaleString('en-GB');
 
+// Max of arr[*][key], with optional lower bound. Replaces the recurring
+// `Math.max(...arr.map(d => d[key]), floor)` pattern at chart-domain sites.
+const vmax = (arr, key, floor) => {
+  const xs = arr.map(d => d[key]);
+  return floor != null ? Math.max(floor, ...xs) : Math.max(...xs);
+};
+
 // Format an ISO date or a free-form date string into a short "21 May 2026" style.
 // Accepts: 'YYYY-MM-DD', 'YYYY-MM-DDTHH:mm:ssZ', anything new Date() can parse,
 // or an arbitrary label — returned unchanged if not recognisable.
@@ -1310,7 +1317,7 @@ function BarChart({ data, width=720, height=null, valueFmt=fmtN, color='var(--ac
   // Reserve a wider right gutter when grant-rate labels are shown so value + grant don't collide.
   const pad = { t: 8, r: showGrant ? 110 : 56, b: 8, l: labelWidth };
   const iw = width - pad.l - pad.r;
-  const vMax = Math.max(...data.map(d=>d.v));
+  const vMax = vmax(data, 'v');
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
       <svg width="100%" height={H} viewBox={`0 0 ${width} ${H}`} style={{display:'block'}}>
@@ -1453,7 +1460,7 @@ function Ring({ value, size=140, stroke=14, label='', sub='', ghostValue=null, g
 // Choropleth-ish region list (ranked bars)
 // ─────────────────────────────────────────────────────────────
 function RegionList({ data }) {
-  const vMax = Math.max(...data.map(d=>d.v));
+  const vMax = vmax(data, 'v');
   return (
     <div style={{display:'flex',flexDirection:'column',gap:6}}>
       {data.map(d=>(
@@ -1494,7 +1501,7 @@ function RegionWorldMap({ data, width=720, height=380 }) {
   const zoom = useMapZoom(width, height);
   const byName = Object.fromEntries(data.map(d => [d.name, d.v]));
   const total = data.reduce((s, d) => s + d.v, 0);
-  const vMax = Math.max(...data.map(d => d.v), 1);
+  const vMax = vmax(data, 'v', 1);
   // Shared 6-stop palette, sqrt-scaled so small regions stay visible.
   const fillFor = v => {
     if (!(v > 0)) return ATLAS_PALETTE[0];
@@ -1560,7 +1567,7 @@ function RegionTable({ data, rows }) {
   }, [rows]);
 
   const total = data.reduce((s, d) => s + d.v, 0);
-  const vMax = Math.max(...data.map(d => d.v), 1);
+  const vMax = vmax(data, 'v', 1);
   // Legend swatches reuse the same 6-stop palette as the map, so the colour
   // next to a region's name matches the colour painted on the map itself.
   const fillFor = v => {
@@ -1786,7 +1793,7 @@ function WorldMapChoropleth({ data, countryData, width=720, height=380 }) {
   const { show, hide, node } = useTooltip();
   const byRegion = Object.fromEntries(data.map(d => [d.name, d.v]));
   const total = data.reduce((s, d) => s + d.v, 0);
-  const vMax = Math.max(...data.map(d => d.v), 1);
+  const vMax = vmax(data, 'v', 1);
   // Country-level lookup for the second tooltip line.
   const byCountry = Object.fromEntries(
     (Array.isArray(countryData) ? countryData : []).map(r => [r.name, r.v])
@@ -2499,9 +2506,9 @@ function InterceptionRate({
     series.push({ we: rows[i].we, rate, total });
   }
 
-  const maxRate = Math.max(...series.map(s => s.rate));
+  const maxRate = vmax(series, 'rate');
   const yMax = Math.max(0.1, Math.ceil(maxRate * 10) / 10);
-  const maxTotal = Math.max(1, ...series.map(s => s.total));
+  const maxTotal = vmax(series, 'total', 1);
 
   const xs = i => pad.l + (i / (series.length - 1)) * iw;
   const yRate = r => pad.t + (1 - r / yMax) * ih;
@@ -2797,7 +2804,7 @@ function ThisWeekRanked({
     return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>Not enough history to rank.</div>;
   }
   const rows = years.map(y => ({ y, m: byYear[y].m || 0, we: byYear[y].we }));
-  const maxV = Math.max(1, ...rows.map(r => r.m));
+  const maxV = vmax(rows, 'm', 1);
   const sorted = [...rows].sort((a, b) => b.m - a.m);
   const rank = sorted.findIndex(r => r.y === targetYear) + 1;
 
