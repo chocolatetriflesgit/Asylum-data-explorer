@@ -127,9 +127,20 @@ function App() {
 
       <footer className="site-footer" style={{borderTop:'1px solid var(--rule)',padding:'36px 48px',maxWidth:1240,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'baseline',fontSize:12.5,color:'var(--muted)'}}>
         <div>
-          <span style={{fontFamily:'var(--serif)',fontStyle:'italic',color:'var(--ink-2)'}}>Migration data explorer</span>
-          <span style={{margin:'0 14px'}}>·</span>
-          <span>Open data · Published under OGL v3.0</span>
+          <div>
+            <span style={{fontFamily:'var(--serif)',fontStyle:'italic',color:'var(--ink-2)'}}>Migration data explorer</span>
+            <span style={{margin:'0 14px'}}>·</span>
+            <span>Unofficial — not affiliated with the Home Office, IOM or Freedom House</span>
+          </div>
+          <div style={{marginTop:8,fontSize:11.5,color:'var(--muted-2)',lineHeight:1.5}}>
+            Home Office data under <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener" style={{color:'inherit'}}>OGL v3.0</a>
+            <span style={{margin:'0 10px'}}>·</span>
+            IOM Missing Migrants data under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener" style={{color:'inherit'}}>CC BY-NC 4.0</a>
+            <span style={{margin:'0 10px'}}>·</span>
+            Freedom House data — non-commercial use with attribution
+            <span style={{margin:'0 10px'}}>·</span>
+            Code under <a href="https://github.com/chocolatetriflesgit/Asylum-data-explorer/blob/main/LICENSE" target="_blank" rel="noopener" style={{color:'inherit'}}>MIT</a>
+          </div>
         </div>
         <div className="footer-links" style={{display:'flex',gap:22}}>
           <span className="ulh" style={{cursor:'pointer'}} onClick={()=>setMethod(true)}>Methodology</span>
