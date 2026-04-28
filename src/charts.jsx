@@ -40,11 +40,12 @@ function fmtShortDate(value) {
 // source string mentions a known code. Mirrors scripts/_sources.py so updating
 // a landing URL in one place covers both the pipeline and the rendered UI.
 const SOURCE_URLS = {
-  // Small boats — Home Office weekly ODS (SB_01 arrivals, SB_02 arrivals + preventions).
-  'SB_01':   'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
-  'SB_02':   'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
-  'SB_01':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
-  'SB_02':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days',
+  // Small boats. SB_01 → main weekly publication. SB_02 currently links to the
+  // last-7-days provisional page; the code is semantically overloaded across the
+  // codebase (some surfaces mean the weekly preventions sheet) and warrants a
+  // separate disambiguation pass.
+  'SB_01': 'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
+  'SB_02': 'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days',
   // Immigration system statistics — one landing page, many sub-sheets.
   'Asy_D01': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
   'Asy_D02': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
