@@ -47,9 +47,6 @@ function latestDataThrough() {
   if (!candidates.length) return null;
   return candidates.reduce((a,b) => a.d > b.d ? a : b);
 }
-function fmtMasthead(d) {
-  return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
 function Masthead() {
   const latest = latestDataThrough();
   if (!latest) return null;
@@ -57,7 +54,7 @@ function Masthead() {
   return (
     <div style={{borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>
       <div className="masthead-inner" style={{maxWidth:1240,margin:'0 auto',padding:'8px 48px',display:'flex',justifyContent:'flex-end',alignItems:'center',gap:16}}>
-        <span className="uc" style={{color:'var(--muted)'}}>Data through {fmtMasthead(d)}</span>
+        <span className="uc" style={{color:'var(--muted)'}}>Data through {fmtUTC(d)}</span>
       </div>
     </div>
   );
