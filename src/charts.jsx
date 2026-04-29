@@ -458,13 +458,7 @@ function YoYCumulative({
       )}
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
         {/* Grid + y-axis labels */}
-        {yTicks.map(t => (
-          <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth="1"/>
-            <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)"
-              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: yTicks, y, pad, W })}
         {/* Month ticks on x-axis */}
         {MONTH_STARTS.map((doy, mi) => (
           <text key={mi} x={x(doy + 14)} y={H - pad.b + 18} textAnchor="middle" fontSize="11" fill="var(--muted)"
@@ -935,12 +929,7 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
         </div>
       )}
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
-        {yTicks.map(t=>(
-          <g key={t}>
-            <line x1={pad.l} x2={W-pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)"/>
-            <text x={pad.l-10} y={y(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: yTicks, y, pad, W })}
         {activeYears.map((yr,i)=>{
           const tx = x(i), ty = H-pad.b+18;
           const rot = rotateTicks || activeYears.length > 10;
@@ -1205,12 +1194,7 @@ function StackedColumns({ data, series=['A','B'], colors=['var(--accent)','var(-
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
-        {yTicks.map(t=>(
-          <g key={t}>
-            <line x1={pad.l} x2={W-pad.r} y1={yPx(t)} y2={yPx(t)} stroke="var(--rule)"/>
-            <text x={pad.l-10} y={yPx(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: yTicks, y: yPx, pad, W })}
         {data.map((d,i)=>{
           const aH = (d.a||0)/yMax*ih;
           const bH = (d.b||0)/yMax*ih;
@@ -1260,12 +1244,7 @@ function StackedColumnsMulti({ years, series, colors, width=800, height=360, sho
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
-        {yTicks.map(t=>(
-          <g key={t}>
-            <line x1={pad.l} x2={W-pad.r} y1={yPx(t)} y2={yPx(t)} stroke="var(--rule)"/>
-            <text x={pad.l-10} y={yPx(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: yTicks, y: yPx, pad, W })}
         {years.map((yr, i) => {
           const cx = xCenter(i);
           let yCursor = H - pad.b;
@@ -2559,13 +2538,7 @@ function InterceptionRate({
         <path d={areaD} fill="var(--bg-3)" opacity="0.55"/>
 
         {/* y-axis gridlines + percentage labels */}
-        {gridTicks.map((t, k) => (
-          <g key={`g-${k}`}>
-            <line x1={pad.l} x2={W - pad.r} y1={yRate(t)} y2={yRate(t)} stroke="var(--rule)" strokeWidth="1"/>
-            <text x={pad.l - 10} y={yRate(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)"
-              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{Math.round(t * 100)}%</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: gridTicks, y: yRate, pad, W, fmtLabel: t => `${Math.round(t * 100)}%` })}
 
         {/* x-axis year ticks */}
         {yearTicks.map(({ yr, i }) => (
