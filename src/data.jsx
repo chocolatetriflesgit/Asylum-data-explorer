@@ -8,6 +8,13 @@
 
 const _W = (typeof window !== 'undefined') ? window : {};
 
+// Read an array global from the bundle's window object, with a safe fallback
+// when the pipeline hasn't produced that global yet (or it's the wrong shape).
+// Replaces the verbatim `Array.isArray(W.X) ? W.X : []` shim previously
+// repeated at every read site.
+const arrFrom = (key, fallback = []) =>
+  Array.isArray(_W[key]) ? _W[key] : fallback;
+
 // Shared month-name lookups. Used by every short-date formatter and by chart
 // axis labels. Defined here so the bundle exposes them once to every later
 // JSX file (data.jsx is concatenated first; see scripts/bundle.py).

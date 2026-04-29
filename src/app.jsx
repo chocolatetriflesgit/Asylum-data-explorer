@@ -307,7 +307,7 @@ function StoryHero({ kind }) {
 // ─────────────────────────────────────────────────────────────
 function ThisWeekHero({ setRoute }) {
   const W = (typeof window !== 'undefined') ? window : {};
-  const weekly = Array.isArray(W.BOATS_WEEKLY) ? W.BOATS_WEEKLY : [];
+  const weekly = arrFrom('BOATS_WEEKLY');
   if (!weekly.length) return null;
   const last = weekly[weekly.length - 1];
 

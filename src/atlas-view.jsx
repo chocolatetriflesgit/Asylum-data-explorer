@@ -311,7 +311,7 @@ function AtlasCountryContextStrip({ selectedNats }) {
   if (!ctx || !selectedNats || !selectedNats.length) return null;
 
   // Map the first selected name → ISO3 via WORLD_MAP.
-  const worldMap = Array.isArray(W.WORLD_MAP) ? W.WORLD_MAP : [];
+  const worldMap = arrFrom('WORLD_MAP');
   const isoByName = {};
   for (const c of worldMap) if (c.iso && c.name) isoByName[c.name] = c.iso;
   const name = selectedNats[0];
@@ -400,9 +400,9 @@ function AtlasCompareCard({ selectedNats, onSwap }) {
   const [a, b] = selectedNats;
 
   const W = (typeof window !== 'undefined') ? window : {};
-  const natFull = Array.isArray(W.NAT_FULL) ? W.NAT_FULL : [];
-  const irrBoats = Array.isArray(W.IRR_BOATS_BY_NATIONALITY) ? W.IRR_BOATS_BY_NATIONALITY : [];
-  const returns = Array.isArray(W.RETURNS_BY_NATIONALITY) ? W.RETURNS_BY_NATIONALITY : [];
+  const natFull = arrFrom('NAT_FULL');
+  const irrBoats = arrFrom('IRR_BOATS_BY_NATIONALITY');
+  const returns = arrFrom('RETURNS_BY_NATIONALITY');
 
   const findApp = (n) => natFull.find(r => r.name === n);
   const apps = { a: findApp(a), b: findApp(b) };
@@ -1239,9 +1239,9 @@ function WhereYouLive({ supportRows, onPick }) {
 
 function UKAtlasSection() {
   const W = (typeof window !== 'undefined') ? window : {};
-  const map = Array.isArray(W.UK_LAD_MAP) ? W.UK_LAD_MAP : [];
-  const support = Array.isArray(W.SUPPORT_LA_LATEST) ? W.SUPPORT_LA_LATEST : [];
-  const quarterly = Array.isArray(W.SUPPORT_LA_QUARTERLY) ? W.SUPPORT_LA_QUARTERLY : [];
+  const map = arrFrom('UK_LAD_MAP');
+  const support = arrFrom('SUPPORT_LA_LATEST');
+  const quarterly = arrFrom('SUPPORT_LA_QUARTERLY');
   const meta = W.SUPPORT_LA_META;
   if (!map.length || !support.length) return null;
 

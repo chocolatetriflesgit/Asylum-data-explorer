@@ -293,7 +293,12 @@ def build_meta(path: Path, notes: list[str], latest_date: str) -> dict:
 def load_notes(path: Path) -> list[str]:
     try:
         df = _load_sheet(path, "Notes")
-    except Exception:
+    except Exception as e:
+        print(
+            f"warning: could not load Notes sheet from {path.name}: {e!r} — "
+            f"BOATS_META.notes will be empty",
+            file=sys.stderr,
+        )
         return []
     notes: list[str] = []
     for col in df.columns:

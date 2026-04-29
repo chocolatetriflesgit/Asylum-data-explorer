@@ -49,8 +49,8 @@ function ReleaseCard() {
   const W = (typeof window !== 'undefined') ? window : {};
   const natMeta = W.NAT_FULL_META;
   const backlogMeta = W.BACKLOG_META;
-  const backlog = Array.isArray(W.BACKLOG_LATEST) ? W.BACKLOG_LATEST : [];
-  const natFull = Array.isArray(W.NAT_FULL) ? W.NAT_FULL : [];
+  const backlog = arrFrom('BACKLOG_LATEST');
+  const natFull = arrFrom('NAT_FULL');
   const aa = (typeof ASYLUM_ANNUAL !== 'undefined') ? ASYLUM_ANNUAL : [];
 
   // Parse "dec-2025" out of the canonical source filename.
@@ -970,7 +970,7 @@ function DashboardView({ setRoute }) {
               setRoute={setRoute} forkPreset={{ d:'nationalities_boats', ct:'bar', g:'annual' }}
               takeaway={(() => {
                 const W = (typeof window !== 'undefined') ? window : {};
-                const rows = Array.isArray(W.IRR_BOATS_BY_NATIONALITY) ? W.IRR_BOATS_BY_NATIONALITY : [];
+                const rows = arrFrom('IRR_BOATS_BY_NATIONALITY');
                 if (!rows.length) return null;
                 const fullYears = Array.from(new Set(rows.filter(r => !r.partial).map(r => r.year))).sort((a,b)=>a-b);
                 if (!fullYears.length) return null;
@@ -1019,7 +1019,7 @@ function DashboardView({ setRoute }) {
                 sub="Rolling 13-week window · p / (p + m) · SB_02"
                 takeaway={(() => {
                   const W = (typeof window !== 'undefined') ? window : {};
-                  const wk = Array.isArray(W.BOATS_WEEKLY) ? W.BOATS_WEEKLY : [];
+                  const wk = arrFrom('BOATS_WEEKLY');
                   const withP = wk.filter(w => w && w.p != null && (w.m != null));
                   if (withP.length < 14) return null;
                   const rolling = (window) => {
