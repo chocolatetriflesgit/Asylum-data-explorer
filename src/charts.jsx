@@ -30,6 +30,20 @@ const vmax = (arr, key, floor) => {
   return floor != null ? Math.max(floor, ...xs) : Math.max(...xs);
 };
 
+// Render the y-axis tick gridlines + tick labels for a chart. Replaces the
+// `{yTicks.map(t => <g key={t}>...</g>)}` block that 8 chart functions
+// otherwise repeat verbatim. The defaults match what the canonical line/bar
+// charts use; pass overrides for the few outliers (e.g. DualAxisChart's
+// series-coloured left axis).
+const renderYTicks = ({ ticks, y, pad, W, fmtLabel = fmtK, fontSize = 11, fill = 'var(--muted)' }) =>
+  ticks.map(t => (
+    <g key={t}>
+      <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)"/>
+      <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize={fontSize} fill={fill}
+        style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtLabel(t)}</text>
+    </g>
+  ));
+
 // Format an ISO date or a free-form date string into a short "21 May 2026" style.
 // Accepts: 'YYYY-MM-DD', 'YYYY-MM-DDTHH:mm:ssZ', anything new Date() can parse,
 // or an arbitrary label — returned unchanged if not recognisable.
@@ -244,13 +258,7 @@ function LineChart({
         {/* Area fill drawn first so band and line render on top */}
         {area && <path d={areaPath} fill="url(#areaGrad)"/>}
         {/* Grid lines + y-axis labels */}
-        {yTicks.map(t => (
-          <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth="1"/>
-            <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize={fs} fill="var(--muted)"
-              style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: yTicks, y, pad, W, fontSize: fs })}
         {/* X-axis labels */}
         {d.map((p, i) => ({p, i}))
           .filter(({i}) => everyYear || i % Math.max(1, Math.ceil(d.length / 8)) === 0 || i === d.length - 1)
