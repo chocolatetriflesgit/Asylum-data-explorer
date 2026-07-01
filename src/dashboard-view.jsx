@@ -289,9 +289,9 @@ function DashboardView({ setRoute }) {
     };
   })() : null;
 
-  // Age disputes totals (AGE_DISPUTES_BY_NATIONALITY from build_age_disputes.py).
-  const ageDisputesData = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : null;
-  const ageDisputesMeta = typeof AGE_DISPUTES_META !== 'undefined' ? AGE_DISPUTES_META : null;
+  // Age assessments totals (AGE_ASSESSMENTS_BY_NATIONALITY from build_age_assessments.py).
+  const ageDisputesData = typeof AGE_ASSESSMENTS_BY_NATIONALITY !== 'undefined' ? AGE_ASSESSMENTS_BY_NATIONALITY : null;
+  const ageDisputesMeta = typeof AGE_ASSESSMENTS_META !== 'undefined' ? AGE_ASSESSMENTS_META : null;
   const ageDisputesCard = ageDisputesData ? {
     raised: ageDisputesData.reduce((s,r) => s + (r.raised||0), 0),
     over18: ageDisputesData.reduce((s,r) => s + (r.resolved_over_18||0), 0),
@@ -763,7 +763,7 @@ function DashboardView({ setRoute }) {
         ))}
       </section>
 
-      {/* KPI strip row 3 — Returns · Sex ratios · Children · Age disputes */}
+      {/* KPI strip row 3 — Returns · Sex ratios · Children · Age assessments */}
       <section className="kpi-detail-5" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:0,paddingBottom:36}}>
         {(() => {
           const yr = sexAgeRangeLatest?.y ?? sexAgeMeta?.latest_year ?? '—';
@@ -791,8 +791,8 @@ function DashboardView({ setRoute }) {
               ? { cls:'gold', label:`Child applicants · ${yr}`, v:fmtN(sexAgeRangeLatest.under18), d: under18Delta != null ? `${+under18Delta>=0?'+':''}${under18Delta}% vs ${sexAgeRangePrev?.y??''}` : 'main applicants under 18' }
               : { cls:'gold', label:'Child applicants', v:'—', d:'Data pending', pending:true },
             ageDisputesCard
-              ? { cls:'accent-2', label:`Age disputes raised · ${ageDisputesCard.year}`, v:fmtN(ageDisputesCard.raised), d:`${fmtN(ageDisputesCard.over18)} found adult · ${fmtN(ageDisputesCard.under18)} found child` }
-              : { cls:'', label:'Age disputes', v:'—', d:'Data pending', pending:true },
+              ? { cls:'accent-2', label:`Age assessments raised · ${ageDisputesCard.year}`, v:fmtN(ageDisputesCard.raised), d:`${fmtN(ageDisputesCard.over18)} found adult · ${fmtN(ageDisputesCard.under18)} found child` }
+              : { cls:'', label:'Age assessments', v:'—', d:'Data pending', pending:true },
           ];
         })().map((k,i)=>(
           <div key={i} className={`kpi-card ${k.cls ?? ''}`} style={k.pending?{opacity:0.6}:{}}>

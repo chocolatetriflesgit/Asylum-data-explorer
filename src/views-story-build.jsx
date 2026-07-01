@@ -249,7 +249,7 @@ function _previewFor(code) {
     case 'Asy_D05':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
     case 'Asy_D09':  return { global: 'HOTELS',              rows: pick(W.HOTELS) };
     case 'Asy_D11':  return { global: 'SUPPORT_REGIONS',     rows: pick(W.SUPPORT_REGIONS) };
-    case 'Age_D01':  return { global: 'AGE_DISPUTES_BY_NATIONALITY', rows: pick(W.AGE_DISPUTES_BY_NATIONALITY) };
+    case 'Age_D01':  return { global: 'AGE_ASSESSMENTS_BY_NATIONALITY', rows: pick(W.AGE_ASSESSMENTS_BY_NATIONALITY) };
     case 'SB_01':   return { global: 'BOATS_WEEKLY',        rows: pick(W.BOATS_WEEKLY) };
     case 'SB_02':   return { global: 'BOATS_PROVISIONAL',   rows: pick(W.BOATS_PROVISIONAL) };
     case 'Irr_02b':  return { global: 'IRR_BOATS_BY_NATIONALITY', rows: null };
@@ -508,9 +508,9 @@ const DATASET_OPTIONS = [
   },
   {
     id: 'age_disputes',
-    label: 'Age disputes by nationality',
+    label: 'Age assessments by nationality',
     series: (() => {
-      const ad = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
+      const ad = typeof AGE_ASSESSMENTS_BY_NATIONALITY !== 'undefined' ? AGE_ASSESSMENTS_BY_NATIONALITY : [];
       return ad.filter(d => d.raised > 0).slice(0, 20).map((d, i) => ({ y: i, v: d.raised, label: d.name }));
     })(),
     color: 'var(--accent-2)',
@@ -1105,7 +1105,7 @@ function BuildView({ setRoute }) {
                     <span style={{color:'var(--muted)',fontWeight:400}}> {overlayOn?'+':'&'} {overlayOpts.map(o=>o.label).join(', ')}</span>
                   )}
                   <span style={{color:'var(--muted)',fontWeight:400,fontSize:16}} className="tnum"> · {prim.snapshot
-                    ? (prim.id === 'age_disputes' && typeof AGE_DISPUTES_META !== 'undefined' ? `${AGE_DISPUTES_META.year} only`
+                    ? (prim.id === 'age_disputes' && typeof AGE_ASSESSMENTS_META !== 'undefined' ? `${AGE_ASSESSMENTS_META.year} only`
                        : prim.id === 'returns' && typeof RETURNS_META !== 'undefined' ? `${RETURNS_META.year} only`
                        : 'Latest snapshot')
                     : (isAnnual ? `${range[0]}–${range[1]}` : `${effGran}`)}</span>
@@ -1481,7 +1481,7 @@ function _updatesSourceRows() {
     ['Asy_D05', 'Asylum support',                          W.SUPPORT_REGIONS_META],
     ['Asy_D07', 'Backlog \u2014 cases awaiting decision',  W.BACKLOG_META],
     ['Asy_D09', 'Asylum seekers in hotels',                W.HOTELS_META],
-    ['Age_D01', 'Age disputes',                            W.AGE_DISPUTES_META],
+    ['Age_D01', 'Age assessments',                         W.AGE_ASSESSMENTS_META],
     ['Irr_02b', 'Irregular migration by nationality',     W.IRR_BOATS_META],
     ['Res_D01', 'Resettlement schemes',                    W.RESETTLEMENT_META],
   ];

@@ -357,8 +357,8 @@ const DATASETS = [
   { code: 'Asy_D05', name: 'Support provided to asylum seekers',          rows: '412,200',   updated: metaDate(W.SUPPORT_REGIONS_META),  nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
   { code: 'Asy_D09', name: 'Asylum seekers in receipt of support (hotels)',rows: '~88,200',  updated: metaDate(W.HOTELS_META),           nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
   { code: 'Asy_D11', name: 'Asylum support by local authority',           rows: '~39,600',   updated: metaDate(W.SUPPORT_REGIONS_META),  nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Quarterly', landingUrl: URL_ISS_TABLES },
-  // Age disputes
-  { code: 'Age_D01', name: 'Age disputes by nationality',                 rows: '~4,700',    updated: metaDate(W.AGE_DISPUTES_META),     nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Annual',    landingUrl: URL_ISS_TABLES },
+  // Age assessments
+  { code: 'Age_D01', name: 'Age assessments by nationality',              rows: '~4,000',    updated: metaDate(W.AGE_ASSESSMENTS_META),  nextRelease: NEXT_RELEASE.quarterlyISS(), freq: 'Annual',    landingUrl: URL_ISS_TABLES },
   // Small boats crossings
   { code: 'SB_01',  name: 'Small boats: daily crossings (2018–present)', rows: '~2,920',    updated: metaDate(W.BOATS_META),            nextRelease: NEXT_RELEASE.weeklyBoats(),  freq: 'Weekly',    landingUrl: URL_SMALL_BOATS },
   { code: 'SB_02',  name: 'Small boats: last 7 days (provisional)',      rows: '7',          updated: metaDate(W.BOATS_PROVISIONAL_META),nextRelease: NEXT_RELEASE.daily(),        freq: 'Daily',     landingUrl: URL_SMALL_BOATS_7 },
@@ -419,8 +419,8 @@ const DATASET_CONSUMERS = {
     { view: 'Dashboard', chart: 'Support regions map' },
   ],
   Age_D01: [
-    { view: 'Atlas', chart: 'Country panel · Age disputes raised' },
-    { view: 'Atlas', chart: 'Choropleth · Age disputes' },
+    { view: 'Atlas', chart: 'Country panel · Age assessments raised' },
+    { view: 'Atlas', chart: 'Choropleth · Age assessments' },
   ],
   SB_01: [
     { view: 'Dashboard', chart: 'Fig. 02 · YoY cumulative arrivals' },

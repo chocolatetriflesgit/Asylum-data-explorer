@@ -7,7 +7,7 @@ name: Update data
 #   - asylum-support xlsx -> data/hotels-data.js
 #   - resettlement xlsx   -> data/resettlement-data.js
 #   - returns xlsx        -> data/returns-data.js
-#   - age-disputes xlsx   -> data/age-disputes-data.js
+#   - age-assessments xlsx -> data/age-assessments-data.js
 #   - backlog xlsx        -> data/backlog-data.js
 #   - support-by-LA xlsx  -> data/support-regions-data.js
 #   - IOM missing-migrants -> data/deaths-data.js (non-gov.uk source)
@@ -90,11 +90,11 @@ jobs:
       - name: Build returns data module
         run: python scripts/build_returns.py cache/returns-datasets-*.xlsx data/
 
-      - name: Fetch latest age-disputes xlsx
-        run: python scripts/fetch_age_disputes.py
+      - name: Fetch latest age-assessments xlsx
+        run: python scripts/fetch_age_assessments.py
 
-      - name: Build age-disputes data module
-        run: python scripts/build_age_disputes.py cache/age-disputes-datasets-*.xlsx data/
+      - name: Build age-assessments data module
+        run: python scripts/build_age_assessments.py cache/age-assessments-detailed-datasets-*.xlsx data/
 
       - name: Fetch latest backlog xlsx
         run: python scripts/fetch_backlog.py

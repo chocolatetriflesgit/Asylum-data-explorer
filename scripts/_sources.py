@@ -192,17 +192,19 @@ SOURCES = {
         "data_file": "data/deaths-data.js",
         "data_globals": ("DEATHS_DAILY", "DEATHS_ANNUAL", "DEATHS_META"),
     },
-    "age-disputes": {
-        "label": "Asylum & resettlement — age disputes",
+    "age-assessments": {
+        "label": "Asylum & resettlement — age assessments",
         "landing_url": (
             "https://www.gov.uk/government/statistical-data-sets/"
             "immigration-system-statistics-data-tables"
         ),
-        "filename_stem": "age-disputes-datasets-",
-        "fetcher": "scripts/fetch_age_disputes.py",
-        "builder": "scripts/build_age_disputes.py",
-        "data_file": "data/age-disputes-data.js",
-        "data_globals": ("AGE_DISPUTES_BY_NATIONALITY", "AGE_DISPUTES_META"),
+        # gov.uk retired "age-disputes-datasets-" on 21 May 2026 and replaced
+        # it with the broader "age-assessments-detailed-datasets-" table.
+        "filename_stem": "age-assessments-detailed-datasets-",
+        "fetcher": "scripts/fetch_age_assessments.py",
+        "builder": "scripts/build_age_assessments.py",
+        "data_file": "data/age-assessments-data.js",
+        "data_globals": ("AGE_ASSESSMENTS_BY_NATIONALITY", "AGE_ASSESSMENTS_META"),
     },
     "world-map": {
         "label": "Natural Earth 110m admin-0 countries (SVG path polygons)",
