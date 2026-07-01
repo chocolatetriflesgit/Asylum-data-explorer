@@ -78,23 +78,37 @@ jobs:
       - name: Build hotels data module
         run: python scripts/build_hotels.py cache/asylum-seekers-receipt-support-datasets-*.xlsx data/
 
+      # ── Secondary gov.uk tables (peripheral, infrequently updated) ──
+      # These are marked continue-on-error so a single upstream rename or
+      # page-shape change can't abort the whole job and freeze the core
+      # small-boats / asylum refresh — as happened when "age disputes" was
+      # retired on 21 May 2026. On failure the last-good committed data file
+      # is preserved and the build carries on. The core sources above
+      # (small boats, asylum-claims, support, backlog) stay hard-fail so
+      # their breakage is still loud.
       - name: Fetch latest resettlement xlsx
         run: python scripts/fetch_resettlement.py
+        continue-on-error: true
 
       - name: Build resettlement data module
         run: python scripts/build_resettlement.py cache/resettlement-scheme-datasets-*.xlsx data/
+        continue-on-error: true
 
       - name: Fetch latest returns xlsx
         run: python scripts/fetch_returns.py
+        continue-on-error: true
 
       - name: Build returns data module
         run: python scripts/build_returns.py cache/returns-datasets-*.xlsx data/
+        continue-on-error: true
 
       - name: Fetch latest age-assessments xlsx
         run: python scripts/fetch_age_assessments.py
+        continue-on-error: true
 
       - name: Build age-assessments data module
         run: python scripts/build_age_assessments.py cache/age-assessments-detailed-datasets-*.xlsx data/
+        continue-on-error: true
 
       - name: Fetch latest backlog xlsx
         run: python scripts/fetch_backlog.py
