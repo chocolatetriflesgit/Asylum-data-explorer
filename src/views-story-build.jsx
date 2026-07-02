@@ -274,7 +274,7 @@ function DatasetsView({ setRoute }) {
       <div style={{marginBottom:28}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-gold)'}}>Datasets</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 14px'}}>Raw data, curated.</h1>
-        <p style={{fontSize:17,color:'var(--ink-2)',maxWidth:640,margin:0,lineHeight:1.5}}>Eight quarterly and monthly datasets covering asylum, irregular migration, and resettlement. Every table is available as CSV, JSON, and Parquet.</p>
+        <p style={{fontSize:17,color:'var(--ink-2)',maxWidth:640,margin:0,lineHeight:1.5}}>{DATASETS.length} datasets covering asylum, small boats, irregular migration, resettlement and returns. Click any row for a plain-English description, a schema preview, and the charts it feeds — every one links back to its gov.uk source.</p>
       </div>
       <div style={{display:'flex',gap:16,alignItems:'center',padding:'14px 0',borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',marginBottom:24}}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filter datasets…"
@@ -328,6 +328,12 @@ function DatasetsView({ setRoute }) {
                 {open && (
                   <tr style={{background:'var(--bg-2)'}}>
                     <td colSpan={7} style={{padding:'4px 14px 20px 14px'}}>
+                      {/* Plain-English description — copy in src/copy.jsx DATASET_NOTES. */}
+                      {typeof DATASET_NOTES !== 'undefined' && DATASET_NOTES[d.code] && (
+                        <p style={{margin:'8px 0 18px',fontSize:13.5,lineHeight:1.6,color:'var(--ink-2)',maxWidth:720,textWrap:'pretty'}}>
+                          {DATASET_NOTES[d.code]}
+                        </p>
+                      )}
                       <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1.3fr)',gap:28}}>
                         {/* Used-in panel */}
                         <div>

@@ -135,6 +135,127 @@ const INSIGHTS = {
       </>
     );
   },
+
+  // ── Atlas — one explainer per metric mode, swapped with the buttons. ──
+  'atlas.metric.applicants': () => {
+    const natFull = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+    if (!natFull.length) return null;
+    const sorted = [...natFull].sort((a, b) => (b.v || 0) - (a.v || 0));
+    const top = sorted[0], second = sorted[1];
+    if (!top || !second) return null;
+    const grantTop = top.grant != null ? Math.round(top.grant * 100) : null;
+    const grantSecond = second.grant != null ? Math.round(second.grant * 100) : null;
+    return (
+      <>
+        <InsightLead>Volume and outcome point in different directions.</InsightLead>{' '}
+        {top.name} leads on applications{second ? ` ahead of ${second.name}` : ''}
+        {grantTop != null && grantSecond != null
+          ? <> — but <Gloss term="grant rate">grant rates</Gloss> diverge sharply ({top.name} {grantTop}% vs {second.name} {grantSecond}%), so the volume top and the outcome top are different lists.</>
+          : '.'}
+      </>
+    );
+  },
+  'atlas.metric.grant_rate': () => {
+    const natFull = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+    const withGrant = natFull.filter(r => r.grant != null);
+    if (!withGrant.length) return null;
+    const high = withGrant.filter(r => r.grant >= 0.9).length;
+    const low = withGrant.filter(r => r.grant <= 0.1).length;
+    const year = _CW.NAT_FULL_META?.year;
+    return (
+      <>
+        <InsightLead>Colours show the share of each country’s first decisions that granted protection{year ? ` in ${year}` : ''}.</InsightLead>{' '}
+        Of {withGrant.length} nationalities with decisions, {high} granted above 90% and {low} below 10% — the extremes, not the average, are the story. Countries with few decisions can swing sharply from year to year.
+      </>
+    );
+  },
+  'atlas.metric.bivariate': () =>
+    <>
+      <InsightLead>Two measures in one map.</InsightLead>{' '}
+      Darker cells mean more applicants; the hue runs from terracotta (few claims granted) through gold to green (most granted). The corners carry the stories — dark green is many applicants, mostly granted; dark terracotta is many applicants, mostly refused.
+    </>,
+  'atlas.metric.per_capita': () =>
+    <>
+      <InsightLead>UK applicants per 100,000 people displaced from each country.</InsightLead>{' '}
+      The base is UNHCR’s global displacement count, so the map shows which displaced populations turn towards the UK — not which are largest. A high value can mean a small displaced population with strong UK ties.
+    </>,
+  'atlas.metric.small_boats': () => {
+    const rows = Array.isArray(_CW.IRR_BOATS_BY_NATIONALITY) ? _CW.IRR_BOATS_BY_NATIONALITY : [];
+    if (!rows.length) return null;
+    const fullYears = Array.from(new Set(rows.filter(r => !r.partial).map(r => r.year))).sort((a, b) => a - b);
+    const latest = fullYears[fullYears.length - 1];
+    return (
+      <>
+        <InsightLead>Small-boat arrivals by nationality{latest ? `, full years to ${latest}` : ''}.</InsightLead>{' '}
+        Counted on the day of arrival — a different base from asylum applications, which are counted when a claim is lodged. Most, but not all, small-boat arrivals go on to claim asylum.
+      </>
+    );
+  },
+  'atlas.metric.returns': () => {
+    const year = _CW.RETURNS_META?.year;
+    return (
+      <>
+        <InsightLead>People returned to each country{year ? ` in ${year}` : ''} — enforced removals plus voluntary departures.</InsightLead>{' '}
+        Returns do not line up with the same year’s refusals: a return this year may close a claim made several years ago.
+      </>
+    );
+  },
+  'atlas.metric.age_disputes': () => {
+    const rows = Array.isArray(_CW.AGE_ASSESSMENTS_BY_NATIONALITY) ? _CW.AGE_ASSESSMENTS_BY_NATIONALITY : [];
+    const year = _CW.AGE_ASSESSMENTS_META?.year;
+    if (!rows.length) return null;
+    const over = rows.reduce((s, r) => s + (r.resolved_over_18 || 0), 0);
+    const under = rows.reduce((s, r) => s + (r.resolved_under_18 || 0), 0);
+    const resolved = over + under;
+    return (
+      <>
+        <InsightLead>Age assessments raised{year ? ` in ${year}` : ''}, where officials doubted an applicant’s stated age.</InsightLead>{' '}
+        {resolved > 0 && <>Of the cases resolved, {Math.round(over / resolved * 100)}% were assessed to be adults and {Math.round(under / resolved * 100)}% to be children. </>}
+        Cases raised and cases resolved in a year are not the same cohort.
+      </>
+    );
+  },
+
+  // ── Flow — context for the two sankeys. ──
+  'flow.system': () => {
+    const rows = Array.isArray(_CW.ROUTE_OF_ENTRY_QUARTERLY) ? _CW.ROUTE_OF_ENTRY_QUARTERLY : [];
+    if (!rows.length) return null;
+    const total = rows.reduce((s, r) => s + (r.v || 0), 0);
+    if (!total) return null;
+    const groupSum = (re) => rows.filter(r => re.test(r.group || '')).reduce((s, r) => s + (r.v || 0), 0);
+    const irregular = groupSum(/illegal|irregular/i);
+    const visas = groupSum(/visa/i);
+    const smallBoat = rows.filter(r => /small boat/i.test(r.sub || '')).reduce((s, r) => s + (r.v || 0), 0);
+    const year = _CW.ROUTE_OF_ENTRY_META?.year;
+    return (
+      <>
+        <InsightLead>How people who claim asylum got here{year ? ` (${year})` : ''}.</InsightLead>{' '}
+        {Math.round(irregular / total * 100)}% of claims came from people who entered without permission
+        {smallBoat > 0 && <> — small boats alone were {Math.round(smallBoat / total * 100)}% of all claims</>}
+        {visas > 0 && <> — and {Math.round(visas / total * 100)}% from people who arrived on a visa or other leave</>}.
+        {' '}Claims are counted when lodged, not when the person arrived, and these figures include dependants.
+      </>
+    );
+  },
+  'flow.nationality': () => {
+    const natFull = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+    if (natFull.length < 5) return null;
+    const sorted = [...natFull].sort((a, b) => (b.v || 0) - (a.v || 0));
+    const top5 = sorted.slice(0, 5);
+    const total = sorted.reduce((s, r) => s + (r.v || 0), 0) || 1;
+    const share = Math.round(top5.reduce((s, r) => s + (r.v || 0), 0) / total * 100);
+    const grants = top5.map(r => r.grant).filter(g => g != null);
+    const lo = grants.length ? Math.round(Math.min(...grants) * 100) : null;
+    const hi = grants.length ? Math.round(Math.max(...grants) * 100) : null;
+    const year = _CW.NAT_FULL_META?.year;
+    return (
+      <>
+        <InsightLead>The five biggest nationalities account for {share}% of {year ?? 'latest-year'} applications.</InsightLead>{' '}
+        {lo != null && hi != null && <>Their grant rates run from {lo}% to {hi}%, which is why the ribbons on the right split so differently for each. </>}
+        The rest of the world shares the “Other” band.
+      </>
+    );
+  },
 };
 
 // Look up an insight by id. Returns null for unknown ids so call sites can

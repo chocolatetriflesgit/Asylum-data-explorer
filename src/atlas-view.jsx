@@ -831,36 +831,11 @@ function AtlasView({ setRoute }) {
           Choropleth of asylum applicants by country of origin. Click any country to see applicants, grant rate, returns, and age assessments in one panel.
         </p>
       </div>
-      {/* Page-level takeaway — auto-derived from current metric. */}
-      {(() => {
-        const natFull = (typeof NAT_FULL !== 'undefined') ? NAT_FULL : [];
-        if (!natFull.length) return null;
-        const sorted = [...natFull].sort((a,b) => (b.v || 0) - (a.v || 0));
-        const top = sorted[0], second = sorted[1];
-        if (!top || !second) return null;
-        const grantTop = top.grant != null ? Math.round(top.grant * 100) : null;
-        const grantSecond = second.grant != null ? Math.round(second.grant * 100) : null;
-        return (
-          <div style={{
-            background:'var(--bg-2)',
-            borderLeft:'3px solid var(--accent-warn)',
-            padding:'12px 18px',
-            marginBottom:16,
-            fontSize:14.5,
-            lineHeight:1.5,
-            color:'var(--ink-2)',
-            textWrap:'pretty',
-            fontStyle:'italic',
-            maxWidth:'90ch'
-          }}>
-            <b style={{fontStyle:'normal',fontWeight:500,color:'var(--ink)'}}>Volume and outcome point in different directions.</b>{' '}
-            {top.name} leads on applications{second ? ` ahead of ${second.name}` : ''}
-            {grantTop != null && grantSecond != null
-              ? <> — but <Gloss term="grant rate">grant rates</Gloss> diverge sharply ({top.name} {grantTop}% vs {second.name} {grantSecond}%), so the volume top and the outcome top are different lists.</>
-              : '.'}
-          </div>
-        );
-      })()}
+      {/* Page-level explainer — swaps with the selected metric so the reader
+          always sees how the current colouring is calculated. Copy lives in
+          the INSIGHTS registry (src/copy.jsx). */}
+      <InsightNote id={`atlas.metric.${metric}`} accent="var(--accent-warn)"
+        style={{marginTop:0, marginBottom:16, maxWidth:'90ch'}}/>
       <div style={{display:'flex',gap:6,marginBottom:16}}>
         {ATLAS_METRIC_OPTIONS.map(m => {
           const available = m.needsData ? m.needsData() : true;
