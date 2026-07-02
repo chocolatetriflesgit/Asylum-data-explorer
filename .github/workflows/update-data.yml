@@ -196,4 +196,21 @@ jobs:
           TODAY=$(date -u +%Y-%m-%d)
           git add data/ index.html
           git commit -m "chore: data update ${TODAY}"
-          git push
+
+          # A PR merge or another push can land on main between our checkout
+          # and our push, which rejects a bare `git push` as non-fast-forward
+          # and fails the whole run for no real reason. Rebase our single
+          # data-update commit onto the latest main and retry a few times.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "pushed on attempt ${attempt}"
+              exit 0
+            fi
+            echo "push rejected on attempt ${attempt}; rebasing onto origin/main"
+            git pull --rebase origin main || {
+              echo "rebase failed — manual intervention needed" >&2
+              exit 1
+            }
+          done
+          echo "still could not push after 5 attempts" >&2
+          exit 1
