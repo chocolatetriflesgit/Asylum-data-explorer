@@ -508,6 +508,21 @@ function ThisWeekHero({ setRoute }) {
   );
 }
 
+// Render a band figure so any leading approximation/comparison marker
+// (~, ≈, <, >, ≤, ≥, ±) sits small and muted, letting the number itself read
+// as the clean hero — e.g. "~86%" shows a faint "~" ahead of a bold "86%".
+function fmtBandNumber(raw) {
+  const s = String(raw ?? '');
+  const m = s.match(/^([~≈<>≤≥±]+)\s*(.+)$/);
+  if (!m) return s;
+  return (
+    <>
+      <span style={{fontSize:'0.6em',color:'var(--muted-2)',fontWeight:400,letterSpacing:0,marginRight:2,verticalAlign:'0.08em'}}>{m[1]}</span>
+      {m[2]}
+    </>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // "Numbers in the news" band
 //
@@ -552,7 +567,7 @@ function NewsBand({ setRoute }) {
                 ? <Gloss term={it.glossTerm}>{it.kicker}</Gloss>
                 : it.kicker}
             </div>
-            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:30,letterSpacing:-0.5,fontWeight:400,lineHeight:1,marginBottom:14,color:'var(--ink)'}}>{it.number}</div>
+            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:30,letterSpacing:-0.5,fontWeight:400,lineHeight:1,marginBottom:14,color:'var(--ink)'}}>{fmtBandNumber(it.number)}</div>
             <div style={{fontSize:13.5,lineHeight:1.45,color:'var(--ink-2)',textWrap:'pretty',flex:1}}>{it.context}</div>
             {it.source && (
               <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--muted)',letterSpacing:'.04em',marginTop:14}}>{it.source}</div>
