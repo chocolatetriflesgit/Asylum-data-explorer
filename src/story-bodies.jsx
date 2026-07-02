@@ -287,7 +287,7 @@ const STORY_BODIES = {
                 <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Applications · {_CW.NAT_FULL_META?.year ?? 'latest year'}</div>
                 <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top ten, with grant rate</div>
               </div>
-              <BarChart data={rows.map(r => ({name: `${r.name}${r.grant != null ? ` · ${Math.round(r.grant*100)}% granted` : ''}`, v: r.v}))} width={720}/>
+              <BarChart data={rows.map(r => ({name: r.name, v: r.v, grant: r.grant != null ? r.grant : undefined}))} width={720} showGrant labelWidth={140}/>
               <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D01 + Asy_D02</div>
             </div>
           );

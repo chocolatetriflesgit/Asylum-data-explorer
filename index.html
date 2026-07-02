@@ -1757,7 +1757,7 @@ const STORY_BODIES = {
                 <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Applications · {_CW.NAT_FULL_META?.year ?? 'latest year'}</div>
                 <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top ten, with grant rate</div>
               </div>
-              <BarChart data={rows.map(r => ({name: `${r.name}${r.grant != null ? ` · ${Math.round(r.grant*100)}% granted` : ''}`, v: r.v}))} width={720}/>
+              <BarChart data={rows.map(r => ({name: r.name, v: r.v, grant: r.grant != null ? r.grant : undefined}))} width={720} showGrant labelWidth={140}/>
               <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D01 + Asy_D02</div>
             </div>
           );
@@ -4175,6 +4175,14 @@ function RegionTable({ data, rows }) {
 // ─────────────────────────────────────────────────────────────
 const ATLAS_PALETTE = ['#f5ecd8','#d4b86a','#b85c38','#6b4a2a','#2d4532','#1c3d2e'];
 
+// Landmasses we never draw in the choropleths: no asylum data attaches to them
+// and Antarctica in particular only adds a band of visual dead space along the
+// bottom of the map. Filtered out of WORLD_MAP at render time (the generated
+// data file is left intact). Shared by WorldMapChoropleth and AtlasChoropleth.
+const ATLAS_HIDDEN_NAMES = new Set(['Antarctica', 'Fr. S. Antarctic Lands']);
+const visibleWorldMap = arr =>
+  Array.isArray(arr) ? arr.filter(c => c && !ATLAS_HIDDEN_NAMES.has(c.name)) : [];
+
 function atlasLerpHex(a, b, t) {
   const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
   const ar = (pa >> 16) & 255, ag = (pa >> 8) & 255, ab = pa & 255;
@@ -4362,7 +4370,7 @@ function WorldMapChoropleth({ data, countryData, width=720, height=380 }) {
         style={{display:'block', ...zoom.svgProps.style}}>
         <rect x={0} y={0} width={width} height={height} fill="var(--bg-2)"/>
         <g>
-          {worldMap.map((c, i) => {
+          {visibleWorldMap(worldMap).map((c, i) => {
             const regionTotal = byRegion[c.region] ?? 0;
             // Natural Earth uses '-99' for disputed / unrecognised territories, so
             // ISO alone isn't unique. Compose with name + index for a stable key.
@@ -5019,7 +5027,9 @@ function InterceptionRate({
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
-  const pad = { t: 22, r: 28, b: 46, l: 72 };
+  // Right margin widened to seat the second (attempts-volume) y-axis and its
+  // rotated title alongside the left-hand interception-rate axis.
+  const pad = { t: 22, r: 70, b: 46, l: 72 };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
 
   const rows = (Array.isArray(data) ? data : [])
@@ -5085,8 +5095,22 @@ function InterceptionRate({
         {/* Attempts-volume area behind the rate line */}
         <path d={areaD} fill="var(--bg-3)" opacity="0.55"/>
 
-        {/* y-axis gridlines + percentage labels */}
+        {/* left y-axis gridlines + percentage labels (interception rate) */}
         {renderYTicks({ ticks: gridTicks, y: yRate, pad, W, fmtLabel: t => `${Math.round(t * 100)}%` })}
+
+        {/* right y-axis — total-attempts volume (scale for the shaded area).
+            Tick marks only, no gridlines, so the two axes stay legible. */}
+        {[0, 0.25, 0.5, 0.75, 1].map(f => {
+          const v = f * maxTotal;
+          const yy = yTotal(v);
+          return (
+            <g key={`ry-${f}`}>
+              <line x1={W - pad.r} x2={W - pad.r + 5} y1={yy} y2={yy} stroke="var(--muted-2)"/>
+              <text x={W - pad.r + 9} y={yy + 4} textAnchor="start" fontSize="11" fill="var(--muted)"
+                style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{f === 0 ? '0' : fmtK(v)}</text>
+            </g>
+          );
+        })}
 
         {/* x-axis year ticks */}
         {yearTicks.map(({ yr, i }) => (
@@ -5122,16 +5146,18 @@ function InterceptionRate({
           {Math.round(last.rate * 100)}%
         </text>
 
-        {/* axis titles */}
+        {/* axis titles — left: interception rate; right: attempts volume */}
         <text x={18} y={pad.t + ih / 2}
           transform={`rotate(-90 18 ${pad.t + ih / 2})`}
           textAnchor="middle" fontSize="11" fill="var(--muted)"
           style={{letterSpacing:'0.08em',textTransform:'uppercase',fontFamily:'var(--serif)'}}>
           Interception rate · {winSize}-week rolling
         </text>
-        <text x={W - pad.r} y={pad.t - 6} textAnchor="end" fontSize="11" fill="var(--muted)"
-          fontStyle="italic" style={{fontFamily:'var(--serif)'}}>
-          Total attempts (arrivals + preventions) shown as shaded area behind
+        <text x={W - 12} y={pad.t + ih / 2}
+          transform={`rotate(-90 ${W - 12} ${pad.t + ih / 2})`}
+          textAnchor="middle" fontSize="11" fill="var(--muted)"
+          style={{letterSpacing:'0.08em',textTransform:'uppercase',fontFamily:'var(--serif)'}}>
+          Total attempts · {winSize}-week rolling
         </text>
       </svg>
       {caption && (
@@ -5944,18 +5970,22 @@ function NewsBand({ setRoute }) {
         {band.items.map((it, i) => (
           <button key={i}
             onClick={() => it.route && setRoute(it.route)}
-            style={{background:'var(--bg)',border:'none',padding:'20px 22px',display:'flex',flexDirection:'column',gap:8,minHeight:170,cursor:it.route?'pointer':'default',textAlign:'left',transition:'background .12s',fontFamily:'inherit',color:'inherit'}}
+            style={{background:'var(--bg)',border:'none',padding:'20px 22px',display:'flex',flexDirection:'column',minHeight:170,cursor:it.route?'pointer':'default',textAlign:'left',transition:'background .12s',fontFamily:'inherit',color:'inherit'}}
             onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-2)'}}
             onMouseLeave={e=>{e.currentTarget.style.background='var(--bg)'}}>
-            <div className="uc" style={{color:'var(--muted)',fontSize:10}}>
+            {/* Deliberate vertical rhythm on the token ladder: label sits tight
+                above the number, then an even 14px to the context and source.
+                (Previously a flex gap and per-element margins stacked, so the
+                number was offset unevenly — 10px above, 14px below.) */}
+            <div className="uc" style={{color:'var(--muted)',fontSize:10,marginBottom:6}}>
               {it.glossTerm
                 ? <Gloss term={it.glossTerm}>{it.kicker}</Gloss>
                 : it.kicker}
             </div>
-            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:30,letterSpacing:-0.5,fontWeight:400,lineHeight:1,margin:'2px 0 6px',color:'var(--ink)'}}>{it.number}</div>
+            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:30,letterSpacing:-0.5,fontWeight:400,lineHeight:1,marginBottom:14,color:'var(--ink)'}}>{it.number}</div>
             <div style={{fontSize:13.5,lineHeight:1.45,color:'var(--ink-2)',textWrap:'pretty',flex:1}}>{it.context}</div>
             {it.source && (
-              <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--muted)',letterSpacing:'.04em',marginTop:6}}>{it.source}</div>
+              <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--muted)',letterSpacing:'.04em',marginTop:14}}>{it.source}</div>
             )}
           </button>
         ))}
@@ -5967,9 +5997,27 @@ function NewsBand({ setRoute }) {
 // ─────────────────────────────────────────────────────────────
 // Index view
 // ─────────────────────────────────────────────────────────────
+// Parse a story's display date ("14 April 2026") into a sortable timestamp so
+// the Read page can order newest-first regardless of the STORIES array order.
+// Falls back to Date parsing, then to 0, so an odd format never throws.
+const STORY_MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+function storyDateValue(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return 0;
+  const m = dateStr.trim().match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (m) {
+    const mon = STORY_MONTHS.indexOf(m[2].toLowerCase());
+    if (mon >= 0) return Date.UTC(+m[3], mon, +m[1]);
+  }
+  const d = new Date(dateStr);
+  return isNaN(d) ? 0 : d.getTime();
+}
+
 function IndexView({ setRoute }) {
-  const featured = STORIES[0];
-  const rest = STORIES.slice(1);
+  // Newest stories first. The editorial "Featured" pick (if tagged) keeps the
+  // hero slot; everything else fills the grid in reverse-chronological order.
+  const byDateDesc = [...STORIES].sort((a, b) => storyDateValue(b.date) - storyDateValue(a.date));
+  const featured = STORIES.find(s => s.tag === 'Featured') || byDateDesc[0];
+  const rest = byDateDesc.filter(s => s.id !== featured.id);
 
   return (
     <main className="fade-enter">
@@ -7673,7 +7721,7 @@ function SupportTiersCard({ tiers }) {
   let acc = 0;
   const segMids = rows.map(r => { const frac = r.v / total; const mid = acc + frac/2; acc += frac; return mid; });
   const colMids = [1/6, 3/6, 5/6];
-  const arrowH = 26;
+  const arrowH = 30;
 
   return (
     <div ref={wrapRef}>
@@ -7688,9 +7736,14 @@ function SupportTiersCard({ tiers }) {
             const x1 = segMids[i] * w;
             const x2 = colMids[i] * w;
             const y2 = arrowH - 4;
+            const yMid = arrowH * 0.5;
+            // Angular (right-angle) leader: drop straight from the bar segment,
+            // step across, then drop into the number column — reads more
+            // deliberately than a diagonal. Rounded corners keep it soft.
+            const elbow = `M ${x1} 0 V ${yMid} H ${x2} V ${y2}`;
             return (
               <g key={r.key}>
-                <line x1={x1} y1={0} x2={x2} y2={y2} stroke="var(--muted)" strokeWidth={1.25}/>
+                <path d={elbow} fill="none" stroke="var(--muted)" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round"/>
                 <polyline points={`${x2-4},${y2-5} ${x2},${y2} ${x2+4},${y2-5}`} fill="none" stroke="var(--muted)" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round"/>
               </g>
             );
@@ -9753,7 +9806,7 @@ function AtlasChoropleth({ countryValues, selectedNames = [], onSelect, metricLa
       <svg width="100%" height={height} viewBox={zoom.viewBox} {...zoom.svgProps}
         style={{display:'block',background:'var(--map-bg, var(--bg-2))', ...zoom.svgProps.style}}>
         <g>
-          {worldMap.map((c, i) => {
+          {visibleWorldMap(worldMap).map((c, i) => {
             const nat = resolveNat(c.name);
             const raw = nat ? countryValues[nat] : null;
             const v = bivariate ? raw : (raw ?? 0);

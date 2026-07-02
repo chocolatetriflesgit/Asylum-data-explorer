@@ -128,7 +128,7 @@ function AtlasChoropleth({ countryValues, selectedNames = [], onSelect, metricLa
       <svg width="100%" height={height} viewBox={zoom.viewBox} {...zoom.svgProps}
         style={{display:'block',background:'var(--map-bg, var(--bg-2))', ...zoom.svgProps.style}}>
         <g>
-          {worldMap.map((c, i) => {
+          {visibleWorldMap(worldMap).map((c, i) => {
             const nat = resolveNat(c.name);
             const raw = nat ? countryValues[nat] : null;
             const v = bivariate ? raw : (raw ?? 0);

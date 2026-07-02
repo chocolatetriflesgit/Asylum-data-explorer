@@ -540,18 +540,22 @@ function NewsBand({ setRoute }) {
         {band.items.map((it, i) => (
           <button key={i}
             onClick={() => it.route && setRoute(it.route)}
-            style={{background:'var(--bg)',border:'none',padding:'20px 22px',display:'flex',flexDirection:'column',gap:8,minHeight:170,cursor:it.route?'pointer':'default',textAlign:'left',transition:'background .12s',fontFamily:'inherit',color:'inherit'}}
+            style={{background:'var(--bg)',border:'none',padding:'20px 22px',display:'flex',flexDirection:'column',minHeight:170,cursor:it.route?'pointer':'default',textAlign:'left',transition:'background .12s',fontFamily:'inherit',color:'inherit'}}
             onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-2)'}}
             onMouseLeave={e=>{e.currentTarget.style.background='var(--bg)'}}>
-            <div className="uc" style={{color:'var(--muted)',fontSize:10}}>
+            {/* Deliberate vertical rhythm on the token ladder: label sits tight
+                above the number, then an even 14px to the context and source.
+                (Previously a flex gap and per-element margins stacked, so the
+                number was offset unevenly — 10px above, 14px below.) */}
+            <div className="uc" style={{color:'var(--muted)',fontSize:10,marginBottom:6}}>
               {it.glossTerm
                 ? <Gloss term={it.glossTerm}>{it.kicker}</Gloss>
                 : it.kicker}
             </div>
-            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:30,letterSpacing:-0.5,fontWeight:400,lineHeight:1,margin:'2px 0 6px',color:'var(--ink)'}}>{it.number}</div>
+            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:30,letterSpacing:-0.5,fontWeight:400,lineHeight:1,marginBottom:14,color:'var(--ink)'}}>{it.number}</div>
             <div style={{fontSize:13.5,lineHeight:1.45,color:'var(--ink-2)',textWrap:'pretty',flex:1}}>{it.context}</div>
             {it.source && (
-              <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--muted)',letterSpacing:'.04em',marginTop:6}}>{it.source}</div>
+              <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--muted)',letterSpacing:'.04em',marginTop:14}}>{it.source}</div>
             )}
           </button>
         ))}
@@ -563,9 +567,27 @@ function NewsBand({ setRoute }) {
 // ─────────────────────────────────────────────────────────────
 // Index view
 // ─────────────────────────────────────────────────────────────
+// Parse a story's display date ("14 April 2026") into a sortable timestamp so
+// the Read page can order newest-first regardless of the STORIES array order.
+// Falls back to Date parsing, then to 0, so an odd format never throws.
+const STORY_MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+function storyDateValue(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return 0;
+  const m = dateStr.trim().match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (m) {
+    const mon = STORY_MONTHS.indexOf(m[2].toLowerCase());
+    if (mon >= 0) return Date.UTC(+m[3], mon, +m[1]);
+  }
+  const d = new Date(dateStr);
+  return isNaN(d) ? 0 : d.getTime();
+}
+
 function IndexView({ setRoute }) {
-  const featured = STORIES[0];
-  const rest = STORIES.slice(1);
+  // Newest stories first. The editorial "Featured" pick (if tagged) keeps the
+  // hero slot; everything else fills the grid in reverse-chronological order.
+  const byDateDesc = [...STORIES].sort((a, b) => storyDateValue(b.date) - storyDateValue(a.date));
+  const featured = STORIES.find(s => s.tag === 'Featured') || byDateDesc[0];
+  const rest = byDateDesc.filter(s => s.id !== featured.id);
 
   return (
     <main className="fade-enter">

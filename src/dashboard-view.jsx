@@ -1533,7 +1533,7 @@ function SupportTiersCard({ tiers }) {
   let acc = 0;
   const segMids = rows.map(r => { const frac = r.v / total; const mid = acc + frac/2; acc += frac; return mid; });
   const colMids = [1/6, 3/6, 5/6];
-  const arrowH = 26;
+  const arrowH = 30;
 
   return (
     <div ref={wrapRef}>
@@ -1548,9 +1548,14 @@ function SupportTiersCard({ tiers }) {
             const x1 = segMids[i] * w;
             const x2 = colMids[i] * w;
             const y2 = arrowH - 4;
+            const yMid = arrowH * 0.5;
+            // Angular (right-angle) leader: drop straight from the bar segment,
+            // step across, then drop into the number column — reads more
+            // deliberately than a diagonal. Rounded corners keep it soft.
+            const elbow = `M ${x1} 0 V ${yMid} H ${x2} V ${y2}`;
             return (
               <g key={r.key}>
-                <line x1={x1} y1={0} x2={x2} y2={y2} stroke="var(--muted)" strokeWidth={1.25}/>
+                <path d={elbow} fill="none" stroke="var(--muted)" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round"/>
                 <polyline points={`${x2-4},${y2-5} ${x2},${y2} ${x2+4},${y2-5}`} fill="none" stroke="var(--muted)" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round"/>
               </g>
             );
