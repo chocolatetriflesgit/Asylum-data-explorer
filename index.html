@@ -839,6 +839,44 @@ const STORIES = [
     reading: '5 min',
     hero: 'map',
   },
+  {
+    id: 'how-the-system-works',
+    kicker: 'Explainer',
+    title: 'How the UK asylum system works',
+    dek: 'From claim to decision to appeal — the stages of the system, what each one measures, and where the numbers on this site fit.',
+    digest: 'An asylum claim moves through stages: arrival, claim, waiting, first decision, and — for refused claims — appeal. Each stage produces its own statistics, and most public confusion about asylum numbers comes from mixing them up. This explainer walks the stages in order, shows which chart on this site tracks each one, and flags the definitional traps: main applicants versus everyone, claims versus arrivals, initial decisions versus final outcomes.',
+    reading_links: [
+      { label: 'gov.uk — Claim asylum in the UK',
+        url: 'https://www.gov.uk/claim-asylum' },
+      { label: 'Migration Observatory — asylum and refugees briefing',
+        url: 'https://migrationobservatory.ox.ac.uk/resources/briefings/migration-to-the-uk-asylum/' },
+      { label: 'House of Commons Library — asylum statistics',
+        url: 'https://commonslibrary.parliament.uk/research-briefings/sn01403/' },
+    ],
+    date: '02 July 2026',
+    reading: '9 min',
+    tag: 'Explainer',
+    hero: 'none',
+  },
+  {
+    id: 'policy-2026',
+    kicker: 'Explainer',
+    title: 'What the 2025–26 policy changes mean for the numbers',
+    dek: 'A new Act, temporary protection, a returns deal with France and a hotels wind-down — what each change is, and which chart it should show up in.',
+    digest: 'Between late 2025 and early 2026 the asylum system was reshaped: the Border Security, Asylum and Immigration Act became law, refugee status became temporary with 30-month reviews, the support duty became discretionary, a returns deal with France began operating, and the hotel estate started shrinking fast. This explainer takes each change in turn and points at the specific data series where its effect should — eventually — be visible, with a caution about reading causes into single-year moves.',
+    reading_links: [
+      { label: 'gov.uk — Restoring Order and Control policy statement',
+        url: 'https://www.gov.uk/government/publications/asylum-and-returns-policy-statement/restoring-order-and-control-a-statement-on-the-governments-asylum-and-returns-policy' },
+      { label: 'House of Commons Library — small boat crossings statistics',
+        url: 'https://commonslibrary.parliament.uk/research-briefings/cbp-10590/' },
+      { label: 'Full Fact — asylum hotels tracker',
+        url: 'https://fullfact.org/government-tracker/asylum-hotels/' },
+    ],
+    date: '02 July 2026',
+    reading: '10 min',
+    tag: 'Explainer',
+    hero: 'none',
+  },
 ];
 
 // Datasets shown on the browse list.
@@ -2091,6 +2129,152 @@ const STORY_BODIES = {
         })()}
       </>
     ),
+  },
+
+  // ───────────────────────────────────────────────────────────
+  // Explainer · How the UK asylum system works (id: how-the-system-works)
+  // Single-column prose with inline figures; no chart column.
+  // ───────────────────────────────────────────────────────────
+  'how-the-system-works': {
+    blocks: [
+      { type: 'p', text: () =>
+        'Asylum is protection given to someone who has left their country and cannot safely return to it. The rules descend from the 1951 Refugee Convention, which the UK helped write: a refugee is someone with a well-founded fear of persecution for reasons such as race, religion, nationality, political opinion or membership of a particular social group. A claim can only be made from inside the UK — there is no visa for travelling here to seek asylum — which is the single fact that explains most of what follows.' },
+      { type: 'h2', text: 'Stage one — arriving and claiming' },
+      { type: 'p', text: () => {
+        const rows = Array.isArray(_CW.ROUTE_OF_ENTRY_QUARTERLY) ? _CW.ROUTE_OF_ENTRY_QUARTERLY : [];
+        const total = rows.reduce((s, r) => s + (r.v || 0), 0);
+        if (!total) return 'People reach the UK by many routes — small boats, lorries, or legally on a visa that they hold when they later claim asylum.';
+        const irr = rows.filter(r => /illegal|irregular/i.test(r.group || '')).reduce((s, r) => s + (r.v || 0), 0);
+        const visa = rows.filter(r => /visa/i.test(r.group || '')).reduce((s, r) => s + (r.v || 0), 0);
+        const boat = rows.filter(r => /small boat/i.test(r.sub || '')).reduce((s, r) => s + (r.v || 0), 0);
+        const year = _CW.ROUTE_OF_ENTRY_META?.year;
+        return <>People reach the UK by many routes. In {year ?? 'the latest year'}, {Math.round(irr / total * 100)}% of asylum claims came from people who entered without permission — small boats alone accounted for {Math.round(boat / total * 100)}% — while {Math.round(visa / total * 100)}% came from people who had arrived legally on a visa and claimed afterwards. Once a claim is lodged the person is an <Gloss term="asylum seeker">asylum seeker</Gloss>: legally present while the claim is decided, whatever the route in.</>;
+      } },
+      { type: 'figure', render: () => {
+        const rows = Array.isArray(_CW.ROUTE_OF_ENTRY_QUARTERLY) ? _CW.ROUTE_OF_ENTRY_QUARTERLY : [];
+        if (!rows.length) return null;
+        const groups = {};
+        for (const r of rows) groups[r.group] = (groups[r.group] || 0) + (r.v || 0);
+        const palette = { }; let i = 0;
+        const colors = ['var(--accent-warn)', 'var(--accent)', 'var(--accent-gold)', 'var(--muted-2)'];
+        const data = Object.entries(groups).sort((a, b) => b[1] - a[1]).map(([label, v]) => ({ label, v, color: colors[i++] || 'var(--muted-2)' }));
+        return (
+          <>
+            <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>How people who claimed asylum entered · {_CW.ROUTE_OF_ENTRY_META?.year ?? 'latest year'} · includes dependants</div>
+            <StackedBar data={data} width={640} height={90}/>
+            <div className="uc" style={{marginTop:12,color:'var(--muted-2)'}}>Source: Home Office · route of entry (claim date basis)</div>
+          </>
+        );
+      } },
+      { type: 'h2', text: 'Stage two — waiting' },
+      { type: 'p', text: () => {
+        const snaps = _backlogDec();
+        const last = snaps[snaps.length - 1];
+        const t = _CW.SUPPORT_TIERS_LATEST;
+        return <>Claims are not decided at the border. {last ? <>At the end of {last.y}, {_fmtS(last.v)} people were waiting for a first decision — the <Gloss term="backlog">backlog</Gloss>.</> : 'The queue of undecided cases is called the backlog.'} Most asylum seekers cannot work while they wait. Those who would otherwise be destitute get accommodation and subsistence{t?.total ? <> — {_fmtS(t.total)} people were on some form of support at the latest snapshot</> : ''} — and are housed wherever the accommodation contractors have space, which is why support concentrates in particular towns and cities.</>;
+      } },
+      { type: 'h2', text: 'Stage three — the first decision' },
+      { type: 'p', text: () => {
+        const g = _grantFigures();
+        if (!g) return null;
+        return <>A caseworker eventually decides the claim: protection granted, another form of leave granted, refused, or the claim is withdrawn. In {g.year} there were {_fmtS(g.total)} initial outcomes, of which {g.allPct}% granted protection or leave. Since early 2026, a successful claim brings “core protection” of 30 months at a time, reviewed and renewed only while protection is still needed — before that, refugees received five years’ leave on a track to permanent settlement. The route to settled status now runs to 20 years, with an “earned settlement” consultation to define shortcuts.</>;
+      } },
+      { type: 'h2', text: 'Stage four — appeal' },
+      { type: 'p', text: () =>
+        <>A refused applicant can usually appeal to the First-tier Tribunal — a court independent of the Home Office. Appeals matter to the statistics: roughly a third of appeals heard have succeeded in recent published figures (36% in 2024, as published), historically lifting the final grant rate 15–20 percentage points above the initial one. The Home Office has not published appeal outcomes since 2023, and the appeals queue itself — reported at about 87,000 cases by spring 2026 — has become the system’s new bottleneck.</> },
+      { type: 'h2', text: 'Stage five — after the decision' },
+      { type: 'p', text: () => {
+        const rows = Array.isArray(_CW.RETURNS_BY_NATIONALITY) ? _CW.RETURNS_BY_NATIONALITY : [];
+        const year = _CW.RETURNS_META?.year;
+        const total = rows.reduce((s, r) => s + (r.total || 0), 0);
+        const enforced = rows.reduce((s, r) => s + (r.enforced || 0), 0);
+        return <>Refused claims that exhaust their appeals end in departure — voluntary or enforced — or in limbo. {total ? <>In {year ?? 'the latest year'} there were {_fmtS(total)} returns of all kinds, of which {_fmtS(enforced)} were enforced.</> : ''} Granted claims end in protection, now time-limited and reviewable. Between those poles sits a population the statistics see only sideways: people refused but not returned, supported under Section 4, or simply no longer in contact with the system.</>;
+      } },
+      { type: 'p', text: () => {
+        const res = Array.isArray(_CW.RESETTLEMENT_SERIES) ? _CW.RESETTLEMENT_SERIES : [];
+        if (!res.length) return null;
+        const years = Object.keys(res[0] || {}).filter(k => /^\d{4}$/.test(k)).sort();
+        const latest = years[years.length - 1];
+        const total = latest ? res.reduce((s, r) => s + (r[latest] || 0), 0) : null;
+        return <>There is one route that skips every stage above: resettlement. Refugees selected abroad — mostly via the UN refugee agency — are brought directly to the UK with status already granted{total ? <>; {_fmtS(total)} people arrived this way in {latest}</> : ''}. From 2026 the government sets an annual cap on these safe routes, sized, it says, to community capacity.</>;
+      } },
+      { type: 'callout', text: () =>
+        <>Where to find each stage on this site: arrivals live on the Dashboard (and the Flow page shows routes into the system); waiting is the backlog chart and the geography stories; decisions and grant rates have their own story and dashboard figures; appeals appear only as caveats, because the data is not published; returns are on the Atlas. Every figure in this article is computed live from the same sources as the charts.</> },
+    ],
+  },
+
+  // ───────────────────────────────────────────────────────────
+  // Explainer · What the 2025–26 policy changes mean for the numbers
+  // (id: policy-2026)
+  // ───────────────────────────────────────────────────────────
+  'policy-2026': {
+    blocks: [
+      { type: 'p', text: () =>
+        'Between late 2025 and the middle of 2026 the UK asylum system was reshaped more thoroughly than at any point since the early 2000s. This explainer is not an assessment of whether the changes are working — it is a map: what each change is, and which line on which chart it should eventually show up in.' },
+      { type: 'h2', text: 'The Border Security, Asylum and Immigration Act' },
+      { type: 'p', text: () =>
+        <>The Act became law in December 2025. It created a Border Security Commander, new offences aimed at smuggling networks — supplying boat parts, handling crossing logistics, endangering lives at sea — with sentences up to 14 years, and stronger powers to seize and search phones. Its stated target is the supply side of crossings: the gangs, not the passengers.</> },
+      { type: 'p', text: () => {
+        const yoy = _CW.BOATS_YOY || {};
+        const yrs = Object.keys(yoy).sort();
+        const latest = yrs[yrs.length - 1], prior = yrs[yrs.length - 2];
+        if (!latest || !prior) return null;
+        const arr = yoy[latest] || [];
+        let ytd = null, day = null;
+        for (let i = arr.length - 1; i >= 0; i--) { if (arr[i] != null) { ytd = arr[i]; day = i; break; } }
+        const priorPoint = day != null && (yoy[prior] || [])[day] != null ? yoy[prior][day] : null;
+        const delta = (ytd != null && priorPoint) ? _pctS(ytd, priorPoint) : null;
+        return <>Where to look: the arrivals and preventions series. So far in {latest}, {_fmtS(ytd)} people have crossed{delta != null ? <> — {Math.abs(delta).toFixed(0)}% {delta >= 0 ? 'more' : 'fewer'} than at the same point in {prior}</> : ''}. One honest caution applies to every section of this article: a single year’s move has many causes — weather, French policing, routes shifting — and no chart can attribute it to one law.</>;
+      } },
+      { type: 'h2', text: 'Temporary protection' },
+      { type: 'p', text: () =>
+        <>From early 2026, a successful asylum claim brings “core protection” lasting 30 months at a time, renewed only while protection is still needed — replacing the five years’ leave that previously led to settlement. The settlement route itself stretches to 20 years, with consultations on letting people earn it faster. This is the deepest structural change of the set, and the one the current statistics see least: it does not change how many people arrive or how many claims are granted, but what a grant means afterwards. Its numbers — reviews, renewals, revocations — do not yet exist as published series.</> },
+      { type: 'h2', text: 'Support becomes discretionary' },
+      { type: 'p', text: () => {
+        const t = _CW.SUPPORT_TIERS_LATEST;
+        return <>The legal duty to support destitute asylum seekers has been replaced by a discretionary power, with support refusable on grounds including criminality, and contributions expected from those with assets or income. Where to look: the supported-population series{t?.total ? <> ({_fmtS(t.total)} people at the latest snapshot)</> : ''} and its split between support types. If discretion is used at scale, the supported total should fall faster than the backlog does.</>;
+      } },
+      { type: 'h2', text: 'The France deal' },
+      { type: 'p', text: () =>
+        <>A “one in, one out” pilot agreed with France in July 2025 allows the UK to return some small-boat arrivals to France, admitting an equal number of asylum seekers from France through a legal route. By early March 2026 about 354 people had been returned under it (as reported). In April 2026 the two governments agreed a new three-year funding cycle worth £662 million for enforcement on the French coast.</> },
+      { type: 'p', text: () => {
+        const wk = Array.isArray(_CW.BOATS_WEEKLY) ? _CW.BOATS_WEEKLY : [];
+        const withP = wk.filter(w => w && w.p != null && w.m != null).slice(-13);
+        const p = withP.reduce((s, w) => s + w.p, 0), m = withP.reduce((s, w) => s + w.m, 0);
+        return <>Where to look: two places. Returns under the deal are small next to arrivals — hundreds against tens of thousands — so their effect, if any, would be through deterrence rather than volume. The French-side effort shows up more directly in <Gloss term="preventions">preventions</Gloss>{(p + m) ? <>: over the latest thirteen reported weeks, {Math.round(p / (p + m) * 100)}% of recorded crossing attempts were stopped before reaching UK waters</> : ''}.</>;
+      } },
+      { type: 'h2', text: 'The hotels wind-down' },
+      { type: 'p', text: () => {
+        const h = Array.isArray(_CW.HOTELS) ? _CW.HOTELS : [];
+        if (h.length < 3) return null;
+        const last = h[h.length - 1];
+        const peak = h.reduce((a, b) => (b.persons_in_hotels || 0) > (a.persons_in_hotels || 0) ? b : a, h[0]);
+        const fmtD = s => { const d = new Date(s + 'T00:00:00Z'); return `${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+        const drop = _pctS(last.persons_in_hotels, peak.persons_in_hotels);
+        return <>The government has pledged to end asylum hotels by the end of this Parliament, moving people to large sites — including former military bases — and standard housing. This is the change the data can already see: {_fmtS(last.persons_in_hotels)} people were in hotels at the {fmtD(last.date)} snapshot{drop != null ? <>, {Math.abs(drop).toFixed(0)}% below the peak of {_fmtS(peak.persons_in_hotels)} in {fmtD(peak.date)}</> : ''}. Hotel spending was £2.1 billion in 2024–25, down from £3.0 billion the year before (as published). Where to look: the hotels snapshot series, quarter by quarter.</>;
+      } },
+      { type: 'figure', render: () => {
+        const h = Array.isArray(_CW.HOTELS) ? _CW.HOTELS : [];
+        if (h.length < 4) return null;
+        return (
+          <>
+            <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>People in asylum hotels · quarterly snapshots</div>
+            <Spark data={h.map((r, i) => ({ y: i, v: r.persons_in_hotels }))} width={640} height={90} stroke="var(--accent-warn)" area/>
+            <div className="uc" style={{marginTop:12,color:'var(--muted-2)'}}>Source: Home Office · Asy_D09 · {h[0].date} → {h[h.length-1].date}</div>
+          </>
+        );
+      } },
+      { type: 'h2', text: 'The backlog moved, it didn’t vanish' },
+      { type: 'p', text: () => {
+        const snaps = _backlogDec();
+        if (snaps.length < 2) return null;
+        const peak = snaps.reduce((a, b) => b.v > a.v ? b : a);
+        const last = snaps[snaps.length - 1];
+        return <>The queue for first decisions fell from {_fmtS(peak.v)} at the end of {peak.y} to {_fmtS(last.v)} at the end of {last.y} — the government’s clearest statistical win. But faster refusals feed the appeal courts: the appeals queue was reported at about 87,000 cases by spring 2026, up 72% in a year. Where to look: the backlog chart on the Dashboard tells the first half of this story; the second half is currently invisible in official data, which is itself worth knowing.</>;
+      } },
+      { type: 'callout', text: () =>
+        <>How to read policy claims against these charts: ask which series the claim should move, in which direction, starting when — then look. Most changes in this article are too recent, or their series too noisy, for a verdict either way. Figures marked “as reported” or “as published” come from government statements and parliamentary reporting rather than this site’s data pipeline, with dates given so they can be checked.</> },
+    ],
   },
 };
 
