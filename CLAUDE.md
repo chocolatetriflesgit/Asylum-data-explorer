@@ -16,23 +16,26 @@ The app is built on top of an existing Home Office Data Explorer shell (newspape
 /
 ├── index.html                 # Single-file runnable app. This is what deploys.
 ├── src/                       # JSX modules, bundled into index.html
-│   ├── data.jsx               # Hardcoded shell data (asylum/backlog/regions/stories)
+│   ├── data.jsx               # Hardcoded shell data, source registries, copy
 │   ├── root.jsx               # App component + routing + tweak panel
 │   ├── app.jsx                # Header, footer, search, methodology drawer
 │   ├── dashboard-view.jsx     # /dashboard route
 │   ├── views-story-build.jsx  # /story, /datasets, /build routes
+│   ├── atlas-view.jsx         # /atlas route (world map + country panel)
+│   ├── flow-view.jsx          # /flow route
 │   └── charts.jsx             # SVG chart primitives (LineChart, Spark, etc.)
 ├── design/                    # Design references, NOT loaded at session start
 │   ├── README.md              # Index of design artefacts — read this first
 │   ├── tokens.md              # Design tokens (colours, type, spacing, charts)
-│   ├── directions.html        # Three design directions, runnable
-│   ├── direction-cards.jsx    # Design directions as React components
-│   └── design-canvas.jsx      # Figma-ish canvas used during exploration
+│   └── mockups-content-ideas.html  # Exploratory mockups — snapshot, not maintained
 ├── data/
-│   └── boats-data.js          # AUTO-GENERATED. Do not edit by hand.
+│   └── *-data.js              # AUTO-GENERATED per source. Do not edit by hand.
 ├── scripts/
-│   ├── build_boats_data.py    # ODS → boats-data.js
-│   └── fetch_latest.py        # gov.uk → local ODS cache (Phase 2)
+│   ├── _sources.py            # Canonical registry of every upstream publication
+│   ├── _gov_uk.py             # Shared gov.uk scraper / fetcher utilities
+│   ├── fetch_*.py             # Per-publication fetchers (one per source)
+│   ├── build_*.py             # Per-publication parsers → data/*-data.js
+│   └── bundle.py              # Concatenate src/*.jsx + data/*.js into index.html
 ├── cache/
 │   └── *.ods                  # Downloaded source files, gitignored
 ├── .github/workflows/
@@ -63,13 +66,13 @@ Schema details live in the docstring of `scripts/build_boats_data.py`. Treat tha
 ## Commands
 
 ```bash
-# Regenerate the data module from a local ODS (one-off)
+# Example: regenerate small-boats data from a local ODS (one-off)
 python scripts/build_boats_data.py cache/latest.ods data/
 
-# Fetch latest ODS from gov.uk, parse, write boats-data.js (Phase 2+)
+# Example: fetch latest small-boats ODS from gov.uk
 python scripts/fetch_latest.py
 
-# Bundle src/*.jsx + data/boats-data.js into index.html
+# Bundle src/*.jsx + data/*.js into index.html
 python scripts/bundle.py
 
 # Local dev server (any static server works)
@@ -78,6 +81,12 @@ python -m http.server 8000
 # Run data integrity tests
 python -m pytest tests/
 ```
+
+The full pipeline runs ~17 fetcher/builder pairs (asylum claims, hotels,
+returns, resettlement, age disputes, backlog, support, deaths, world map,
+country context, …). The canonical, ordered command list lives in
+`.github/workflows/update-data.yml` — refer to that to run the whole
+pipeline locally.
 
 ## Editing rules
 
@@ -94,9 +103,7 @@ Design artefacts live in `design/`, **not** loaded by default. Read on demand:
 
 - `design/tokens.md` — the authoritative design system: colour tokens, type scale, spacing rhythm, chart conventions, motion, and accessibility rules. This is the single source of truth for visual decisions. **Read first** before any task touching layout, colour, typography, or charts.
 - `design/README.md` — catalogue of what's in `design/` and why.
-- `design/directions.html` — the three design directions evaluated during exploration. Reference only; production landed on a refined direction 1.
-- `design/direction-cards.jsx` — the directions as React components, useful for showing stakeholders why the chosen direction won.
-- `design/design-canvas.jsx` — the exploration tool (pan/zoom canvas). Not production.
+- `design/mockups-content-ideas.html` — exploratory content/layout mockups. Reference only, snapshot-in-time.
 
 Rule: for any visual work, read `design/tokens.md` first. Only open the other files if the token summary is insufficient. Do not import from `design/` into `src/` — these files are snapshots, not modules.
 

@@ -23,6 +23,27 @@ const fmtK = v => {
 };
 const fmtN = v => v.toLocaleString('en-GB');
 
+// Max of arr[*][key], with optional lower bound. Replaces the recurring
+// `Math.max(...arr.map(d => d[key]), floor)` pattern at chart-domain sites.
+const vmax = (arr, key, floor) => {
+  const xs = arr.map(d => d[key]);
+  return floor != null ? Math.max(floor, ...xs) : Math.max(...xs);
+};
+
+// Render the y-axis tick gridlines + tick labels for a chart. Replaces the
+// `{yTicks.map(t => <g key={t}>...</g>)}` block that 8 chart functions
+// otherwise repeat verbatim. The defaults match what the canonical line/bar
+// charts use; pass overrides for the few outliers (e.g. DualAxisChart's
+// series-coloured left axis).
+const renderYTicks = ({ ticks, y, pad, W, fmtLabel = fmtK, fontSize = 11, fill = 'var(--muted)', keyPrefix = '' }) =>
+  ticks.map(t => (
+    <g key={`${keyPrefix}${t}`}>
+      <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)"/>
+      <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize={fontSize} fill={fill}
+        style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtLabel(t)}</text>
+    </g>
+  ));
+
 // Format an ISO date or a free-form date string into a short "21 May 2026" style.
 // Accepts: 'YYYY-MM-DD', 'YYYY-MM-DDTHH:mm:ssZ', anything new Date() can parse,
 // or an arbitrary label — returned unchanged if not recognisable.
@@ -31,8 +52,7 @@ function fmtShortDate(value) {
   if (typeof value !== 'string' && typeof value !== 'number') return null;
   const d = new Date(value);
   if (isNaN(d)) return String(value);
-  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${String(d.getUTCDate()).padStart(2,'0')} ${M[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  return `${String(d.getUTCDate()).padStart(2,'0')} ${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
 // Registry of Home Office / other publication codes → gov.uk landing page.
@@ -40,11 +60,12 @@ function fmtShortDate(value) {
 // source string mentions a known code. Mirrors scripts/_sources.py so updating
 // a landing URL in one place covers both the pipeline and the rendered UI.
 const SOURCE_URLS = {
-  // Small boats — Home Office weekly ODS (SB_01 arrivals, SB_02 arrivals + preventions).
-  'SB_01':   'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
-  'SB_02':   'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
-  'SB_01':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
-  'SB_02':  'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days',
+  // Small boats. SB_01 → main weekly publication. SB_02 currently links to the
+  // last-7-days provisional page; the code is semantically overloaded across the
+  // codebase (some surfaces mean the weekly preventions sheet) and warrants a
+  // separate disambiguation pass.
+  'SB_01': 'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats',
+  'SB_02': 'https://www.gov.uk/government/publications/migrants-detected-crossing-the-english-channel-in-small-boats/migrants-detected-crossing-the-english-channel-in-small-boats-last-7-days',
   // Immigration system statistics — one landing page, many sub-sheets.
   'Asy_D01': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
   'Asy_D02': 'https://www.gov.uk/government/statistical-data-sets/immigration-system-statistics-data-tables',
@@ -237,13 +258,7 @@ function LineChart({
         {/* Area fill drawn first so band and line render on top */}
         {area && <path d={areaPath} fill="url(#areaGrad)"/>}
         {/* Grid lines + y-axis labels */}
-        {yTicks.map(t => (
-          <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth="1"/>
-            <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize={fs} fill="var(--muted)"
-              style={{fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: yTicks, y, pad, W, fontSize: fs })}
         {/* X-axis labels */}
         {d.map((p, i) => ({p, i}))
           .filter(({i}) => everyYear || i % Math.max(1, Math.ceil(d.length / 8)) === 0 || i === d.length - 1)
@@ -407,7 +422,6 @@ function YoYCumulative({
   const y = v => pad.t + (1 - v / yMax) * ih;
 
   // Day-of-year → month-label positions (1 Jan, 1 Feb, ... 1 Dec).
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   // Approximate month starts on a 366-day axis (use non-leap cum days).
   const MONTH_STARTS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
 
@@ -444,17 +458,11 @@ function YoYCumulative({
       )}
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
         {/* Grid + y-axis labels */}
-        {yTicks.map(t => (
-          <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth="1"/>
-            <text x={pad.l - 10} y={y(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)"
-              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: yTicks, y, pad, W })}
         {/* Month ticks on x-axis */}
         {MONTH_STARTS.map((doy, mi) => (
           <text key={mi} x={x(doy + 14)} y={H - pad.b + 18} textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)'}}>{MONTHS[mi]}</text>
+            style={{fontFamily:'var(--serif)'}}>{MONTHS_SHORT[mi]}</text>
         ))}
         <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="var(--rule-2)"/>
         {/* Axis titles */}
@@ -763,7 +771,6 @@ function SeasonalHeatMap({
   };
 
   // Month marker positions (approximate: week of month-start / 7).
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const monthWeeks = [1, 5, 9, 14, 18, 22, 27, 31, 35, 40, 44, 48];
 
   return (
@@ -785,7 +792,7 @@ function SeasonalHeatMap({
         {monthWeeks.map((w, i) => (
           <text key={`m-${i}`} x={pad.l + cellW * (w - 0.5)} y={H - pad.b + 18}
             textAnchor="middle" fontSize="11" fill="var(--muted)"
-            style={{fontFamily:'var(--serif)'}}>{MONTHS[i]}</text>
+            style={{fontFamily:'var(--serif)'}}>{MONTHS_SHORT[i]}</text>
         ))}
         {/* Axis titles */}
         {yLabel && (
@@ -922,12 +929,7 @@ function MultiLineChart({ years, series, width=720, height=300, showLabels=false
         </div>
       )}
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
-        {yTicks.map(t=>(
-          <g key={t}>
-            <line x1={pad.l} x2={W-pad.r} y1={y(t)} y2={y(t)} stroke="var(--rule)"/>
-            <text x={pad.l-10} y={y(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: yTicks, y, pad, W })}
         {activeYears.map((yr,i)=>{
           const tx = x(i), ty = H-pad.b+18;
           const rot = rotateTicks || activeYears.length > 10;
@@ -1091,13 +1093,7 @@ function DualAxisChart({
       )}
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
         {/* Left y-grid + left tick labels */}
-        {lTicks.map(t => (
-          <g key={`lt-${t}`}>
-            <line x1={pad.l} x2={W-pad.r} y1={yL(t)} y2={yL(t)} stroke="var(--rule)"/>
-            <text x={pad.l-10} y={yL(t)+4} textAnchor="end" fontSize={fs} fill={leftStroke}
-              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: lTicks, y: yL, pad, W, fontSize: fs, fill: leftStroke, keyPrefix: 'lt-' })}
         {/* Right tick labels (no grid — avoids double-ruled background) */}
         {rTicks.map(t => (
           <text key={`rt-${t}`} x={W-pad.r+10} y={yR(t)+4} textAnchor="start" fontSize={fs} fill={rightStroke}
@@ -1192,12 +1188,7 @@ function StackedColumns({ data, series=['A','B'], colors=['var(--accent)','var(-
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
-        {yTicks.map(t=>(
-          <g key={t}>
-            <line x1={pad.l} x2={W-pad.r} y1={yPx(t)} y2={yPx(t)} stroke="var(--rule)"/>
-            <text x={pad.l-10} y={yPx(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: yTicks, y: yPx, pad, W })}
         {data.map((d,i)=>{
           const aH = (d.a||0)/yMax*ih;
           const bH = (d.b||0)/yMax*ih;
@@ -1247,12 +1238,7 @@ function StackedColumnsMulti({ years, series, colors, width=800, height=360, sho
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
-        {yTicks.map(t=>(
-          <g key={t}>
-            <line x1={pad.l} x2={W-pad.r} y1={yPx(t)} y2={yPx(t)} stroke="var(--rule)"/>
-            <text x={pad.l-10} y={yPx(t)+4} textAnchor="end" fontSize="11" fill="var(--muted)" style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{fmtK(t)}</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: yTicks, y: yPx, pad, W })}
         {years.map((yr, i) => {
           const cx = xCenter(i);
           let yCursor = H - pad.b;
@@ -1312,7 +1298,7 @@ function BarChart({ data, width=720, height=null, valueFmt=fmtN, color='var(--ac
   // Reserve a wider right gutter when grant-rate labels are shown so value + grant don't collide.
   const pad = { t: 8, r: showGrant ? 110 : 56, b: 8, l: labelWidth };
   const iw = width - pad.l - pad.r;
-  const vMax = Math.max(...data.map(d=>d.v));
+  const vMax = vmax(data, 'v');
   return (
     <figure className="chart-wrap" style={{position:'relative',margin:0}}>
       <svg width="100%" height={H} viewBox={`0 0 ${width} ${H}`} style={{display:'block'}}>
@@ -1455,7 +1441,7 @@ function Ring({ value, size=140, stroke=14, label='', sub='', ghostValue=null, g
 // Choropleth-ish region list (ranked bars)
 // ─────────────────────────────────────────────────────────────
 function RegionList({ data }) {
-  const vMax = Math.max(...data.map(d=>d.v));
+  const vMax = vmax(data, 'v');
   return (
     <div style={{display:'flex',flexDirection:'column',gap:6}}>
       {data.map(d=>(
@@ -1496,7 +1482,7 @@ function RegionWorldMap({ data, width=720, height=380 }) {
   const zoom = useMapZoom(width, height);
   const byName = Object.fromEntries(data.map(d => [d.name, d.v]));
   const total = data.reduce((s, d) => s + d.v, 0);
-  const vMax = Math.max(...data.map(d => d.v), 1);
+  const vMax = vmax(data, 'v', 1);
   // Shared 6-stop palette, sqrt-scaled so small regions stay visible.
   const fillFor = v => {
     if (!(v > 0)) return ATLAS_PALETTE[0];
@@ -1562,7 +1548,7 @@ function RegionTable({ data, rows }) {
   }, [rows]);
 
   const total = data.reduce((s, d) => s + d.v, 0);
-  const vMax = Math.max(...data.map(d => d.v), 1);
+  const vMax = vmax(data, 'v', 1);
   // Legend swatches reuse the same 6-stop palette as the map, so the colour
   // next to a region's name matches the colour painted on the map itself.
   const fillFor = v => {
@@ -1788,7 +1774,7 @@ function WorldMapChoropleth({ data, countryData, width=720, height=380 }) {
   const { show, hide, node } = useTooltip();
   const byRegion = Object.fromEntries(data.map(d => [d.name, d.v]));
   const total = data.reduce((s, d) => s + d.v, 0);
-  const vMax = Math.max(...data.map(d => d.v), 1);
+  const vMax = vmax(data, 'v', 1);
   // Country-level lookup for the second tooltip line.
   const byCountry = Object.fromEntries(
     (Array.isArray(countryData) ? countryData : []).map(r => [r.name, r.v])
@@ -2501,9 +2487,9 @@ function InterceptionRate({
     series.push({ we: rows[i].we, rate, total });
   }
 
-  const maxRate = Math.max(...series.map(s => s.rate));
+  const maxRate = vmax(series, 'rate');
   const yMax = Math.max(0.1, Math.ceil(maxRate * 10) / 10);
-  const maxTotal = Math.max(1, ...series.map(s => s.total));
+  const maxTotal = vmax(series, 'total', 1);
 
   const xs = i => pad.l + (i / (series.length - 1)) * iw;
   const yRate = r => pad.t + (1 - r / yMax) * ih;
@@ -2546,13 +2532,7 @@ function InterceptionRate({
         <path d={areaD} fill="var(--bg-3)" opacity="0.55"/>
 
         {/* y-axis gridlines + percentage labels */}
-        {gridTicks.map((t, k) => (
-          <g key={`g-${k}`}>
-            <line x1={pad.l} x2={W - pad.r} y1={yRate(t)} y2={yRate(t)} stroke="var(--rule)" strokeWidth="1"/>
-            <text x={pad.l - 10} y={yRate(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)"
-              style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{Math.round(t * 100)}%</text>
-          </g>
-        ))}
+        {renderYTicks({ ticks: gridTicks, y: yRate, pad, W, fmtLabel: t => `${Math.round(t * 100)}%` })}
 
         {/* x-axis year ticks */}
         {yearTicks.map(({ yr, i }) => (
@@ -2653,7 +2633,6 @@ function MonthSeasonalityHeatmap({
   const vals = data.map(r => r.m).filter(v => v != null && v > 0);
   const maxV = Math.max(1, ...vals);
 
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const pad = { t: 34, r: 24, b: 26, l: 54 };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   const cellW = iw / 12;
@@ -2679,7 +2658,7 @@ function MonthSeasonalityHeatmap({
       )}
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
         {/* month headers */}
-        {MONTHS.map((m, i) => (
+        {MONTHS_SHORT.map((m, i) => (
           <text key={`m-${m}`}
             x={pad.l + cellW * (i + 0.5)} y={pad.t - 10}
             textAnchor="middle" fontSize="11" fill="var(--muted)"
@@ -2711,7 +2690,7 @@ function MonthSeasonalityHeatmap({
                       fill={colorFor(v)}
                       stroke="var(--rule)" strokeWidth="0.5"
                       onMouseMove={e => show(e,
-                        <span><b>{MONTHS[i]} {yr}</b> · <span className="tnum">{fmtN(v)}</span> migrants</span>)}
+                        <span><b>{MONTHS_SHORT[i]} {yr}</b> · <span className="tnum">{fmtN(v)}</span> migrants</span>)}
                       onMouseLeave={hide}
                       style={{cursor:'crosshair'}}/>
                     {showLabel && (
@@ -2800,12 +2779,11 @@ function ThisWeekRanked({
     return <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontStyle:'italic'}}>Not enough history to rank.</div>;
   }
   const rows = years.map(y => ({ y, m: byYear[y].m || 0, we: byYear[y].we }));
-  const maxV = Math.max(1, ...rows.map(r => r.m));
+  const maxV = vmax(rows, 'm', 1);
   const sorted = [...rows].sort((a, b) => b.m - a.m);
   const rank = sorted.findIndex(r => r.y === targetYear) + 1;
 
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const dateStr = `${String(target.getUTCDate()).padStart(2,'0')} ${MONTHS[target.getUTCMonth()]}`;
+  const dateStr = `${String(target.getUTCDate()).padStart(2,'0')} ${MONTHS_SHORT[target.getUTCMonth()]}`;
 
   const pad = { t: 36, r: 70, b: 18, l: 54 };
   const rowH = 30;

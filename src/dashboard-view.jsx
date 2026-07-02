@@ -49,8 +49,8 @@ function ReleaseCard() {
   const W = (typeof window !== 'undefined') ? window : {};
   const natMeta = W.NAT_FULL_META;
   const backlogMeta = W.BACKLOG_META;
-  const backlog = Array.isArray(W.BACKLOG_LATEST) ? W.BACKLOG_LATEST : [];
-  const natFull = Array.isArray(W.NAT_FULL) ? W.NAT_FULL : [];
+  const backlog = arrFrom('BACKLOG_LATEST');
+  const natFull = arrFrom('NAT_FULL');
   const aa = (typeof ASYLUM_ANNUAL !== 'undefined') ? ASYLUM_ANNUAL : [];
 
   // Parse "dec-2025" out of the canonical source filename.
@@ -232,7 +232,7 @@ function DashboardView({ setRoute }) {
   const _fmtMonth = (ym) => {
     if (!ym || ym.length < 7) return ym ?? '';
     const [y, m] = ym.split('-');
-    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(+m)-1] || m;
+    const mn = MONTHS_SHORT[(+m)-1] || m;
     return `${mn} ${y.slice(2)}`;
   };
   const _aggregateByMonth = (field) => {
@@ -289,9 +289,9 @@ function DashboardView({ setRoute }) {
     };
   })() : null;
 
-  // Age disputes totals (AGE_DISPUTES_BY_NATIONALITY from build_age_disputes.py).
-  const ageDisputesData = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : null;
-  const ageDisputesMeta = typeof AGE_DISPUTES_META !== 'undefined' ? AGE_DISPUTES_META : null;
+  // Age assessments totals (AGE_ASSESSMENTS_BY_NATIONALITY from build_age_assessments.py).
+  const ageDisputesData = typeof AGE_ASSESSMENTS_BY_NATIONALITY !== 'undefined' ? AGE_ASSESSMENTS_BY_NATIONALITY : null;
+  const ageDisputesMeta = typeof AGE_ASSESSMENTS_META !== 'undefined' ? AGE_ASSESSMENTS_META : null;
   const ageDisputesCard = ageDisputesData ? {
     raised: ageDisputesData.reduce((s,r) => s + (r.raised||0), 0),
     over18: ageDisputesData.reduce((s,r) => s + (r.resolved_over_18||0), 0),
@@ -342,7 +342,7 @@ function DashboardView({ setRoute }) {
       const date = new Date(row.d + 'T00:00:00Z');
       const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][date.getUTCDay()];
       const day = date.getUTCDate();
-      const month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getUTCMonth()];
+      const month = MONTHS_SHORT[date.getUTCMonth()];
       return { ...row, superseded, label: `${dayName} ${day} ${month}`, correction: correctionByRow.get(idx) || null };
     });
   }, [provisional, provisionalMeta, canonicalLatest]);
@@ -763,7 +763,7 @@ function DashboardView({ setRoute }) {
         ))}
       </section>
 
-      {/* KPI strip row 3 — Returns · Sex ratios · Children · Age disputes */}
+      {/* KPI strip row 3 — Returns · Sex ratios · Children · Age assessments */}
       <section className="kpi-detail-5" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:14,marginBottom:0,paddingBottom:36}}>
         {(() => {
           const yr = sexAgeRangeLatest?.y ?? sexAgeMeta?.latest_year ?? '—';
@@ -791,8 +791,8 @@ function DashboardView({ setRoute }) {
               ? { cls:'gold', label:`Child applicants · ${yr}`, v:fmtN(sexAgeRangeLatest.under18), d: under18Delta != null ? `${+under18Delta>=0?'+':''}${under18Delta}% vs ${sexAgeRangePrev?.y??''}` : 'main applicants under 18' }
               : { cls:'gold', label:'Child applicants', v:'—', d:'Data pending', pending:true },
             ageDisputesCard
-              ? { cls:'accent-2', label:`Age disputes raised · ${ageDisputesCard.year}`, v:fmtN(ageDisputesCard.raised), d:`${fmtN(ageDisputesCard.over18)} found adult · ${fmtN(ageDisputesCard.under18)} found child` }
-              : { cls:'', label:'Age disputes', v:'—', d:'Data pending', pending:true },
+              ? { cls:'accent-2', label:`Age assessments raised · ${ageDisputesCard.year}`, v:fmtN(ageDisputesCard.raised), d:`${fmtN(ageDisputesCard.over18)} found adult · ${fmtN(ageDisputesCard.under18)} found child` }
+              : { cls:'', label:'Age assessments', v:'—', d:'Data pending', pending:true },
           ];
         })().map((k,i)=>(
           <div key={i} className={`kpi-card ${k.cls ?? ''}`} style={k.pending?{opacity:0.6}:{}}>
@@ -970,7 +970,7 @@ function DashboardView({ setRoute }) {
               setRoute={setRoute} forkPreset={{ d:'nationalities_boats', ct:'bar', g:'annual' }}
               takeaway={(() => {
                 const W = (typeof window !== 'undefined') ? window : {};
-                const rows = Array.isArray(W.IRR_BOATS_BY_NATIONALITY) ? W.IRR_BOATS_BY_NATIONALITY : [];
+                const rows = arrFrom('IRR_BOATS_BY_NATIONALITY');
                 if (!rows.length) return null;
                 const fullYears = Array.from(new Set(rows.filter(r => !r.partial).map(r => r.year))).sort((a,b)=>a-b);
                 if (!fullYears.length) return null;
@@ -1019,7 +1019,7 @@ function DashboardView({ setRoute }) {
                 sub="Rolling 13-week window · p / (p + m) · SB_02"
                 takeaway={(() => {
                   const W = (typeof window !== 'undefined') ? window : {};
-                  const wk = Array.isArray(W.BOATS_WEEKLY) ? W.BOATS_WEEKLY : [];
+                  const wk = arrFrom('BOATS_WEEKLY');
                   const withP = wk.filter(w => w && w.p != null && (w.m != null));
                   if (withP.length < 14) return null;
                   const rolling = (window) => {

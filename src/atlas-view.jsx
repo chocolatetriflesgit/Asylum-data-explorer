@@ -1,7 +1,7 @@
 // atlas-view.jsx — interactive world map with per-country detail panel.
-// Surfaces applicants + grant rate + returns + age disputes for the selected
+// Surfaces applicants + grant rate + returns + age assessments for the selected
 // country. Data comes from NAT_FULL / NAT_QUARTERLY / RETURNS_BY_NATIONALITY /
-// AGE_DISPUTES_BY_NATIONALITY, all inlined at bundle time.
+// AGE_ASSESSMENTS_BY_NATIONALITY, all inlined at bundle time.
 
 const { useState: uSA, useMemo: uMA } = React;
 
@@ -57,7 +57,7 @@ const ATLAS_METRIC_OPTIONS = [
   { id: 'small_boats',  label: 'Small-boat arrivals',
     needsData: () => (typeof IRR_BOATS_BY_NATIONALITY !== 'undefined' && IRR_BOATS_BY_NATIONALITY.length > 0) },
   { id: 'returns',      label: 'Returns' },
-  { id: 'age_disputes', label: 'Age disputes' },
+  { id: 'age_disputes', label: 'Age assessments' },
 ];
 
 // 3×3 bivariate palette: rows = applicants tercile (low→high),
@@ -217,7 +217,7 @@ function AtlasLegend({ countryValues, metricLabel = 'Applicants', bivariate=fals
 }
 
 function AtlasKPI({ label, value, sub }) {
-  // Returns/age-dispute subs commonly render long compound strings like
+  // Returns/age-assessment subs commonly render long compound strings like
   // "Enforced 4,512 · Voluntary 1,233" — split on " · " onto separate lines so
   // the 4-up KPI grid doesn't wrap awkwardly.
   const subLines = typeof sub === 'string' ? sub.split(' · ') : (sub ? [sub] : []);
@@ -240,7 +240,7 @@ function AtlasSelectedTable({ selectedNats, onRemove }) {
   const natFull = typeof NAT_FULL !== 'undefined' ? NAT_FULL : [];
   const natMeta = typeof NAT_FULL_META !== 'undefined' ? NAT_FULL_META : null;
   const returns = typeof RETURNS_BY_NATIONALITY !== 'undefined' ? RETURNS_BY_NATIONALITY : [];
-  const ageDisputes = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
+  const ageDisputes = typeof AGE_ASSESSMENTS_BY_NATIONALITY !== 'undefined' ? AGE_ASSESSMENTS_BY_NATIONALITY : [];
   const facts = selectedNats.map(name => ({
     name,
     apps: natFull.find(r => r.name === name) || null,
@@ -269,7 +269,7 @@ function AtlasSelectedTable({ selectedNats, onRemove }) {
               <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Applicants</th>
               <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Grant</th>
               <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Returns</th>
-              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Age disputes</th>
+              <th style={{padding:'8px 10px',fontSize:10.5,textTransform:'uppercase',letterSpacing:0.05,fontWeight:500,textAlign:'right',borderBottom:'1px solid var(--rule-2)'}}>Age assessments</th>
               <th style={{padding:'8px 6px',borderBottom:'1px solid var(--rule-2)'}}></th>
             </tr>
           </thead>
@@ -311,7 +311,7 @@ function AtlasCountryContextStrip({ selectedNats }) {
   if (!ctx || !selectedNats || !selectedNats.length) return null;
 
   // Map the first selected name → ISO3 via WORLD_MAP.
-  const worldMap = Array.isArray(W.WORLD_MAP) ? W.WORLD_MAP : [];
+  const worldMap = arrFrom('WORLD_MAP');
   const isoByName = {};
   for (const c of worldMap) if (c.iso && c.name) isoByName[c.name] = c.iso;
   const name = selectedNats[0];
@@ -400,9 +400,9 @@ function AtlasCompareCard({ selectedNats, onSwap }) {
   const [a, b] = selectedNats;
 
   const W = (typeof window !== 'undefined') ? window : {};
-  const natFull = Array.isArray(W.NAT_FULL) ? W.NAT_FULL : [];
-  const irrBoats = Array.isArray(W.IRR_BOATS_BY_NATIONALITY) ? W.IRR_BOATS_BY_NATIONALITY : [];
-  const returns = Array.isArray(W.RETURNS_BY_NATIONALITY) ? W.RETURNS_BY_NATIONALITY : [];
+  const natFull = arrFrom('NAT_FULL');
+  const irrBoats = arrFrom('IRR_BOATS_BY_NATIONALITY');
+  const returns = arrFrom('RETURNS_BY_NATIONALITY');
 
   const findApp = (n) => natFull.find(r => r.name === n);
   const apps = { a: findApp(a), b: findApp(b) };
@@ -771,7 +771,7 @@ function AtlasView({ setRoute }) {
       return Object.fromEntries(ret.map(r => [r.name, r.total]));
     }
     if (metric === 'age_disputes') {
-      const ad = typeof AGE_DISPUTES_BY_NATIONALITY !== 'undefined' ? AGE_DISPUTES_BY_NATIONALITY : [];
+      const ad = typeof AGE_ASSESSMENTS_BY_NATIONALITY !== 'undefined' ? AGE_ASSESSMENTS_BY_NATIONALITY : [];
       return Object.fromEntries(ad.map(r => [r.name, r.raised]));
     }
     if (metric === 'small_boats') {
@@ -828,7 +828,7 @@ function AtlasView({ setRoute }) {
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-warn)'}}>Atlas</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 10px'}}>The world, by country.</h1>
         <p style={{fontSize:16,color:'var(--ink-2)',maxWidth:680,margin:0,lineHeight:1.5}}>
-          Choropleth of asylum applicants by country of origin. Click any country to see applicants, grant rate, returns, and age disputes in one panel.
+          Choropleth of asylum applicants by country of origin. Click any country to see applicants, grant rate, returns, and age assessments in one panel.
         </p>
       </div>
       {/* Page-level takeaway — auto-derived from current metric. */}
@@ -1239,9 +1239,9 @@ function WhereYouLive({ supportRows, onPick }) {
 
 function UKAtlasSection() {
   const W = (typeof window !== 'undefined') ? window : {};
-  const map = Array.isArray(W.UK_LAD_MAP) ? W.UK_LAD_MAP : [];
-  const support = Array.isArray(W.SUPPORT_LA_LATEST) ? W.SUPPORT_LA_LATEST : [];
-  const quarterly = Array.isArray(W.SUPPORT_LA_QUARTERLY) ? W.SUPPORT_LA_QUARTERLY : [];
+  const map = arrFrom('UK_LAD_MAP');
+  const support = arrFrom('SUPPORT_LA_LATEST');
+  const quarterly = arrFrom('SUPPORT_LA_QUARTERLY');
   const meta = W.SUPPORT_LA_META;
   if (!map.length || !support.length) return null;
 

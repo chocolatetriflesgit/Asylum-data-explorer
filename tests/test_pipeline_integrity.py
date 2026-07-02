@@ -255,23 +255,23 @@ def test_returns_source_is_fresh():
 
 
 # ---------------------------------------------------------------------------
-# AGE_DISPUTES_BY_NATIONALITY
+# AGE_ASSESSMENTS_BY_NATIONALITY
 # ---------------------------------------------------------------------------
 
-AGE_DISPUTES_JS = ROOT / "data" / "age-disputes-data.js"
+AGE_ASSESSMENTS_JS = ROOT / "data" / "age-assessments-data.js"
 
 
-def test_age_disputes_non_empty_and_sorted_by_raised():
-    g = _load_globals(AGE_DISPUTES_JS)
-    rows = g["AGE_DISPUTES_BY_NATIONALITY"]
+def test_age_assessments_non_empty_and_sorted_by_raised():
+    g = _load_globals(AGE_ASSESSMENTS_JS)
+    rows = g["AGE_ASSESSMENTS_BY_NATIONALITY"]
     assert len(rows) > 0
     raised = [r["raised"] for r in rows]
-    assert raised == sorted(raised, reverse=True), "AGE_DISPUTES not sorted by raised desc"
+    assert raised == sorted(raised, reverse=True), "AGE_ASSESSMENTS not sorted by raised desc"
 
 
-def test_age_disputes_shape_and_nonneg():
-    g = _load_globals(AGE_DISPUTES_JS)
-    for r in g["AGE_DISPUTES_BY_NATIONALITY"]:
+def test_age_assessments_shape_and_nonneg():
+    g = _load_globals(AGE_ASSESSMENTS_JS)
+    for r in g["AGE_ASSESSMENTS_BY_NATIONALITY"]:
         assert set(r.keys()) == {"name", "region", "raised", "resolved_over_18", "resolved_under_18"}, r
         assert isinstance(r["name"], str) and r["name"]
         assert isinstance(r["region"], str) and r["region"]
@@ -280,16 +280,16 @@ def test_age_disputes_shape_and_nonneg():
         assert r["raised"] + r["resolved_over_18"] + r["resolved_under_18"] > 0
 
 
-def test_age_disputes_meta_year_is_plausible():
-    g = _load_globals(AGE_DISPUTES_JS)
-    year = g["AGE_DISPUTES_META"]["year"]
+def test_age_assessments_meta_year_is_plausible():
+    g = _load_globals(AGE_ASSESSMENTS_JS)
+    year = g["AGE_ASSESSMENTS_META"]["year"]
     assert 2015 <= year <= dt.date.today().year
 
 
-def test_age_disputes_source_is_fresh():
+def test_age_assessments_source_is_fresh():
     """Soft warning, not failure."""
-    g = _load_globals(AGE_DISPUTES_JS)
-    _warn_if_source_stale(g["AGE_DISPUTES_META"]["source"], "AGE_DISPUTES")
+    g = _load_globals(AGE_ASSESSMENTS_JS)
+    _warn_if_source_stale(g["AGE_ASSESSMENTS_META"]["source"], "AGE_ASSESSMENTS")
 
 
 # ---------------------------------------------------------------------------
