@@ -385,6 +385,19 @@ def test_backlog_shape_and_positive():
         assert isinstance(r["date"], str) and r["date"]
 
 
+def test_backlog_no_implausible_year_on_year_collapse():
+    """A real backlog doesn't fall >90% between adjacent snapshots. A drop
+    that steep means the builder's filter matched almost nothing (as with
+    the Mar 2026 partial-year row that emitted v=14), so fail the gate
+    before the corrupt figure reaches the front page."""
+    rows = _load_globals(BACKLOG_JS)["BACKLOG_LATEST"]
+    for prev, cur in zip(rows, rows[1:]):
+        assert cur["v"] >= prev["v"] * 0.1, (
+            f"{cur['y']} backlog {cur['v']:,} is >90% below "
+            f"{prev['y']}'s {prev['v']:,} — likely a parse/schema failure"
+        )
+
+
 def test_backlog_meta_matches_latest_row():
     g = _load_globals(BACKLOG_JS)
     rows = g["BACKLOG_LATEST"]
