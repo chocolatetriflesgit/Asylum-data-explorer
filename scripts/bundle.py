@@ -21,12 +21,15 @@ The files must be concatenated in dependency order:
 
   JSX block (Babel-transformed, executes after):
     1. src/data.jsx                  — shell data (asylum/regions/stories)
-    2. src/charts.jsx                — chart primitives used everywhere
-    3. src/app.jsx                   — header, footer, drawers
-    4. src/dashboard-view.jsx        — /dashboard route
-    5. src/views-story-build.jsx     — /story, /datasets, /build routes
-    6. src/atlas-view.jsx            — /atlas world choropleth view
-    7. src/root.jsx                  — mounts <App />, must be LAST
+    2. src/copy.jsx                  — editorial insight copy registry
+    3. src/story-bodies.jsx          — long-form story bodies registry
+    4. src/search-index.jsx          — search index, synonyms, scorer
+    5. src/charts.jsx                — chart primitives used everywhere
+    6. src/app.jsx                   — header, footer, drawers
+    7. src/dashboard-view.jsx        — /dashboard route
+    8. src/views-story-build.jsx     — /story, /datasets, /build routes
+    9. src/atlas-view.jsx            — /atlas world choropleth view
+   10. src/root.jsx                  — mounts <App />, must be LAST
 """
 from __future__ import annotations
 
@@ -44,6 +47,9 @@ BUNDLE_END   = "/* BUNDLE_END"
 # Ordering is load-order-sensitive. root.jsx MUST be last (it renders).
 SRC_ORDER = [
     "data.jsx",
+    "copy.jsx",
+    "story-bodies.jsx",
+    "search-index.jsx",
     "charts.jsx",
     "app.jsx",
     "dashboard-view.jsx",

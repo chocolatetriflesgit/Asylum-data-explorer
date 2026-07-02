@@ -373,6 +373,8 @@ function FlowView({ setRoute }) {
           </div>
         )}
       </div>
+      {/* Data-tied context for the system sankey — copy in src/copy.jsx. */}
+      <InsightNote id="flow.system" style={{marginTop:0, marginBottom:10, maxWidth:940}}/>
       {system.hasLatest && (
         <div style={{marginBottom:10,padding:'12px 16px',background:'var(--bg-2)',borderLeft:'2px solid var(--accent-warn)',fontSize:12.5,color:'var(--ink-2)',lineHeight:1.55,maxWidth:940}}>
           <strong style={{fontWeight:500}}>The fourth column is an indicative proxy using cohort outcome changes; it is not an appeals dataset.</strong> The Home Office has not republished appeals statistics since their case-working system migration. Paler ribbons and dashed node outlines mark this column as modelled, not measured.
@@ -569,6 +571,8 @@ function FlowView({ setRoute }) {
       <div style={{marginTop:40,marginBottom:8}}>
         <div className="uc" style={{color:'var(--muted)',fontSize:10.5,marginBottom:6}}>By nationality · {year}</div>
         <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:400,letterSpacing:-0.3,margin:'0 0 10px'}}>Nationality → Initial decision outcome</h2>
+        {/* Data-tied context for the nationality sankey — copy in src/copy.jsx. */}
+        <InsightNote id="flow.nationality" style={{marginTop:0, marginBottom:4, maxWidth:900}}/>
       </div>
       <div style={{border:'1px solid var(--rule)',background:'#fff',padding:'24px 20px 16px'}}>
         {nodes.length ? (

@@ -77,9 +77,14 @@ function FurtherReading({ story }) {
 // ─────────────────────────────────────────────────────────────
 function StoryView({ id, setRoute, onMethod }) {
   const story = STORIES.find(s => s.id === id) || STORIES[0];
+  // Body registry (src/story-bodies.jsx): headline/dek/blocks/charts per
+  // story id, falling back to the STORIES metadata when absent.
+  const body = (typeof STORY_BODIES !== 'undefined' && STORY_BODIES[story.id]) || null;
+  const hasCharts = !!(body && body.charts);
   const [range, setRange] = uS2([2014, DATA_MAX_YEAR]);
   const [mode, setMode] = uS2('line'); // line | bar
   const [compareOn, setCompareOn] = uS2(true);
+  const chartState = { range, setRange, mode, setMode, compareOn, setCompareOn };
 
   return (
     <main className="fade-enter page-section" style={{maxWidth:1240,margin:'0 auto',padding:'40px 48px 100px'}}>
@@ -93,16 +98,16 @@ function StoryView({ id, setRoute, onMethod }) {
       {/* story header */}
       <header className="story-header-grid" style={{display:'grid',gridTemplateColumns:'1fr 340px',gap:72,borderBottom:'1px solid var(--rule)',paddingBottom:36,marginBottom:40}}>
         <div>
-          <div className="uc" style={{color:'var(--accent-warn)',marginBottom:14,display:'inline-block',paddingBottom:5,borderBottom:'2px solid var(--accent-warn)'}}>{story.kicker} · Story</div>
+          <div className="uc" style={{color:'var(--accent-warn)',marginBottom:14,display:'inline-block',paddingBottom:5,borderBottom:'2px solid var(--accent-warn)'}}>{story.kicker} · {story.tag === 'Explainer' ? 'Explainer' : 'Story'}</div>
           <h1 style={{fontFamily:'var(--serif)',fontSize:54,lineHeight:1.02,letterSpacing:-0.6,fontWeight:400,margin:'0 0 22px',textWrap:'balance',color:'var(--ink)'}}>
-            The <em style={{fontStyle:'italic',color:'var(--accent)'}}>long tail</em> of the 2022 surge
+            {(body && body.headline && body.headline()) || story.title}
           </h1>
           <p style={{fontSize:19,lineHeight:1.5,color:'var(--ink-2)',margin:0,textWrap:'pretty',maxWidth:640}}>
-            UK asylum applications peaked at 84,425 in 2023 — the highest since the modern series began in 1979 — before easing marginally in 2024. But the composition of who is claiming, and who is being granted protection, has shifted profoundly.
+            {(body && body.dek && body.dek()) || story.dek}
           </p>
         </div>
         <aside style={{fontSize:12.5,color:'var(--muted)',borderLeft:'1px solid var(--rule)',paddingLeft:32,display:'flex',flexDirection:'column',gap:14}}>
-          <div><span className="uc" style={{display:'block',marginBottom:4}}>By</span>Data team, Home Office</div>
+          <div><span className="uc" style={{display:'block',marginBottom:4}}>By</span>{story.author || 'Migration data explorer'}</div>
           <div><span className="uc" style={{display:'block',marginBottom:4}}>Published</span>{story.date}</div>
           <div><span className="uc" style={{display:'block',marginBottom:4}}>Reading time</span>{story.reading}</div>
           <div style={{display:'flex',gap:14,marginTop:8,paddingTop:14,borderTop:'1px dotted var(--rule-2)'}}>
@@ -116,99 +121,29 @@ function StoryView({ id, setRoute, onMethod }) {
       {/* digest block — standard story anatomy (Tranche 6.2) */}
       <StoryDigestBlock story={story} setRoute={setRoute}/>
 
-      {/* body — grid: narrative left, chart right */}
-      <article className="story-body-grid" style={{display:'grid',gridTemplateColumns:'360px 1fr',gap:72,alignItems:'start'}}>
-        {/* narrative column */}
-        <div style={{fontFamily:'var(--serif)',fontSize:16.5,lineHeight:1.65,color:'var(--ink-2)'}}>
-          <div style={{fontFamily:'var(--serif)',fontSize:52,lineHeight:0.9,float:'left',marginRight:10,marginTop:6,color:'var(--accent)',fontWeight:400}}>T</div>
-          <p style={{margin:'0 0 20px',textWrap:'pretty'}}>he British asylum system receives claims from people who have reached the UK and are asking to be recognised as refugees. For most of the past forty years the number of claims has moved in a narrow band — between 20,000 and 40,000 a year — with two striking departures.</p>
-          <p style={{margin:'0 0 20px',textWrap:'pretty'}}>The first came in the early 2000s, peaking above 84,000 in 2002 and triggering a decade of policy change. The second is the one we are in now. Between 2020 and 2023, annual applications nearly tripled, driven by a combination of the post-Covid rebound, the collapse of Afghanistan, and a sharp increase in arrivals by small boat across the Channel.</p>
-          <h3 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,letterSpacing:-0.1,margin:'36px 0 12px',color:'var(--ink)'}}>A tale of two spikes</h3>
-          <p style={{margin:'0 0 20px',textWrap:'pretty'}}>The chart on the right compares the two surges of the last twenty-five years. What's different this time isn't the height of the peak — it's the speed of the climb. In 2002 applications plateaued gently; in 2023 they tripled in three years.</p>
-          <h3 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,letterSpacing:-0.1,margin:'36px 0 12px',color:'var(--ink)'}}>The 2024 dip</h3>
-          <p style={{margin:'0 0 20px',textWrap:'pretty'}}>Provisional figures for 2024 show the first annual fall in five years — down 4.3% to 80,782. Officials attribute most of the decline to enhanced processing of <em>inadmissible</em> claims rather than a genuine fall in arrivals. Small-boat arrivals themselves rose 25% year-on-year.</p>
-          <blockquote style={{margin:'24px 0',padding:'0 0 0 22px',borderLeft:'2px solid var(--accent)',fontFamily:'var(--serif)',fontSize:18,lineHeight:1.45,fontStyle:'italic',color:'var(--ink)'}}>
-            "The 2024 figure looks less like a turning point and more like a pause." — Senior analyst, Migration Observatory
-          </blockquote>
-        </div>
-
-        {/* chart column — sticky on large screens */}
-        <div style={{position:'sticky',top:96}}>
-          {/* controls */}
-          <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:18,flexWrap:'wrap'}}>
-            <div className="seg">
-              <button className={mode==='line'?'on':''} onClick={()=>setMode('line')}>Line</button>
-              <button className={mode==='bar'?'on':''} onClick={()=>setMode('bar')}>Bar</button>
-            </div>
-            <div style={{flex:1,minWidth:180}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:11}} className="uc">
-                <span style={{color:'var(--muted)'}}>From {range[0]}</span>
-                <span style={{color:'var(--muted)'}}>to {range[1]}</span>
-              </div>
-              <div style={{display:'flex',gap:8,alignItems:'center',marginTop:6}}>
-                <input type="range" min={2014} max={DATA_MAX_YEAR} value={range[0]} onChange={e=>setRange([Math.min(+e.target.value, range[1]-1), range[1]])}/>
-                <input type="range" min={2014} max={DATA_MAX_YEAR} value={range[1]} onChange={e=>setRange([range[0], Math.max(+e.target.value, range[0]+1)])}/>
-              </div>
-            </div>
-            <label className="chk" style={{fontSize:12.5,color:'var(--muted)'}}>
-              <input type="checkbox" checked={compareOn} onChange={e=>setCompareOn(e.target.checked)}/>
-              Compare small-boat arrivals
-            </label>
+      {/* body — two-column (narrative + sticky chart panel) when the story
+          has a chart column; single-column prose (720px, per design tokens)
+          otherwise. Bodies live in src/story-bodies.jsx. */}
+      {hasCharts ? (
+        <article className="story-body-grid" style={{display:'grid',gridTemplateColumns:'360px 1fr',gap:72,alignItems:'start'}}>
+          <div>
+            <StoryBody blocks={body.blocks}/>
           </div>
-
-          <div style={{background:'var(--bg-2)',padding:'24px 28px',border:'1px solid var(--rule)'}}>
-            {mode === 'line' ? (
-              <LineChart
-                data={ASYLUM_ANNUAL}
-                yearRange={range}
-                title="Asylum applications, UK"
-                subtitle={`Applications annual · main applicants only · UK, ${range[0]}–${range[1]}`}
-                source="Home Office · Asy_D01"
-                asOf={(typeof NAT_FULL_META !== 'undefined' && NAT_FULL_META) ? (NAT_FULL_META.latestDataPoint || NAT_FULL_META.asOf || NAT_FULL_META.generatedAt) : null}
-                nextUpdate={(typeof NAT_FULL_META !== 'undefined' && NAT_FULL_META) ? NAT_FULL_META.nextUpdate : null}
-                annotations={[
-                  range[0] <= 2023 && range[1] >= 2023 && { y: 2023, label: '84,425', dx: -80, dy: -14 },
-                  range[0] <= 2020 && range[1] >= 2020 && { y: 2020, label: 'Covid', dx: -46, dy: 44 },
-                ].filter(Boolean)}
-                caption="Main applicants only. Provisional for 2024."
-                width={720} height={340}
-              />
-            ) : (
-              <BarChart
-                data={ASYLUM_ANNUAL.filter(d => d.y >= range[0] && d.y <= range[1]).map(d=>({name:String(d.y), v:d.v}))}
-                width={720} height={360}
-              />
-            )}
+          <div style={{position:'sticky',top:96}}>
+            {body.charts(chartState)}
           </div>
-
-          {compareOn && (
-            <div style={{background:'#fff',padding:'20px 28px',border:'1px solid var(--rule)',marginTop:16}}>
-              <LineChart
-                data={ASYLUM_ANNUAL.map(d=>({y:d.y,v:d.boats}))}
-                yearRange={range}
-                title="Small-boat arrivals, UK"
-                subtitle={`Small-boat arrivals annual · English Channel · UK, ${range[0]}–${range[1]}`}
-                stroke="var(--accent-warn)"
-                source="Home Office · Irr_02b"
-                asOf={(typeof IRR_BOATS_META !== 'undefined' && IRR_BOATS_META) ? (IRR_BOATS_META.asOf || IRR_BOATS_META.generatedAt) : (typeof BOATS_META !== 'undefined' ? BOATS_META.latestDataPoint : null)}
-                nextUpdate={(typeof IRR_BOATS_META !== 'undefined' && IRR_BOATS_META) ? IRR_BOATS_META.nextUpdate : null}
-                caption="Border Force-recorded arrivals by small boat across the Channel. Series begins 2018; figures for earlier years are zero by definition."
-                width={720} height={220}
-              />
+        </article>
+      ) : (
+        <article style={{maxWidth:720}}>
+          {body ? (
+            <StoryBody blocks={body.blocks}/>
+          ) : (
+            <div style={{fontStyle:'italic',color:'var(--muted)',fontSize:15,lineHeight:1.6,padding:'18px 22px',background:'var(--bg-2)',borderLeft:'2px solid var(--rule-2)'}}>
+              The full narrative for this story is being written. The digest above covers the key figures — or open the data in Build a chart to explore it yourself.
             </div>
           )}
-
-          {/* related figure — nationalities */}
-          <div style={{background:'#fff',padding:'20px 28px',border:'1px solid var(--rule)',marginTop:16}}>
-            <div style={{marginBottom:12}}>
-              <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Applications by top nationality · main applicants · 2020–2025</div>
-              <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top five nationalities</div>
-            </div>
-            <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={720} height={280}/>
-            <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D01</div>
-          </div>
-        </div>
-      </article>
+        </article>
+      )}
 
       {/* further reading (Tranche 6.4) */}
       <FurtherReading story={story}/>
@@ -259,10 +194,13 @@ function _previewFor(code) {
   }
 }
 
-function DatasetsView({ setRoute }) {
+function DatasetsView({ setRoute, openId }) {
   const [q, setQ] = uS2('');
   const [freq, setFreq] = uS2('All');
-  const [openCode, setOpenCode] = uS2(null);
+  // openId lets search results deep-link straight to an expanded row
+  // (route {name:'datasets', id:'Asy_D09'}).
+  const [openCode, setOpenCode] = uS2(openId ?? null);
+  uE2(() => { if (openId) setOpenCode(openId); }, [openId]);
   const filtered = DATASETS.filter(d => {
     if (freq !== 'All' && d.freq !== freq) return false;
     if (q && !d.name.toLowerCase().includes(q.toLowerCase()) && !d.code.toLowerCase().includes(q.toLowerCase())) return false;
@@ -274,7 +212,7 @@ function DatasetsView({ setRoute }) {
       <div style={{marginBottom:28}}>
         <div className="uc" style={{color:'var(--muted)',marginBottom:8,display:'inline-block',paddingBottom:4,borderBottom:'2px solid var(--accent-gold)'}}>Datasets</div>
         <h1 style={{fontFamily:'var(--serif)',fontSize:42,letterSpacing:-0.4,fontWeight:400,margin:'0 0 14px'}}>Raw data, curated.</h1>
-        <p style={{fontSize:17,color:'var(--ink-2)',maxWidth:640,margin:0,lineHeight:1.5}}>Eight quarterly and monthly datasets covering asylum, irregular migration, and resettlement. Every table is available as CSV, JSON, and Parquet.</p>
+        <p style={{fontSize:17,color:'var(--ink-2)',maxWidth:640,margin:0,lineHeight:1.5}}>{DATASETS.length} datasets covering asylum, small boats, irregular migration, resettlement and returns. Click any row for a plain-English description, a schema preview, and the charts it feeds — every one links back to its gov.uk source.</p>
       </div>
       <div style={{display:'flex',gap:16,alignItems:'center',padding:'14px 0',borderTop:'1px solid var(--rule)',borderBottom:'1px solid var(--rule)',marginBottom:24}}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filter datasets…"
@@ -328,6 +266,12 @@ function DatasetsView({ setRoute }) {
                 {open && (
                   <tr style={{background:'var(--bg-2)'}}>
                     <td colSpan={7} style={{padding:'4px 14px 20px 14px'}}>
+                      {/* Plain-English description — copy in src/copy.jsx DATASET_NOTES. */}
+                      {typeof DATASET_NOTES !== 'undefined' && DATASET_NOTES[d.code] && (
+                        <p style={{margin:'8px 0 18px',fontSize:13.5,lineHeight:1.6,color:'var(--ink-2)',maxWidth:720,textWrap:'pretty'}}>
+                          {DATASET_NOTES[d.code]}
+                        </p>
+                      )}
                       <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1.3fr)',gap:28}}>
                         {/* Used-in panel */}
                         <div>

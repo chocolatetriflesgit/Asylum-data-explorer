@@ -585,7 +585,8 @@ function DashboardView({ setRoute }) {
               d: lastWk ? `week ending ${lastWk.we}` : 'Data pending',
             }],
             spark: wk.slice(-12).map((w,i) => ({ y: i, v: w.m || 0 })),
-            sparkStroke: 'var(--accent-warn)' },
+            sparkStroke: 'var(--accent-warn)',
+            note: insight('dash.stat.week') },
           (() => {
             const popForYear = latestYoyYear ? ukPopFor(+latestYoyYear) : null;
             const ytdPer100k = (ytd != null && popForYear) ? (ytd / (popForYear * 1000)) * 100000 : null;
@@ -602,7 +603,8 @@ function DashboardView({ setRoute }) {
                   v: ytdDelta != null ? `${ytdDelta>=0?'+':''}${ytdDelta.toFixed(0)}%` : '—',
                   d: `vs same point in ${+latestYoyYear - 1}` },
               ],
-              spark: boatsAnnual, sparkStroke: 'var(--accent-warn)' };
+              spark: boatsAnnual, sparkStroke: 'var(--accent-warn)',
+              note: insight('dash.stat.ytd') };
           })(),
           (() => {
             const last = backlogSeries[backlogSeries.length - 1];
@@ -622,7 +624,8 @@ function DashboardView({ setRoute }) {
                   v: yoyPct != null ? `${yoyPct>=0?'+':''}${yoyPct.toFixed(0)}%` : '—',
                   d: 'vs prior year-end' },
               ],
-              spark: backlogSeries, sparkStroke: 'var(--accent-gold)' };
+              spark: backlogSeries, sparkStroke: 'var(--accent-gold)',
+              note: insight('dash.stat.backlog') };
           })(),
           (() => {
             const grant2019 = (() => {
@@ -643,7 +646,8 @@ function DashboardView({ setRoute }) {
                   v: `${deltaPp >= 0 ? '+' : ''}${deltaPp}pp`,
                   d: `vs 2019 (${Math.round(grant2019*100)}%)` }] : []),
               ],
-              spark: grantSpark, sparkStroke: 'var(--accent-2)' };
+              spark: grantSpark, sparkStroke: 'var(--accent-2)',
+              note: insight('dash.stat.grant') };
           })(),
         ];
         // Mode is held per-card, default 0 (first/total).
@@ -681,6 +685,9 @@ function DashboardView({ setRoute }) {
                   <Spark data={card.spark} width={220} height={36} stroke={card.sparkStroke}/>
                 </div>
               )}
+              {card.note && (
+                <div style={{fontSize:11.5,lineHeight:1.45,color:'var(--muted)',marginTop:12,paddingTop:10,borderTop:'1px dotted var(--rule-2)',textWrap:'pretty'}}>{card.note}</div>
+              )}
             </div>
           );
         };
@@ -705,18 +712,23 @@ function DashboardView({ setRoute }) {
       <section className="kpi-detail-4" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:14}}>
         {[
           { cls:'ink', label:`Preventions · ${preventionsYear}`, v:fmtN(preventionsYearTotal),
-            d: preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true },
+            d: preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true,
+            note: insight('dash.stat.preventions') },
           { cls:'accent', label:`Applications · ${rangeLatest.y}`, v:fmtN(rangeLatest.v),
             d: pctChange!=null ? `${+pctChange>=0?'+':''}${pctChange}% vs ${rangePrev?.y??''}` : `${rangeLatest.y} only`,
             dPos: pctChange!=null ? +pctChange<0 : null },
           { cls:'ink', label:`Initial decisions · ${decisionsYear}`, v:fmtN(decisionsTotal),
             d: `${Math.round(decisionsData[0].v/decisionsTotal*100)}% granted asylum${(range[0]>decisionsYear||range[1]<decisionsYear)?' · outside range':''}` },
-          { cls:'olive', label:'Appeals allowed', v:'36%', d:'of 41k heard in 2024' },
+          // Static editorial figure, explicitly dated — no live appeals series
+          // exists to derive this from (see dash.stat.appeals note).
+          { cls:'olive', label:'Appeals allowed · 2024', v:'36%', d:'of substantive appeals heard, as published',
+            note: insight('dash.stat.appeals') },
         ].map((k,i)=>(
           <div key={i} className={`kpi-card ${k.cls}`}>
             <div className="uc" style={{color:'var(--muted)',marginBottom:12}}>{k.label}</div>
             <div style={{fontFamily:'var(--serif)',fontSize:42,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">{k.v}</div>
             <div style={{fontSize:13,color: k.dPos != null ? (k.dPos ? 'var(--accent-2)' : 'var(--accent-warn)') : 'var(--muted)',marginTop:10,fontStyle:'italic'}}>{k.d}</div>
+            {k.note && <div style={{fontSize:11.5,lineHeight:1.45,color:'var(--muted)',marginTop:10,paddingTop:8,borderTop:'1px dotted var(--rule-2)',textWrap:'pretty'}}>{k.note}</div>}
           </div>
         ))}
       </section>
@@ -752,13 +764,15 @@ function DashboardView({ setRoute }) {
                 d: topNatCard.share!=null ? `${fmtN(topNatCard.v)} · ${topNatCard.share}% of total` : `${fmtN(topNatCard.v)} apps`, pending:false }
             : { cls:'gold', label:'Top nationality · Q-o-Q', v:'—', d:'Data pending', pending:true },
           hotelsCard
-            ? { cls:'ink', label:`In asylum hotels · ${hotelsCard.date}`, v:fmtN(hotelsCard.persons_in_hotels), d: hotelsCard.delta==null ? 'latest snapshot' : `${hotelsCard.delta>=0?'+':''}${hotelsCard.delta.toFixed(1)}% vs previous snapshot`, pending:false }
+            ? { cls:'ink', label:`In asylum hotels · ${hotelsCard.date}`, v:fmtN(hotelsCard.persons_in_hotels), d: hotelsCard.delta==null ? 'latest snapshot' : `${hotelsCard.delta>=0?'+':''}${hotelsCard.delta.toFixed(1)}% vs previous snapshot`, pending:false,
+                note: insight('dash.stat.hotels') }
             : { cls:'ink', label:'In asylum hotels', v:'—', d:'Data pending', pending:true },
         ].map((k,i)=>(
           <div key={i} className={`kpi-card ${k.cls}`} style={k.pending?{opacity:0.6}:{}}>
             <div className="uc" style={{color:'var(--muted)',marginBottom:12}}>{k.label}</div>
             <div style={{fontFamily:'var(--serif)',fontSize: k.pending?24: (typeof k.v === 'string' && k.v.length>8 ? 22 : 32),fontWeight:400,letterSpacing:-0.3,lineHeight:1,color:'var(--ink)'}} className="tnum">{k.v}</div>
             <div style={{fontSize:12.5,color: k.dPos != null ? (k.dPos ? 'var(--accent-2)' : 'var(--accent-warn)') : 'var(--muted)',marginTop:10,fontStyle:'italic'}}>{k.d}</div>
+            {k.note && <div style={{fontSize:11.5,lineHeight:1.45,color:'var(--muted)',marginTop:10,paddingTop:8,borderTop:'1px dotted var(--rule-2)',textWrap:'pretty'}}>{k.note}</div>}
           </div>
         ))}
       </section>
@@ -791,7 +805,8 @@ function DashboardView({ setRoute }) {
               ? { cls:'gold', label:`Child applicants · ${yr}`, v:fmtN(sexAgeRangeLatest.under18), d: under18Delta != null ? `${+under18Delta>=0?'+':''}${under18Delta}% vs ${sexAgeRangePrev?.y??''}` : 'main applicants under 18' }
               : { cls:'gold', label:'Child applicants', v:'—', d:'Data pending', pending:true },
             ageDisputesCard
-              ? { cls:'accent-2', label:`Age assessments raised · ${ageDisputesCard.year}`, v:fmtN(ageDisputesCard.raised), d:`${fmtN(ageDisputesCard.over18)} found adult · ${fmtN(ageDisputesCard.under18)} found child` }
+              ? { cls:'accent-2', label:`Age assessments raised · ${ageDisputesCard.year}`, v:fmtN(ageDisputesCard.raised), d:`${fmtN(ageDisputesCard.over18)} found adult · ${fmtN(ageDisputesCard.under18)} found child`,
+                  note: insight('dash.stat.age_assessments') }
               : { cls:'', label:'Age assessments', v:'—', d:'Data pending', pending:true },
           ];
         })().map((k,i)=>(
@@ -799,6 +814,7 @@ function DashboardView({ setRoute }) {
             <div className="uc" style={{color:'var(--muted)',marginBottom:12}}>{k.label}</div>
             <div style={{fontFamily:'var(--serif)',fontSize: k.pending?24: (typeof k.v === 'string' && k.v.length>8 ? 18 : 28),fontWeight:400,letterSpacing:-0.3,lineHeight:1.1,color:'var(--ink)'}} className="tnum">{k.v}</div>
             <div style={{fontSize:11.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.4}}>{k.d}</div>
+            {k.note && <div style={{fontSize:11.5,lineHeight:1.45,color:'var(--muted)',marginTop:10,paddingTop:8,borderTop:'1px dotted var(--rule-2)',textWrap:'pretty'}}>{k.note}</div>}
           </div>
         ))}
       </section>
@@ -1160,10 +1176,12 @@ function DashboardView({ setRoute }) {
           <DashSectionHeader kicker="Geography" title="Who applies" accent="var(--accent-gold)" cadence={`Applications · ${natFullYear ?? 'latest'}`}/>
           {natFull && (
             <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.35fr 1fr',gap:20,alignItems:'start'}}>
-              <DashFrame number="10" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
+              <DashFrame number="10" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}
+                takeaway={insight('dash.fig10')}>
                 <WorldMapChoropleth data={groupNatByRegion(natFull)} countryData={natFull} width={720} height={420}/>
               </DashFrame>
-              <DashFrame number="11" kickerColor="var(--accent-gold)" title="Applicants by region — detail" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
+              <DashFrame number="11" kickerColor="var(--accent-gold)" title="Applicants by region — detail" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}
+                takeaway={insight('dash.fig11')}>
                 <RegionTable data={groupNatByRegion(natFull)} rows={natFull}/>
               </DashFrame>
             </div>
@@ -1206,7 +1224,8 @@ function DashboardView({ setRoute }) {
               {tiers && tiers.total > 0 && (
                 <DashFrame number="13" kickerColor="var(--accent-warn)"
                   title="Support by type · Section 95 / 98 / 4"
-                  sub={`UK · as at ${tiers.date} · Asy_D11`} source="Home Office · Asy_D11">
+                  sub={`UK · as at ${tiers.date} · Asy_D11`} source="Home Office · Asy_D11"
+                  takeaway={insight('dash.fig13')}>
                   <SupportTiersCard tiers={tiers}/>
                 </DashFrame>
               )}
@@ -1450,7 +1469,8 @@ function ChannelDeathsCard() {
     <DashFrame number="03a" kickerColor="var(--accent-warn)"
       title="Channel deaths · recorded by IOM"
       sub={pending ? 'Pending first IOM fetch' : `English Channel · ${annual[0]?.y}–${latest.y}`}
-      source="IOM Missing Migrants Project">
+      source="IOM Missing Migrants Project"
+      takeaway={pending ? null : insight('dash.fig03a')}>
       {pending ? (
         <div style={{padding:'36px 0',color:'var(--muted-2)',fontStyle:'italic',fontSize:13.5,maxWidth:720,lineHeight:1.6}}>
           Pending first pull from the IOM Missing Migrants Project. Run
@@ -1886,7 +1906,9 @@ function DashFrame({ number, kickerColor, title, sub, children, style={}, forkPr
     });
   };
   return (
-    <div ref={frameRef} className="dash-frame" style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
+    <div ref={frameRef} id={number ? `fig-${String(number).toLowerCase()}` : undefined} className="dash-frame"
+      style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',
+        scrollMarginTop:'calc(var(--header-h, 96px) + 12px)',...style}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule)',gap:16}}>
         <div style={{flex:'1 1 auto',minWidth:0}}>
           <div style={{fontSize:10.5,letterSpacing:0.12,textTransform:'uppercase',color:kickerColor,fontWeight:500,display:'inline-block',paddingBottom:4,borderBottom:`1.5px solid ${kickerColor}`,marginBottom:10}}>Fig. {number}</div>

@@ -16,9 +16,12 @@ The app is built on top of an existing Home Office Data Explorer shell (newspape
 /
 ├── index.html                 # Single-file runnable app. This is what deploys.
 ├── src/                       # JSX modules, bundled into index.html
-│   ├── data.jsx               # Hardcoded shell data, source registries, copy
-│   ├── root.jsx               # App component + routing + tweak panel
-│   ├── app.jsx                # Header, footer, search, methodology drawer
+│   ├── data.jsx               # Hardcoded shell data, source registries, story metadata
+│   ├── copy.jsx               # Insight copy: INSIGHTS registry, DATASET_NOTES, InsightNote
+│   ├── story-bodies.jsx       # Long-form story/explainer bodies (STORY_BODIES + StoryBody)
+│   ├── search-index.jsx       # NL search: SEARCH_SYNONYMS, index builder, scorer (searchAll)
+│   ├── root.jsx               # App component + routing ({name,id,anchor}) + tweak panel
+│   ├── app.jsx                # Header, footer, search modal, methodology drawer
 │   ├── dashboard-view.jsx     # /dashboard route
 │   ├── views-story-build.jsx  # /story, /datasets, /build routes
 │   ├── atlas-view.jsx         # /atlas route (world map + country panel)
@@ -95,7 +98,8 @@ pipeline locally.
 - When changing the data schema, update `scripts/build_boats_data.py` and `tests/` in the same commit.
 - Keep all chart code in `charts.jsx`. Views compose charts; they don't define new SVG primitives inline.
 - Design tokens are documented in `design/tokens.md` and implemented in the `:root` CSS block of `index.html`. Use `var(--accent)`, `var(--accent-warn)`, `var(--muted)`, etc. Never hardcode hex values in JSX. When in doubt about a visual decision, `design/tokens.md` is the authority — see "Design references" below.
-- Numbers in the UI must trace back to a specific field in `BOATS_*`. No hardcoded statistics in story copy — if a figure is needed, compute it from the data globals or add a derived field to the pipeline.
+- Numbers in the UI must trace back to a specific field in `BOATS_*`. No hardcoded statistics in story copy — if a figure is needed, compute it from the data globals or add a derived field to the pipeline. A figure with no global (e.g. the appeals queue) must be dated and attributed in-copy: "as reported, March 2026".
+- Editorial copy lives in registries, not inline in views: short insight notes in `src/copy.jsx` (`INSIGHTS` keyed by surface id; `DATASET_NOTES` keyed by dataset code — coverage enforced by `tests/test_copy_coverage.py`); story bodies in `src/story-bodies.jsx` (`STORY_BODIES` keyed by story id — body text is functions so figures interpolate at render time); search vocabulary in `src/search-index.jsx` (extend `SEARCH_SYNONYMS` when a reasonable query misses). Exception: range-reactive dashboard takeaways that read range-filtered local state stay inline in `dashboard-view.jsx`.
 
 ## Design references
 
