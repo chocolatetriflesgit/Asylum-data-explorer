@@ -32,7 +32,7 @@ window.NEWS_BAND = {
     },
     {
       kicker: 'Per 1,000 residents',
-      number: '≈1.2',
+      number: '~1.2',
       context: 'UK asylum applications per 1,000 residents in 2025. Roughly half the EU peer-group average; below France, well below Germany.',
       source: 'Asy_D01 · ONS pop · 2025',
       route: { name: 'dashboard' },
@@ -40,7 +40,7 @@ window.NEWS_BAND = {
     },
     {
       kicker: 'Top nationality grant rate',
-      number: '≉86%',
+      number: '~86%',
       context: 'Eritrean claims are still granted at very high rates; Pakistani claims, second by volume in 2025, are granted at well under half that.',
       source: 'Asy_D02 · 2025',
       route: { name: 'dashboard' },
