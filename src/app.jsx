@@ -526,33 +526,127 @@ function fmtBandNumber(raw) {
 // ─────────────────────────────────────────────────────────────
 // "Numbers in the news" band
 //
-// Reads window.NEWS_BAND (hand-curated weekly in
-// data/news-band-data.js). Renders 3–4 figures being publicly argued
-// about, each with a one-line clarification grounded in our data.
-// Returns null if the global is missing or has no items.
+// The figures that recur in news coverage and public debate — the
+// backlog, the weekly Channel count, grant rates, the per-capita
+// comparison — each paired with a one-line clarification. Every value
+// is COMPUTED FROM THE LIVE GLOBALS at render time, so the band is
+// always as current as the daily data build; nothing is hand-typed.
+// (Complements the plain "At a glance" annual strip below, which
+// carries the headline totals; this band carries the contested framings.)
+// Each item's global is guarded independently — a missing one drops
+// that card rather than blanking the whole band. Returns null only if
+// no card can be built.
 // ─────────────────────────────────────────────────────────────
+function newsBandItems(W) {
+  const items = [];
+  const dates = [];
+  const num = n => Number(n).toLocaleString('en-GB');
+
+  // 1) Backlog — latest snapshot vs the series peak (the "halved since
+  //    2022" claim). BACKLOG_LATEST rows: {y, v, date}.
+  const backlog = arrFrom('BACKLOG_LATEST');
+  if (backlog.length) {
+    const latest = backlog[backlog.length - 1];
+    const peak = backlog.reduce((a, b) => (b.v > a.v ? b : a), backlog[0]);
+    const drop = (peak.v > latest.v && peak.y !== latest.y)
+      ? ` Down ${Math.round((peak.v - latest.v) / peak.v * 100)}% from the ${peak.y} peak of ${num(peak.v)}, though year-end snapshots hide higher interim peaks.`
+      : '';
+    items.push({
+      kicker: 'Backlog', glossTerm: 'backlog', number: num(latest.v),
+      context: `Main applicants awaiting an initial decision.${drop}`,
+      source: `Asy_D03 · ${latest.date}`, route: { name: 'dashboard' },
+    });
+    dates.push(latest.date);
+  }
+
+  // 2) Channel — migrants on the latest weekly ODS, vs the same week a
+  //    year earlier. BOATS_WEEKLY rows: {we:"YYYY-MM-DD", m, b, ...}.
+  const weekly = arrFrom('BOATS_WEEKLY');
+  if (weekly.length) {
+    const last = weekly[weekly.length - 1];
+    const weDate = new Date(last.we + 'T00:00:00Z');
+    const doy = d => { const s = new Date(Date.UTC(d.getUTCFullYear(), 0, 0)); return Math.floor((d - s) / 86400000); };
+    const lastDOY = doy(weDate), lastYear = weDate.getUTCFullYear() - 1;
+    let yoy = null;
+    for (const r of weekly) {
+      const rd = new Date(r.we + 'T00:00:00Z');
+      if (rd.getUTCFullYear() !== lastYear || Math.abs(doy(rd) - lastDOY) > 3) continue;
+      if (!yoy || Math.abs(doy(new Date(yoy.we + 'T00:00:00Z')) - lastDOY) > Math.abs(doy(rd) - lastDOY)) yoy = r;
+    }
+    const yoyPct = (yoy && yoy.m > 0) ? Math.round((last.m - yoy.m) / yoy.m * 100) : null;
+    const rel = yoyPct == null ? '' : yoyPct === 0 ? ` — level with the same week in ${lastYear}.`
+      : ` — ${yoyPct < 0 ? 'down' : 'up'} ${Math.abs(yoyPct)}% on the same week in ${lastYear}.`;
+    const weStr = `${weDate.getUTCDate()} ${MONTHS_SHORT[weDate.getUTCMonth()]}`;
+    items.push({
+      kicker: 'Channel · latest week', glossTerm: 'small-boat arrivals', number: num(last.m),
+      context: `Migrants detected on the most recent weekly figures${rel || '.'}`,
+      source: `SB_01 · wk ending ${weStr}`, route: { name: 'dashboard' },
+    });
+    dates.push(last.we);
+  }
+
+  // 3) Grant rate — highest among the largest claimant nationalities, so
+  //    a tiny-volume 100% can't win. NAT_FULL rows: {name, v, grant}.
+  const nat = arrFrom('NAT_FULL');
+  const natYear = W.NAT_FULL_META && W.NAT_FULL_META.year;
+  if (nat.length) {
+    const top = [...nat].sort((a, b) => b.v - a.v).slice(0, 12)
+      .filter(r => typeof r.grant === 'number')
+      .reduce((a, b) => (a == null || b.grant > a.grant ? b : a), null);
+    if (top) {
+      items.push({
+        kicker: 'Highest grant rate', glossTerm: 'grant rate', number: Math.round(top.grant * 100) + '%',
+        context: `${top.name} has the highest asylum grant rate among the largest claimant nationalities${natYear ? ` in ${natYear}` : ''}.`,
+        source: `Asy_D02 · ${natYear || ''}`.trim(), route: { name: 'dashboard' },
+      });
+      if (natYear) dates.push(`31 Dec ${natYear}`);
+    }
+  }
+
+  // 4) UK asylum applications per 1,000 residents vs the EU27 average.
+  //    EU_PEER_ASYLUM: {applications:{year:{CC:n}}, populations:{CC:thousands}}.
+  const eu = W.EU_PEER_ASYLUM;
+  if (eu && eu.applications && eu.populations && eu.populations.UK) {
+    const yr = Object.keys(eu.applications).map(Number).sort((a, b) => a - b).pop();
+    const apps = eu.applications[yr];
+    if (apps && apps.UK != null) {
+      const ukPer1k = apps.UK / eu.populations.UK;
+      const euPer1k = (apps.EU27 != null && eu.populations.EU27) ? apps.EU27 / eu.populations.EU27 : null;
+      let ctx = `UK first-time asylum applications per 1,000 residents in ${yr}.`;
+      if (euPer1k) {
+        const ratio = ukPer1k / euPer1k;
+        const rel = ratio < 0.9 ? `about ${Math.round((1 - ratio) * 100)}% below` : ratio > 1.1 ? `above` : `close to`;
+        ctx = `UK first-time asylum applications per 1,000 residents in ${yr} — ${rel} the EU27 average of ${euPer1k.toFixed(1)}.`;
+      }
+      items.push({
+        kicker: 'Per 1,000 residents', glossTerm: 'main applicants', number: '~' + ukPer1k.toFixed(1),
+        context: ctx, source: `Eurostat · ${yr}`, route: { name: 'dashboard' },
+      });
+    }
+  }
+
+  // Freshness date shown in the header = the most recent underlying source.
+  const parse = s => { if (!s) return null; const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? s + 'T00:00:00Z' : s); return isNaN(d) ? null : d; };
+  const freshest = dates.map(parse).filter(Boolean).sort((a, b) => b - a)[0] || null;
+  return { items, freshest };
+}
+
 function NewsBand({ setRoute }) {
   const W = (typeof window !== 'undefined') ? window : {};
-  const band = W.NEWS_BAND;
-  if (!band || !Array.isArray(band.items) || !band.items.length) return null;
-  const fmtUpdated = (() => {
-    if (!band.updated) return null;
-    const d = new Date(band.updated + 'T00:00:00Z');
-    if (isNaN(d.getTime())) return band.updated;
-    return `${d.getUTCDate()} ${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-  })();
-  const headline = band.fallback ? 'Numbers worth knowing' : <>Numbers <em style={{color:'var(--accent-warn)',fontStyle:'italic'}}>in the news</em></>;
+  const { items, freshest } = newsBandItems(W);
+  if (!items.length) return null;
+  const fmtUpdated = freshest ? `${freshest.getUTCDate()} ${MONTHS_SHORT[freshest.getUTCMonth()]} ${freshest.getUTCFullYear()}` : null;
   return (
     <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'36px 48px 8px',borderBottom:'1px solid var(--rule)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:18,gap:16,flexWrap:'wrap'}}>
-        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,margin:0,letterSpacing:-0.2}}>{headline}</h2>
+        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,margin:0,letterSpacing:-0.2}}>Numbers <em style={{color:'var(--accent-warn)',fontStyle:'italic'}}>in the news</em></h2>
         <div className="uc" style={{color:'var(--muted)'}}>
-          {band.fallback ? 'Evergreen denominators' : 'Curated · updated weekly'}
-          {fmtUpdated && <span style={{marginLeft:10,color:'var(--muted-2)'}}>· {fmtUpdated}</span>}
+          Computed from the latest data
+          {fmtUpdated && <span style={{marginLeft:10,color:'var(--muted-2)'}}>· to {fmtUpdated}</span>}
         </div>
       </div>
-      <div className="news-band-row" style={{display:'grid',gridTemplateColumns:`repeat(${band.items.length},1fr)`,gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
-        {band.items.map((it, i) => (
+      <div className="news-band-row" style={{display:'grid',gridTemplateColumns:`repeat(${items.length},1fr)`,gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
+        {items.map((it, i) => (
           <button key={i}
             onClick={() => it.route && setRoute(it.route)}
             style={{background:'var(--bg)',border:'none',padding:'20px 22px',display:'flex',flexDirection:'column',minHeight:170,cursor:it.route?'pointer':'default',textAlign:'left',transition:'background .12s',fontFamily:'inherit',color:'inherit'}}
