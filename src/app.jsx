@@ -593,11 +593,11 @@ function IndexView({ setRoute }) {
           const resYear = String(yearNow);
           const resTotal = res.reduce((s,r)=>s+(r[resYear]||0), 0);
           const strip = [
-            { l:'Applications', v: fmt(apps), d: apps && appsPrev ? `${pctLabel(pct(apps,appsPrev))} vs ${prev.y}` : ''},
-            { l:'Grant rate', v: grantRate == null ? '—' : Math.round(grantRate*100) + '%', d: `initial decisions, ${yearNow}` },
-            { l:'Backlog', v: fmt(backlog), d: backlogDelta != null ? `${pctLabel(backlogDelta)} in one year` : ''},
-            { l:'Small-boat arrivals', v: fmt(boats), d: boats && boatsPrev ? `${pctLabel(pct(boats,boatsPrev))} vs ${prev.y}` : ''},
-            { l:'Resettled', v: fmt(resTotal), d: `across ${res.length} schemes`},
+            { l:'Applications', v: fmt(apps), d: apps && appsPrev ? `${pctLabel(pct(apps,appsPrev))} vs ${prev.y}` : '', note: insight('index.glance.applications')},
+            { l:'Grant rate', v: grantRate == null ? '—' : Math.round(grantRate*100) + '%', d: `initial decisions, ${yearNow}`, note: insight('index.glance.grant_rate') },
+            { l:'Backlog', v: fmt(backlog), d: backlogDelta != null ? `${pctLabel(backlogDelta)} in one year` : '', note: insight('index.glance.backlog')},
+            { l:'Small-boat arrivals', v: fmt(boats), d: boats && boatsPrev ? `${pctLabel(pct(boats,boatsPrev))} vs ${prev.y}` : '', note: insight('index.glance.boats')},
+            { l:'Resettled', v: fmt(resTotal), d: `across ${res.length} schemes`, note: insight('index.glance.resettled')},
           ];
           return (<>
             <div className="uc" style={{marginBottom:18,color:'var(--muted)'}}>At a glance · {yearNow}</div>
@@ -607,6 +607,7 @@ function IndexView({ setRoute }) {
                   <div className="uc" style={{color:'var(--muted)',marginBottom:10}}>{s.l}</div>
                   <div style={{fontFamily:'var(--serif)',fontSize:32,fontWeight:400,color:'var(--ink)',letterSpacing:-0.3,lineHeight:1}} className="tnum">{s.v}</div>
                   <div style={{fontSize:12.5,color:'var(--muted)',marginTop:8,fontStyle:'italic'}}>{s.d}</div>
+                  {s.note && <div style={{fontSize:12.5,lineHeight:1.45,color:'var(--muted)',marginTop:10,paddingTop:10,borderTop:'1px dotted var(--rule-2)',textWrap:'pretty'}}>{s.note}</div>}
                 </div>
               ))}
             </div>
