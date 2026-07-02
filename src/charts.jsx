@@ -1621,6 +1621,14 @@ function RegionTable({ data, rows }) {
 // ─────────────────────────────────────────────────────────────
 const ATLAS_PALETTE = ['#f5ecd8','#d4b86a','#b85c38','#6b4a2a','#2d4532','#1c3d2e'];
 
+// Landmasses we never draw in the choropleths: no asylum data attaches to them
+// and Antarctica in particular only adds a band of visual dead space along the
+// bottom of the map. Filtered out of WORLD_MAP at render time (the generated
+// data file is left intact). Shared by WorldMapChoropleth and AtlasChoropleth.
+const ATLAS_HIDDEN_NAMES = new Set(['Antarctica', 'Fr. S. Antarctic Lands']);
+const visibleWorldMap = arr =>
+  Array.isArray(arr) ? arr.filter(c => c && !ATLAS_HIDDEN_NAMES.has(c.name)) : [];
+
 function atlasLerpHex(a, b, t) {
   const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
   const ar = (pa >> 16) & 255, ag = (pa >> 8) & 255, ab = pa & 255;
@@ -1808,7 +1816,7 @@ function WorldMapChoropleth({ data, countryData, width=720, height=380 }) {
         style={{display:'block', ...zoom.svgProps.style}}>
         <rect x={0} y={0} width={width} height={height} fill="var(--bg-2)"/>
         <g>
-          {worldMap.map((c, i) => {
+          {visibleWorldMap(worldMap).map((c, i) => {
             const regionTotal = byRegion[c.region] ?? 0;
             // Natural Earth uses '-99' for disputed / unrecognised territories, so
             // ISO alone isn't unique. Compose with name + index for a stable key.
@@ -2465,7 +2473,9 @@ function InterceptionRate({
 }) {
   const { show, hide, node } = useTooltip();
   const W = width, H = height;
-  const pad = { t: 22, r: 28, b: 46, l: 72 };
+  // Right margin widened to seat the second (attempts-volume) y-axis and its
+  // rotated title alongside the left-hand interception-rate axis.
+  const pad = { t: 22, r: 70, b: 46, l: 72 };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
 
   const rows = (Array.isArray(data) ? data : [])
@@ -2531,8 +2541,22 @@ function InterceptionRate({
         {/* Attempts-volume area behind the rate line */}
         <path d={areaD} fill="var(--bg-3)" opacity="0.55"/>
 
-        {/* y-axis gridlines + percentage labels */}
+        {/* left y-axis gridlines + percentage labels (interception rate) */}
         {renderYTicks({ ticks: gridTicks, y: yRate, pad, W, fmtLabel: t => `${Math.round(t * 100)}%` })}
+
+        {/* right y-axis — total-attempts volume (scale for the shaded area).
+            Tick marks only, no gridlines, so the two axes stay legible. */}
+        {[0, 0.25, 0.5, 0.75, 1].map(f => {
+          const v = f * maxTotal;
+          const yy = yTotal(v);
+          return (
+            <g key={`ry-${f}`}>
+              <line x1={W - pad.r} x2={W - pad.r + 5} y1={yy} y2={yy} stroke="var(--muted-2)"/>
+              <text x={W - pad.r + 9} y={yy + 4} textAnchor="start" fontSize="11" fill="var(--muted)"
+                style={{fontVariantNumeric:'tabular-nums',fontFamily:'var(--serif)'}}>{f === 0 ? '0' : fmtK(v)}</text>
+            </g>
+          );
+        })}
 
         {/* x-axis year ticks */}
         {yearTicks.map(({ yr, i }) => (
@@ -2568,16 +2592,18 @@ function InterceptionRate({
           {Math.round(last.rate * 100)}%
         </text>
 
-        {/* axis titles */}
+        {/* axis titles — left: interception rate; right: attempts volume */}
         <text x={18} y={pad.t + ih / 2}
           transform={`rotate(-90 18 ${pad.t + ih / 2})`}
           textAnchor="middle" fontSize="11" fill="var(--muted)"
           style={{letterSpacing:'0.08em',textTransform:'uppercase',fontFamily:'var(--serif)'}}>
           Interception rate · {winSize}-week rolling
         </text>
-        <text x={W - pad.r} y={pad.t - 6} textAnchor="end" fontSize="11" fill="var(--muted)"
-          fontStyle="italic" style={{fontFamily:'var(--serif)'}}>
-          Total attempts (arrivals + preventions) shown as shaded area behind
+        <text x={W - 12} y={pad.t + ih / 2}
+          transform={`rotate(-90 ${W - 12} ${pad.t + ih / 2})`}
+          textAnchor="middle" fontSize="11" fill="var(--muted)"
+          style={{letterSpacing:'0.08em',textTransform:'uppercase',fontFamily:'var(--serif)'}}>
+          Total attempts · {winSize}-week rolling
         </text>
       </svg>
       {caption && (
