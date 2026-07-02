@@ -10,6 +10,10 @@ Primary source: the "Migrants detected crossing the English Channel in small boa
 
 The app is built on top of an existing Home Office Data Explorer shell (newspaper-style layout, stories, dashboard, datasets, build views, tweakable theme). The shell stays; small-boats becomes its dedicated section.
 
+## Git Workflow
+
+- Before creating a PR branch, always verify local main is in sync with origin/main (run `git fetch` and check divergence) to avoid branching from a diverged base that would delete files.
+
 ## Repository layout
 
 ```
@@ -167,6 +171,18 @@ Failure modes: if the fetcher can't find the ODS link, the Action fails loudly. 
 - Don't commit `cache/*.ods` — gitignored.
 - Don't commit `index.html` on the same commit as a `src/*.jsx` edit without running the bundle. CI enforces this.
 
+## PR Conventions
+
+- Use plain ASCII characters in PR titles and bodies (avoid em-dashes and non-ASCII symbols) to prevent GitHub API posting failures.
+
+## Editing Style
+
+- Batch multiple changes to the same file into a single edit rather than making many consecutive edits.
+
+## Preview/Debugging
+
+- When the live preview shows a blank root, first suspect slow Babel in-browser compilation or double-injection/redeclaration crashes before assuming a code fault.
+
 ## When stuck
 
 - Upstream data questions ("what does this app fetch from gov.uk?") → read `scripts/_sources.py`. That file is the canonical registry: every publication, its landing URL, filename stem, fetcher, builder, data file, and the `window.*` globals it produces.
@@ -175,13 +191,13 @@ Failure modes: if the fetcher can't find the ODS link, the Action fails loudly. 
 - Chart API questions → read `src/charts.jsx`.
 - Methodology / caveats → read the `notes` array in `BOATS_META`, which lifts the Notes sheet from the source ODS verbatim.
 
-## Verification section near the top of CLAUDE.md, above any task-specific guidance.\n\n## Verification
+## Verification
 - Always verify UI changes via preview_eval/screenshot AND DOM inspection (screenshot tool occasionally hangs/times out — DOM inspection is the reliable fallback).
 - After any chart/layout edit, check the preview renders before declaring done.
 
-## Project Layout or ## Charts section.\n\n## Targeting Charts
+## Targeting Charts
 This project has multiple chart surfaces (dashboard view AND 'Build a chart' view). Before editing chart styling/axes, confirm WHICH chart the user means and grep for all instances — fixes often need to apply to one specific view, not all.
 
-## Conventions or ## Domain Notes section.\n\n## Regional Groupings
+## Regional Groupings
 - Central Asia and Caucasus are SEPARATE regions, do not combine them.
 - When changing page titles/branding, also update the header masthead (not just <title>).
