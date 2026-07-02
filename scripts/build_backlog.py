@@ -68,10 +68,28 @@ def build_backlog(xlsx_path: Path) -> tuple[list[dict], list[dict], dict]:
         if year_data.empty:
             continue
         dec_data = year_data[year_data["_month"] == 12]
-        snap = dec_data if not dec_data.empty else year_data.sort_values("_date").tail(1)
+        if not dec_data.empty:
+            snap = dec_data
+        else:
+            # Partial year: use every row at the latest published snapshot
+            # date. (A single .tail(1) row here once collapsed the 2026
+            # figure to one nationality's count — see the Mar 2026 fix.)
+            snap = year_data[year_data["_date"] == year_data["_date"].max()]
         snap_date = snap["_date"].iloc[0]
         total = int(snap["Claims"].sum())
         if total <= 0:
+            continue
+        # Sanity guard: a real backlog doesn't collapse >90% in one year.
+        # Reject the implausible snapshot but keep the good series, so a
+        # schema drift in a new release degrades to "latest year missing"
+        # rather than poisoning the headline figure (fail-soft, cf. cfb20f2).
+        if rows and total < rows[-1]["v"] * 0.1:
+            print(
+                f"warning: {year} snapshot ({snap_date.date()}) totals {total:,} "
+                f"vs {rows[-1]['v']:,} for {rows[-1]['y']} — >90% drop looks like "
+                "a parse/schema problem; dropping this snapshot",
+                file=sys.stderr,
+            )
             continue
         date_str = snap_date.strftime("%d %b %Y").lstrip("0") if hasattr(snap_date, "strftime") else str(snap_date)[:10]
         rows.append({"y": year, "v": total, "date": date_str})
