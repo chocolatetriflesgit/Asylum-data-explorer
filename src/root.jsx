@@ -74,6 +74,16 @@ function App() {
   }, []);
   uER(()=>{ localStorage.setItem('hoe_route', JSON.stringify(route)); }, [route]);
 
+  // Deep-link anchors from search results ({name:'dashboard', anchor:'fig-08'}):
+  // scroll the target frame into view once the routed view has rendered.
+  // DashFrame sets scroll-margin-top so the sticky header doesn't cover it.
+  uER(()=>{
+    if (!route.anchor) return;
+    requestAnimationFrame(() => {
+      document.getElementById(route.anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [route]);
+
   // tweak host protocol — register listener BEFORE announcing
   uER(()=>{
     const onMsg = (e) => {
@@ -118,7 +128,7 @@ function App() {
       {route.name === 'dashboard' && <DashboardView setRoute={setRoute}/>}
       {route.name === 'atlas' && <AtlasView setRoute={setRoute}/>}
       {route.name === 'story' && <StoryView id={route.id} setRoute={setRoute} onMethod={()=>setMethod(true)}/>}
-      {route.name === 'datasets' && <DatasetsView setRoute={setRoute}/>}
+      {route.name === 'datasets' && <DatasetsView setRoute={setRoute} openId={route.id}/>}
       {route.name === 'build' && <BuildView setRoute={setRoute}/>}
       {route.name === 'flow' && <FlowView setRoute={setRoute}/>}
       {route.name === 'updates' && <UpdatesView setRoute={setRoute}/>}

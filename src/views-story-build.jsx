@@ -194,10 +194,13 @@ function _previewFor(code) {
   }
 }
 
-function DatasetsView({ setRoute }) {
+function DatasetsView({ setRoute, openId }) {
   const [q, setQ] = uS2('');
   const [freq, setFreq] = uS2('All');
-  const [openCode, setOpenCode] = uS2(null);
+  // openId lets search results deep-link straight to an expanded row
+  // (route {name:'datasets', id:'Asy_D09'}).
+  const [openCode, setOpenCode] = uS2(openId ?? null);
+  uE2(() => { if (openId) setOpenCode(openId); }, [openId]);
   const filtered = DATASETS.filter(d => {
     if (freq !== 'All' && d.freq !== freq) return false;
     if (q && !d.name.toLowerCase().includes(q.toLowerCase()) && !d.code.toLowerCase().includes(q.toLowerCase())) return false;

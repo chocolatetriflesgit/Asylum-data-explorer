@@ -136,50 +136,84 @@ function Header({ route, setRoute, onSearch, onMethod }) {
 // ─────────────────────────────────────────────────────────────
 // Search modal (command palette style)
 // ─────────────────────────────────────────────────────────────
+// Natural-language search: index, synonyms and scoring live in
+// src/search-index.jsx (searchAll). Results are grouped; glossary results
+// show their definition inline instead of navigating; chart results
+// deep-link to the figure via route {name:'dashboard', anchor:'fig-NN'}.
 function SearchModal({ open, onClose, onPick }) {
   const [q, setQ] = useState('');
+  const [active, setActive] = useState(0);
   const inputRef = useRef(null);
-  useEffect(()=>{ if (open) setTimeout(()=>inputRef.current?.focus(), 40); }, [open]);
+  useEffect(()=>{ if (open) { setQ(''); setActive(0); setTimeout(()=>inputRef.current?.focus(), 40); } }, [open]);
+
+  const groups = useMemo(()=> (typeof searchAll === 'function' ? searchAll(q) : []), [q]);
+  const flat = useMemo(()=> groups.flatMap(g => g.items), [groups]);
+
+  useEffect(()=>{ setActive(0); }, [q]);
   useEffect(()=>{
-    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    if (!open) return;
+    const onKey = e => {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, flat.length - 1)); }
+      else if (e.key === 'ArrowUp')   { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+      else if (e.key === 'Enter') {
+        const it = flat[active];
+        if (it && it.go) { onPick(it.go); onClose(); }
+      }
+    };
     window.addEventListener('keydown', onKey);
     return ()=>window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const items = useMemo(()=>{
-    const stories = STORIES.map(s=>({kind:'Story', id:s.id, label:s.title, sub:s.kicker, go:{name:'story', id:s.id}}));
-    const datasets = DATASETS.map(d=>({kind:'Dataset', id:d.code, label:d.name, sub:d.code+' · '+d.rows+' rows', go:{name:'datasets'}}));
-    const all = [...stories, ...datasets];
-    if (!q) return all.slice(0,8);
-    const ql = q.toLowerCase();
-    return all.filter(i => i.label.toLowerCase().includes(ql) || i.sub.toLowerCase().includes(ql)).slice(0,10);
-  },[q]);
+  }, [open, onClose, flat, active, onPick]);
 
   if (!open) return null;
+  let flatIdx = -1;
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(26,26,23,.35)',zIndex:200,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:'12vh'}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:'var(--bg)',border:'1px solid var(--rule-2)',boxShadow:'0 20px 60px rgba(0,0,0,.15)',width:'min(620px,92vw)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'18px 22px',borderBottom:'1px solid var(--rule)'}}>
           <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/></svg>
-          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search stories and datasets (e.g. ‘grant rate’, Asy_D01)…"
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Try ‘hotel numbers’, ‘children’, ‘deportations’, ‘waiting times’…"
             style={{flex:1,border:'none',outline:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:17,color:'var(--ink)'}}/>
           <span className="mono" style={{fontSize:11,color:'var(--muted-2)',border:'1px solid var(--rule-2)',padding:'4px 8px'}}>esc</span>
         </div>
-        <div style={{maxHeight:'50vh',overflowY:'auto'}}>
-          {items.length === 0 ? (
-            <div style={{padding:'32px 22px',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>No matches.</div>
-          ) : items.map((it,i)=>(
-            <button key={i} onClick={()=>{ onPick(it.go); onClose(); }}
-              style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'12px 22px',borderBottom:'1px solid var(--rule)',textAlign:'left'}}
-              onMouseEnter={e=>e.currentTarget.style.background='var(--bg-2)'}
-              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-              <div>
-                <div style={{fontSize:14,color:'var(--ink)'}}>{it.label}</div>
-                <div style={{fontSize:11.5,color:'var(--muted)',marginTop:2}} className="uc">{it.kind} · {it.sub}</div>
-              </div>
-              <span style={{color:'var(--muted-2)'}}>↗</span>
-            </button>
+        <div style={{maxHeight:'55vh',overflowY:'auto'}}>
+          {flat.length === 0 ? (
+            <div style={{padding:'32px 22px',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
+              No matches. Try a different word — the search understands everyday terms like “hotels”, “children” or “deported”.
+            </div>
+          ) : groups.map(g => (
+            <div key={g.group}>
+              <div className="uc" style={{padding:'10px 22px 6px',fontSize:10,color:'var(--muted-2)',letterSpacing:0.12,borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>{g.group}</div>
+              {g.items.map((it) => {
+                flatIdx++;
+                const idx = flatIdx;
+                const isActive = idx === active;
+                const isGloss = !it.go;
+                return (
+                  <button key={g.group + it.title}
+                    onClick={()=>{ if (it.go) { onPick(it.go); onClose(); } }}
+                    onMouseEnter={()=>setActive(idx)}
+                    style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:14,width:'100%',padding:'12px 22px',
+                      borderBottom:'1px solid var(--rule)',textAlign:'left',
+                      background: isActive ? 'var(--bg-2)' : 'transparent',
+                      cursor: it.go ? 'pointer' : 'default'}}>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:14,color:'var(--ink)'}}>{it.title}</div>
+                      {isGloss ? (
+                        <div style={{fontSize:12.5,color:'var(--ink-2)',marginTop:4,lineHeight:1.5,textWrap:'pretty'}}>{it.inline}</div>
+                      ) : it.desc ? (
+                        <div style={{fontSize:11.5,color:'var(--muted)',marginTop:2,lineHeight:1.45,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{it.desc}</div>
+                      ) : null}
+                    </div>
+                    <span style={{color:'var(--muted-2)',flexShrink:0}}>{it.go ? '↗' : ''}</span>
+                  </button>
+                );
+              })}
+            </div>
           ))}
+        </div>
+        <div style={{padding:'8px 22px',borderTop:'1px solid var(--rule)',display:'flex',gap:16,fontSize:10.5,color:'var(--muted-2)'}} className="uc">
+          <span>↑↓ navigate</span><span>↵ open</span><span>Stories · Charts · Datasets · Glossary · Views</span>
         </div>
       </div>
     </div>

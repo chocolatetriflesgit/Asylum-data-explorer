@@ -1906,7 +1906,9 @@ function DashFrame({ number, kickerColor, title, sub, children, style={}, forkPr
     });
   };
   return (
-    <div ref={frameRef} className="dash-frame" style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
+    <div ref={frameRef} id={number ? `fig-${String(number).toLowerCase()}` : undefined} className="dash-frame"
+      style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',
+        scrollMarginTop:'calc(var(--header-h, 96px) + 12px)',...style}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule)',gap:16}}>
         <div style={{flex:'1 1 auto',minWidth:0}}>
           <div style={{fontSize:10.5,letterSpacing:0.12,textTransform:'uppercase',color:kickerColor,fontWeight:500,display:'inline-block',paddingBottom:4,borderBottom:`1.5px solid ${kickerColor}`,marginBottom:10}}>Fig. {number}</div>

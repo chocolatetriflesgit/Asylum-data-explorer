@@ -950,6 +950,7 @@ const PLANNED_UPDATES = [
   { area: 'Pipeline', text: 'Appeal outcomes — will replace the cohort-delta proxy in the Flow Sankey once the Home Office republishes the data.' },
   { area: 'Atlas',    text: 'Child applicants by nationality — new Atlas layer once the Home Office publishes Under-18 applicants by origin country.' },
   { area: 'Atlas',    text: 'Resettlement by origin country — new Atlas layer once Res_D02 gains a nationality breakdown.' },
+  { area: 'Search',   text: 'Ask-a-question answers (e.g. "how many crossed this year?") — considered and deferred: computing answers needs either a server or an AI service key, which this single-file, no-backend site deliberately avoids. Search instead understands everyday words and points to the right chart.' },
 ];
 
 const DATASETS = [
@@ -2347,6 +2348,207 @@ function _laSorted() {
 }
 
 Object.assign(window, { STORY_BODIES, StoryBody });
+
+
+/* --- src/search-index.jsx --- */
+// search-index.jsx — natural-language search over stories, charts,
+// datasets, glossary terms and views.
+//
+// Everything runs in the browser: a hand-curated synonym map turns everyday
+// words ("hotels", "children", "deported", "waiting") into the canonical
+// keywords that index entries carry, and a small token scorer ranks matches.
+// No library, no server — an LLM "ask a question" mode is deliberately out
+// of scope (see PLANNED_UPDATES): a static single-file app has nowhere safe
+// to keep an API key.
+//
+// Exposed globals: SEARCH_INDEX (built at load), searchAll(q, limit).
+
+// ── Tokeniser ────────────────────────────────────────────────
+// Lowercase, split on non-alphanumerics, light stemming (plurals / -ing)
+// so "crossings" matches "crossing" and "removals" matches "removal".
+const _stemLite = t => t.length > 3
+  ? t.replace(/ies$/, 'y').replace(/(e?s)$/, '').replace(/ing$/, '')
+  : t;
+const _tok = s => String(s || '').toLowerCase().split(/[^a-z0-9]+/)
+  .filter(t => t.length > 1).map(_stemLite);
+
+// ── Synonyms ─────────────────────────────────────────────────
+// Everyday word (stemmed) → canonical keywords used by index entries.
+// Add to this map when a real query misses; it is the whole "natural
+// language" layer.
+const SEARCH_SYNONYMS = {
+  hotel: ['hotels'],
+  kid: ['children', 'age'], child: ['children', 'age'], children: ['children', 'age'],
+  minor: ['children', 'age'], unaccompanied: ['children', 'age'], young: ['children', 'age'],
+  deport: ['returns'], deported: ['returns'], deportation: ['returns'],
+  removal: ['returns'], removed: ['returns'], remove: ['returns'], expel: ['returns'],
+  wait: ['backlog'], queue: ['backlog'], delay: ['backlog'], pend: ['backlog'],
+  slow: ['backlog'], long: ['backlog'],
+  dinghy: ['boats'], dinghi: ['boats'], boat: ['boats'], channel: ['boats'],
+  cross: ['boats'], arrival: ['boats'],
+  drown: ['deaths'], dead: ['deaths'], death: ['deaths'], died: ['deaths'], die: ['deaths'],
+  missing: ['deaths'],
+  stopped: ['preventions'], stop: ['preventions'], intercept: ['preventions'],
+  intercepted: ['preventions'], prevent: ['preventions'], prevented: ['preventions'],
+  french: ['france', 'preventions'], calai: ['france', 'preventions'],
+  succes: ['grant'], succeed: ['grant'], approved: ['grant'], approve: ['grant'],
+  accepted: ['grant'], win: ['grant'], won: ['grant'],
+  reject: ['decisions', 'refused'], rejected: ['decisions', 'refused'],
+  refusal: ['decisions', 'refused'], fail: ['decisions', 'refused'],
+  appeal: ['appeals', 'backlog'], tribunal: ['appeals'], court: ['appeals'],
+  money: ['support'], benefit: ['support'], housing: ['support', 'hotels'],
+  house: ['support'], housed: ['support'], accommodation: ['support', 'hotels'],
+  live: ['support', 'regions'], living: ['support', 'regions'],
+  council: ['support', 'regions'], area: ['regions'], where: ['regions', 'atlas'],
+  country: ['nationality', 'atlas'], countri: ['nationality', 'atlas'],
+  origin: ['nationality', 'atlas'], from: ['nationality'],
+  woman: ['age', 'sex'], women: ['age', 'sex'], men: ['age', 'sex'],
+  man: ['age', 'sex'], female: ['age', 'sex'], male: ['age', 'sex'],
+  family: ['age', 'sex'], famili: ['age', 'sex'],
+  map: ['atlas'], world: ['atlas'],
+  law: ['policy'], act: ['policy'], rule: ['policy'], change: ['policy'],
+  government: ['policy'],
+  scheme: ['resettlement'], safe: ['resettlement'], legal: ['resettlement'],
+  route: ['resettlement', 'flow'],
+  claim: ['applications'], apply: ['applications'], applied: ['applications'],
+  application: ['applications'],
+  number: ['statistics'], stat: ['statistics'], figure: ['statistics'],
+  data: ['datasets'], download: ['datasets'], source: ['datasets'],
+  smuggler: ['policy', 'boats'], gang: ['policy', 'boats'],
+  ukraine: ['ukraine'], ukrainian: ['ukraine'],
+};
+
+// ── Dashboard figure registry ────────────────────────────────
+// One row per DashFrame. `anchor` matches the id DashFrame derives from its
+// `number` prop; deep-links land via route {name:'dashboard', anchor}.
+const DASH_FIGURES = [
+  { anchor: 'fig-01',  title: 'Small-boat arrivals · year-to-date comparison', keywords: ['boats', 'cumulative', 'ytd'] },
+  { anchor: 'fig-02',  title: 'Asylum applications by year',                   keywords: ['applications', 'trend', 'annual'] },
+  { anchor: 'fig-03',  title: 'Arrivals by month · seasonal pattern',          keywords: ['boats', 'seasonal', 'monthly', 'heatmap'] },
+  { anchor: 'fig-03a', title: 'Channel deaths · recorded by IOM',              keywords: ['deaths', 'iom'] },
+  { anchor: 'fig-04',  title: 'Top-five nationalities · small-boat arrivals',  keywords: ['boats', 'nationality'] },
+  { anchor: 'fig-05',  title: 'All nationalities · applications table',        keywords: ['nationality', 'applications'] },
+  { anchor: 'fig-06',  title: 'Interception rate · attempts stopped in France',keywords: ['preventions', 'france', 'attempts'] },
+  { anchor: 'fig-07',  title: 'Initial decisions · outcomes split',            keywords: ['decisions', 'grant', 'refused'] },
+  { anchor: 'fig-08',  title: 'Pending cases (backlog)',                       keywords: ['backlog', 'pending'] },
+  { anchor: 'fig-08a', title: 'Backlog age profile · how long people wait',    keywords: ['backlog', 'duration'] },
+  { anchor: 'fig-09',  title: 'Grant rate by nationality · small multiples',   keywords: ['grant', 'nationality', 'rate'] },
+  { anchor: 'fig-10',  title: 'Applicants by region of origin · map',          keywords: ['nationality', 'regions', 'atlas'] },
+  { anchor: 'fig-11',  title: 'Applicants by region of origin · table',        keywords: ['nationality', 'regions'] },
+  { anchor: 'fig-12',  title: 'Supported asylum seekers by UK region',         keywords: ['support', 'regions', 'dispersal'] },
+  { anchor: 'fig-13',  title: 'Support by type · Section 95 / 98 / 4',         keywords: ['support', 'section'] },
+];
+
+// Hand-curated keywords per story / dataset (canonical vocabulary — the
+// synonym map above routes everyday words to these).
+const _STORY_KEYWORDS = {
+  'long-tail':            ['applications', 'trend', 'surge', 'statistics'],
+  'pakistan':             ['nationality', 'eritrea', 'pakistan', 'afghanistan', 'iran', 'grant'],
+  'backlog':              ['backlog', 'appeals', 'decisions', 'statistics'],
+  'boats':                ['boats', 'seasonal', 'deaths', 'preventions', 'statistics'],
+  'grant-rate':           ['grant', 'decisions', 'refused', 'appeals', 'rate'],
+  'regions':              ['support', 'hotels', 'regions', 'dispersal'],
+  'how-the-system-works': ['explainer', 'applications', 'decisions', 'appeals', 'returns', 'resettlement', 'policy'],
+  'policy-2026':          ['explainer', 'policy', 'france', 'hotels', 'boats', 'backlog'],
+};
+const _DATASET_KEYWORDS = {
+  Asy_D01: ['applications', 'nationality'],
+  Asy_D02: ['decisions', 'grant', 'refused'],
+  Asy_D03: ['age', 'sex', 'children'],
+  Asy_D04: ['decisions', 'appeals', 'returns', 'cohort'],
+  Asy_D07: ['backlog', 'pending'],
+  Asy_D05: ['support', 'regions'],
+  Asy_D09: ['hotels', 'support'],
+  Asy_D11: ['support', 'regions', 'councils'],
+  Age_D01: ['age', 'children', 'assessments'],
+  SB_01:   ['boats', 'daily', 'statistics'],
+  SB_02:   ['boats', 'provisional', 'week'],
+  Irr_02b: ['boats', 'nationality'],
+  Res_D01: ['resettlement', 'schemes'],
+  Res_D02: ['ukraine', 'resettlement'],
+};
+
+// ── Index build (once, at load) ──────────────────────────────
+function _buildSearchIndex() {
+  const entries = [];
+  const add = (group, title, desc, keywords, go, inline) => entries.push({
+    group, title, desc: desc || '', keywords: keywords || [], go: go || null, inline: inline || null,
+    _title: _tok(title), _desc: _tok(desc), _kw: (keywords || []).map(_stemLite),
+  });
+
+  for (const s of (typeof STORIES !== 'undefined' ? STORIES : [])) {
+    add('Stories', s.title, s.dek, [...(_STORY_KEYWORDS[s.id] || []), s.kicker.toLowerCase()], { name: 'story', id: s.id });
+  }
+  for (const f of DASH_FIGURES) {
+    add('Charts', f.title, '', f.keywords, { name: 'dashboard', anchor: f.anchor });
+  }
+  for (const d of (typeof DATASETS !== 'undefined' ? DATASETS : [])) {
+    const note = (typeof DATASET_NOTES !== 'undefined' && DATASET_NOTES[d.code]) || '';
+    add('Datasets', d.name, `${d.code} · ${note}`, _DATASET_KEYWORDS[d.code] || [], { name: 'datasets', id: d.code });
+  }
+  const gloss = (typeof window !== 'undefined' && window.GLOSSARY) || {};
+  for (const [term, entry] of Object.entries(gloss)) {
+    add('Glossary', term.charAt(0).toUpperCase() + term.slice(1), entry.body, [term], null, entry.body);
+  }
+  add('Views', 'Dashboard', 'Live statistics and charts for the whole system.', ['dashboard', 'statistics', 'charts'], { name: 'dashboard' });
+  add('Views', 'Atlas', 'World map — applicants, grant rates, returns and age assessments by country of origin.', ['atlas', 'nationality'], { name: 'atlas' });
+  add('Views', 'Flow', 'How people enter the system and where their claims end up.', ['flow', 'decisions', 'outcomes'], { name: 'flow' });
+  add('Views', 'Build a chart', 'Pick any dataset and make your own chart.', ['build', 'charts', 'datasets'], { name: 'build' });
+  add('Views', 'Datasets', 'Every dataset behind the site, with plain-English descriptions.', ['datasets'], { name: 'datasets' });
+  add('Views', 'Updates', 'Data refreshes, editorial changes, and what is coming next.', ['updates', 'changelog'], { name: 'updates' });
+  return entries;
+}
+const SEARCH_INDEX = _buildSearchIndex();
+
+// ── Scorer ───────────────────────────────────────────────────
+// Per query token: canonical-keyword hit 4 · title hit 3 · title prefix 2
+// (last token only, for search-as-you-type) · description hit 1. Synonym
+// expansions score like keyword hits. ×1.5 when every token matched.
+function _scoreEntry(entry, qTokens, lastRaw) {
+  let score = 0, matched = 0;
+  for (const t of qTokens) {
+    let hit = 0;
+    const syn = SEARCH_SYNONYMS[t] || [];
+    if (entry._kw.includes(t)) hit = Math.max(hit, 4);
+    if (syn.some(s => entry._kw.includes(_stemLite(s)))) hit = Math.max(hit, 4);
+    if (entry._title.includes(t)) hit = Math.max(hit, 3);
+    if (t === lastRaw && entry._title.some(w => w.startsWith(t))) hit = Math.max(hit, 2);
+    if (entry._desc.includes(t)) hit = Math.max(hit, 1);
+    if (syn.some(s => entry._desc.includes(_stemLite(s)))) hit = Math.max(hit, 1);
+    if (hit) matched++;
+    score += hit;
+  }
+  if (qTokens.length > 1 && matched === qTokens.length) score *= 1.5;
+  return score;
+}
+
+// Returns [{group, items: [entry…]}] in a fixed group order, top `limit`
+// results overall. Empty query → a starter mix.
+function searchAll(q, limit = 12) {
+  const GROUP_ORDER = ['Stories', 'Charts', 'Datasets', 'Glossary', 'Views'];
+  let picked;
+  const qTokens = _tok(q);
+  if (!qTokens.length) {
+    picked = [
+      ...SEARCH_INDEX.filter(e => e.group === 'Stories').slice(0, 4),
+      ...SEARCH_INDEX.filter(e => e.group === 'Charts').slice(0, 2),
+      ...SEARCH_INDEX.filter(e => e.group === 'Datasets').slice(0, 3),
+    ];
+  } else {
+    const lastRaw = qTokens[qTokens.length - 1];
+    picked = SEARCH_INDEX
+      .map(e => ({ e, s: _scoreEntry(e, qTokens, lastRaw) }))
+      .filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, limit)
+      .map(x => x.e);
+  }
+  return GROUP_ORDER
+    .map(group => ({ group, items: picked.filter(e => e.group === group) }))
+    .filter(g => g.items.length);
+}
+
+Object.assign(window, { SEARCH_INDEX, searchAll, SEARCH_SYNONYMS, DASH_FIGURES });
 
 
 /* --- src/charts.jsx --- */
@@ -5338,50 +5540,84 @@ function Header({ route, setRoute, onSearch, onMethod }) {
 // ─────────────────────────────────────────────────────────────
 // Search modal (command palette style)
 // ─────────────────────────────────────────────────────────────
+// Natural-language search: index, synonyms and scoring live in
+// src/search-index.jsx (searchAll). Results are grouped; glossary results
+// show their definition inline instead of navigating; chart results
+// deep-link to the figure via route {name:'dashboard', anchor:'fig-NN'}.
 function SearchModal({ open, onClose, onPick }) {
   const [q, setQ] = useState('');
+  const [active, setActive] = useState(0);
   const inputRef = useRef(null);
-  useEffect(()=>{ if (open) setTimeout(()=>inputRef.current?.focus(), 40); }, [open]);
+  useEffect(()=>{ if (open) { setQ(''); setActive(0); setTimeout(()=>inputRef.current?.focus(), 40); } }, [open]);
+
+  const groups = useMemo(()=> (typeof searchAll === 'function' ? searchAll(q) : []), [q]);
+  const flat = useMemo(()=> groups.flatMap(g => g.items), [groups]);
+
+  useEffect(()=>{ setActive(0); }, [q]);
   useEffect(()=>{
-    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    if (!open) return;
+    const onKey = e => {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, flat.length - 1)); }
+      else if (e.key === 'ArrowUp')   { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+      else if (e.key === 'Enter') {
+        const it = flat[active];
+        if (it && it.go) { onPick(it.go); onClose(); }
+      }
+    };
     window.addEventListener('keydown', onKey);
     return ()=>window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const items = useMemo(()=>{
-    const stories = STORIES.map(s=>({kind:'Story', id:s.id, label:s.title, sub:s.kicker, go:{name:'story', id:s.id}}));
-    const datasets = DATASETS.map(d=>({kind:'Dataset', id:d.code, label:d.name, sub:d.code+' · '+d.rows+' rows', go:{name:'datasets'}}));
-    const all = [...stories, ...datasets];
-    if (!q) return all.slice(0,8);
-    const ql = q.toLowerCase();
-    return all.filter(i => i.label.toLowerCase().includes(ql) || i.sub.toLowerCase().includes(ql)).slice(0,10);
-  },[q]);
+  }, [open, onClose, flat, active, onPick]);
 
   if (!open) return null;
+  let flatIdx = -1;
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(26,26,23,.35)',zIndex:200,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:'12vh'}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:'var(--bg)',border:'1px solid var(--rule-2)',boxShadow:'0 20px 60px rgba(0,0,0,.15)',width:'min(620px,92vw)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'18px 22px',borderBottom:'1px solid var(--rule)'}}>
           <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="var(--muted)" strokeWidth="1.5"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/></svg>
-          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search stories and datasets (e.g. ‘grant rate’, Asy_D01)…"
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Try ‘hotel numbers’, ‘children’, ‘deportations’, ‘waiting times’…"
             style={{flex:1,border:'none',outline:'none',background:'transparent',fontFamily:'var(--serif)',fontSize:17,color:'var(--ink)'}}/>
           <span className="mono" style={{fontSize:11,color:'var(--muted-2)',border:'1px solid var(--rule-2)',padding:'4px 8px'}}>esc</span>
         </div>
-        <div style={{maxHeight:'50vh',overflowY:'auto'}}>
-          {items.length === 0 ? (
-            <div style={{padding:'32px 22px',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>No matches.</div>
-          ) : items.map((it,i)=>(
-            <button key={i} onClick={()=>{ onPick(it.go); onClose(); }}
-              style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'12px 22px',borderBottom:'1px solid var(--rule)',textAlign:'left'}}
-              onMouseEnter={e=>e.currentTarget.style.background='var(--bg-2)'}
-              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-              <div>
-                <div style={{fontSize:14,color:'var(--ink)'}}>{it.label}</div>
-                <div style={{fontSize:11.5,color:'var(--muted)',marginTop:2}} className="uc">{it.kind} · {it.sub}</div>
-              </div>
-              <span style={{color:'var(--muted-2)'}}>↗</span>
-            </button>
+        <div style={{maxHeight:'55vh',overflowY:'auto'}}>
+          {flat.length === 0 ? (
+            <div style={{padding:'32px 22px',color:'var(--muted)',fontStyle:'italic',fontSize:14}}>
+              No matches. Try a different word — the search understands everyday terms like “hotels”, “children” or “deported”.
+            </div>
+          ) : groups.map(g => (
+            <div key={g.group}>
+              <div className="uc" style={{padding:'10px 22px 6px',fontSize:10,color:'var(--muted-2)',letterSpacing:0.12,borderBottom:'1px solid var(--rule)',background:'var(--bg-2)'}}>{g.group}</div>
+              {g.items.map((it) => {
+                flatIdx++;
+                const idx = flatIdx;
+                const isActive = idx === active;
+                const isGloss = !it.go;
+                return (
+                  <button key={g.group + it.title}
+                    onClick={()=>{ if (it.go) { onPick(it.go); onClose(); } }}
+                    onMouseEnter={()=>setActive(idx)}
+                    style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:14,width:'100%',padding:'12px 22px',
+                      borderBottom:'1px solid var(--rule)',textAlign:'left',
+                      background: isActive ? 'var(--bg-2)' : 'transparent',
+                      cursor: it.go ? 'pointer' : 'default'}}>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:14,color:'var(--ink)'}}>{it.title}</div>
+                      {isGloss ? (
+                        <div style={{fontSize:12.5,color:'var(--ink-2)',marginTop:4,lineHeight:1.5,textWrap:'pretty'}}>{it.inline}</div>
+                      ) : it.desc ? (
+                        <div style={{fontSize:11.5,color:'var(--muted)',marginTop:2,lineHeight:1.45,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{it.desc}</div>
+                      ) : null}
+                    </div>
+                    <span style={{color:'var(--muted-2)',flexShrink:0}}>{it.go ? '↗' : ''}</span>
+                  </button>
+                );
+              })}
+            </div>
           ))}
+        </div>
+        <div style={{padding:'8px 22px',borderTop:'1px solid var(--rule)',display:'flex',gap:16,fontSize:10.5,color:'var(--muted-2)'}} className="uc">
+          <span>↑↓ navigate</span><span>↵ open</span><span>Stories · Charts · Datasets · Glossary · Views</span>
         </div>
       </div>
     </div>
@@ -7810,7 +8046,9 @@ function DashFrame({ number, kickerColor, title, sub, children, style={}, forkPr
     });
   };
   return (
-    <div ref={frameRef} className="dash-frame" style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',...style}}>
+    <div ref={frameRef} id={number ? `fig-${String(number).toLowerCase()}` : undefined} className="dash-frame"
+      style={{background:'#fff',border:'1px solid var(--rule)',padding:'22px 26px 24px',position:'relative',
+        scrollMarginTop:'calc(var(--header-h, 96px) + 12px)',...style}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,paddingBottom:12,borderBottom:'1px solid var(--rule)',gap:16}}>
         <div style={{flex:'1 1 auto',minWidth:0}}>
           <div style={{fontSize:10.5,letterSpacing:0.12,textTransform:'uppercase',color:kickerColor,fontWeight:500,display:'inline-block',paddingBottom:4,borderBottom:`1.5px solid ${kickerColor}`,marginBottom:10}}>Fig. {number}</div>
@@ -8054,10 +8292,13 @@ function _previewFor(code) {
   }
 }
 
-function DatasetsView({ setRoute }) {
+function DatasetsView({ setRoute, openId }) {
   const [q, setQ] = uS2('');
   const [freq, setFreq] = uS2('All');
-  const [openCode, setOpenCode] = uS2(null);
+  // openId lets search results deep-link straight to an expanded row
+  // (route {name:'datasets', id:'Asy_D09'}).
+  const [openCode, setOpenCode] = uS2(openId ?? null);
+  uE2(() => { if (openId) setOpenCode(openId); }, [openId]);
   const filtered = DATASETS.filter(d => {
     if (freq !== 'All' && d.freq !== freq) return false;
     if (q && !d.name.toLowerCase().includes(q.toLowerCase()) && !d.code.toLowerCase().includes(q.toLowerCase())) return false;
@@ -11412,6 +11653,16 @@ function App() {
   }, []);
   uER(()=>{ localStorage.setItem('hoe_route', JSON.stringify(route)); }, [route]);
 
+  // Deep-link anchors from search results ({name:'dashboard', anchor:'fig-08'}):
+  // scroll the target frame into view once the routed view has rendered.
+  // DashFrame sets scroll-margin-top so the sticky header doesn't cover it.
+  uER(()=>{
+    if (!route.anchor) return;
+    requestAnimationFrame(() => {
+      document.getElementById(route.anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [route]);
+
   // tweak host protocol — register listener BEFORE announcing
   uER(()=>{
     const onMsg = (e) => {
@@ -11456,7 +11707,7 @@ function App() {
       {route.name === 'dashboard' && <DashboardView setRoute={setRoute}/>}
       {route.name === 'atlas' && <AtlasView setRoute={setRoute}/>}
       {route.name === 'story' && <StoryView id={route.id} setRoute={setRoute} onMethod={()=>setMethod(true)}/>}
-      {route.name === 'datasets' && <DatasetsView setRoute={setRoute}/>}
+      {route.name === 'datasets' && <DatasetsView setRoute={setRoute} openId={route.id}/>}
       {route.name === 'build' && <BuildView setRoute={setRoute}/>}
       {route.name === 'flow' && <FlowView setRoute={setRoute}/>}
       {route.name === 'updates' && <UpdatesView setRoute={setRoute}/>}

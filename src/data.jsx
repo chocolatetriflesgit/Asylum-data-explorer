@@ -382,6 +382,7 @@ const PLANNED_UPDATES = [
   { area: 'Pipeline', text: 'Appeal outcomes — will replace the cohort-delta proxy in the Flow Sankey once the Home Office republishes the data.' },
   { area: 'Atlas',    text: 'Child applicants by nationality — new Atlas layer once the Home Office publishes Under-18 applicants by origin country.' },
   { area: 'Atlas',    text: 'Resettlement by origin country — new Atlas layer once Res_D02 gains a nationality breakdown.' },
+  { area: 'Search',   text: 'Ask-a-question answers (e.g. "how many crossed this year?") — considered and deferred: computing answers needs either a server or an AI service key, which this single-file, no-backend site deliberately avoids. Search instead understands everyday words and points to the right chart.' },
 ];
 
 const DATASETS = [
