@@ -184,9 +184,9 @@ const STORIES = [
   {
     id: 'pakistan',
     kicker: 'Nationality',
-    title: 'Pakistan leads, Afghanistan follows',
-    dek: 'Pakistani nationals filed more claims than any other group in 2024 and held the lead in 2025 — the first two-year run in the modern series.',
-    digest: 'Pakistani nationals filed more UK asylum claims than any other group in 2024 and again in 2025 — the first two-year run at the top in the modern series. Afghan claims remain second, Iranian third. Grant rates for the three groups diverge sharply: Afghan claims are overwhelmingly granted, Pakistani claims much less so. The headline ranking by volume is not the same story as the ranking by outcome.',
+    title: 'The changing top of the table',
+    dek: 'Eritrean nationals filed more claims than any other group in 2025 — the fourth different leader of the nationality table in six years.',
+    digest: 'Eritrean nationals filed more UK asylum claims than any other group in 2025 — the fourth different leader in six years, after Iran, Afghanistan and Pakistan. Grant rates among the biggest groups stretch from around a third to over ninety percent, so the ranking by volume is not the ranking by outcome. The sharpest recent reversal is Afghanistan, whose grant rate collapsed from near-automatic to around a third.',
     measures: 'Main-applicant count by claimed nationality at the point of application.',
     excludes: 'Dual nationality is resolved to a single recorded nationality; stateless applicants sit in their own row.',
     reading_links: [
@@ -240,7 +240,7 @@ const STORIES = [
     kicker: 'Outcomes',
     title: 'Grant rate, doubled and drifting',
     dek: 'Initial grants rose from 24% in 2019 to near 50% by 2024, then eased as the backlog unwound. What changed — and what is changing again.',
-    digest: 'The UK initial grant rate climbed from 24% in 2019 to near 50% by 2024, then eased as backlog-clearance shifted the case mix. Afghan and Syrian claims consistently grant above 95%; Albanian and Indian claims very rarely. The "UK grant rate" is a weighted mix of those extremes, not a meaningful property of the system on its own. Appeal overturns — unpublished since 2023 — would reshape the top line further.',
+    digest: 'The UK initial grant rate climbed from 24% in 2019 to near 50% by 2024, then eased sharply as backlog-clearance shifted the case mix. Sudanese and Eritrean claims grant at high rates; Indian claims almost never — and Afghan claims, once granted near-automatically, no longer are. The "UK grant rate" is a weighted mix of those extremes, not a meaningful property of the system on its own. Appeal overturns — unpublished since 2023 — would reshape the top line further.',
     measures: 'Share of substantive initial decisions that granted protection or other leave.',
     excludes: 'Appeal outcomes, withdrawals, and administrative decisions. Appeal overturns typically raise the final grant rate by 15–20 percentage points.',
     reading_links: [
@@ -257,8 +257,8 @@ const STORIES = [
     id: 'regions',
     kicker: 'Geography',
     title: 'Where the wait happens',
-    dek: 'Dispersal accommodation sits in eleven local authorities. They host roughly a third of all supported asylum seekers.',
-    digest: 'Home Office dispersal accommodation concentrates in a small number of local authorities. Eleven councils host roughly a third of all supported asylum seekers; hotels account for a declining but significant share. The geography of the wait is quite different from the geography of claim-making — claims are heard nationally, but people live wherever the accommodation contract routes them.',
+    dek: 'A few dozen of the UK’s three-hundred-plus council areas house a third of all supported asylum seekers — and the hotel share is falling fast.',
+    digest: 'Home Office dispersal accommodation concentrates heavily: a few dozen council areas house a third of all supported asylum seekers, with Glasgow, Birmingham and Liverpool at the top of the table. Hotels — the contingency end of the system — are being wound down quickly, with the number of people in them falling by around two-fifths in the six months to spring 2026. The geography of the wait is contracted, not chosen: people live wherever the accommodation contract routes them.',
     measures: 'Asylum seekers in receipt of Section 95 and Section 4 support, by the local authority where they are housed.',
     excludes: 'Self-supporting asylum seekers, those in detention, and resettled refugees outside the asylum process.',
     reading_links: [

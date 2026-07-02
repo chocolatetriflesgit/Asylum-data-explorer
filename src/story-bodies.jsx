@@ -201,6 +201,534 @@ const STORY_BODIES = {
       </>
     ),
   },
+
+  // ───────────────────────────────────────────────────────────
+  // Story 2 · Nationality (id: pakistan — id kept for routing; the
+  // narrative follows the data, which now has Eritrea on top).
+  // ───────────────────────────────────────────────────────────
+  'pakistan': {
+    dek: () => {
+      const top = _natSorted();
+      if (top.length < 2) return null;
+      const year = _CW.NAT_FULL_META?.year;
+      const leaders = _natLeadersByYear();
+      const distinct = new Set(leaders.map(l => l.name)).size;
+      return <>{_natAdj(top[0].name)} nationals filed more claims than any other group in {year ?? 'the latest year'}{distinct > 1 ? <> — the {['','','second','third','fourth','fifth'][distinct] ?? `${distinct}th`} different leader of the table in six years</> : ''}. The ranking by volume and the ranking by outcome remain very different lists.</>;
+    },
+    blocks: [
+      { type: 'p', text: () =>
+        'Every asylum claim records the nationality the applicant declares, and the ranking of those nationalities is one of the most quoted numbers in the migration debate. It is also one of the least stable.' },
+      { type: 'p', text: () => {
+        const top = _natSorted();
+        if (top.length < 3) return null;
+        const year = _CW.NAT_FULL_META?.year;
+        return <>In {year ?? 'the latest full year'}, {top[0].name} led with {_fmtS(top[0].v)} main applicants, ahead of {top[1].name} ({_fmtS(top[1].v)}) and {top[2].name} ({_fmtS(top[2].v)}).</>;
+      } },
+      { type: 'p', text: () => {
+        const leaders = _natLeadersByYear();
+        if (!leaders.length) return null;
+        return <>The lead changes hands often. {leaders.map((l, i) => `${l.name} topped ${l.years}`).join('; ')}. Each handover has its own story — a war, a route, a policy — and none of them shows up in the total alone.</>;
+      } },
+      { type: 'p', text: () =>
+        <>A note on what “nationality” means here: it is the nationality the applicant declares when the claim is lodged. Dual nationals are recorded under a single nationality, and <Gloss term="asylum seeker">applicants</Gloss> with no recognised nationality sit in their own “stateless” row. The counts are main applicants only — one per claim, however large the family it covers.</> },
+      { type: 'h2', text: 'Volume is not outcome' },
+      { type: 'p', text: () => {
+        const top = _natSorted().slice(0, 5);
+        const withGrant = top.filter(r => r.grant != null);
+        if (withGrant.length < 3) return null;
+        const hi = withGrant.reduce((a, b) => b.grant > a.grant ? b : a);
+        const lo = withGrant.reduce((a, b) => b.grant < a.grant ? b : a);
+        return <>Among the five biggest groups, <Gloss term="grant rate">grant rates</Gloss> stretch from {Math.round(lo.grant * 100)}% ({lo.name}) to {Math.round(hi.grant * 100)}% ({hi.name}). Ranking nationalities by how many people claim gives one list; ranking them by how many claims succeed gives another.</>;
+      } },
+      { type: 'p', text: () => {
+        const rows = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+        const afg = rows.find(r => r.name === 'Afghanistan');
+        if (!afg || afg.grant == null) return null;
+        const year = _CW.NAT_FULL_META?.year;
+        return <>The sharpest recent reversal is Afghanistan. Afghan claims were granted almost automatically in the years after Kabul fell — above 95% — but the {year ?? 'latest'} rate was {Math.round(afg.grant * 100)}%. A change that size moves the national headline rate on its own, because Afghan claims are such a large share of the total.</>;
+      } },
+      { type: 'h2', text: 'Why the mix matters' },
+      { type: 'p', text: () => {
+        const rows = _natSorted();
+        const total = rows.reduce((s, r) => s + (r.v || 0), 0) || 1;
+        const share5 = Math.round(rows.slice(0, 5).reduce((s, r) => s + (r.v || 0), 0) / total * 100);
+        const year = _CW.NAT_FULL_META?.year;
+        return <>The five biggest nationalities were {share5}% of all {year ?? 'latest-year'} claims; the other {Math.max(rows.length - 5, 0)} recorded nationalities share the rest. When commentary treats “asylum seekers” as one group, it averages across populations whose situations — and whose outcomes under the same rules — have almost nothing in common.</>;
+      } },
+      { type: 'p', text: () => {
+        const rows = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+        if (!rows.length || typeof groupNatByRegion !== 'function') return null;
+        const regions = groupNatByRegion(rows);
+        if (regions.length < 2) return null;
+        const total = regions.reduce((s, r) => s + (r.v || 0), 0) || 1;
+        return <>Grouped by region of origin, the picture steadies a little: {regions[0].name} leads with {Math.round(regions[0].v / total * 100)}% of applicants, ahead of {regions[1].name} ({Math.round(regions[1].v / total * 100)}%). Countries move up and down the table faster than regions do — conflicts are local, but the routes people travel are shared.</>;
+      } },
+      { type: 'p', text: () =>
+        <>It is also worth separating this table from the small-boats one. Small-boat arrivals are counted by nationality on the day they arrive; asylum claims are counted when they are lodged, whatever the route in. The two rankings overlap but do not match — a nationality can be prominent on the boats and modest in the claims table, or the reverse.</> },
+      { type: 'callout', text: () =>
+        'Reading tip: the chart alongside shows the five biggest nationalities as separate lines. Watch for lines crossing — the years when the lead changes hands — rather than the height of any one line.' },
+    ],
+    charts: () => (
+      <>
+        <div style={{background:'var(--bg-2)',padding:'24px 28px',border:'1px solid var(--rule)'}}>
+          <div style={{marginBottom:12}}>
+            <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Applications by top nationality · main applicants</div>
+            <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top five nationalities over time</div>
+          </div>
+          <MultiLineChart years={NAT_SERIES.years} series={NAT_SERIES.series} width={720} height={300}/>
+          <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D01</div>
+        </div>
+        {(() => {
+          const rows = _natSorted().slice(0, 10);
+          if (!rows.length) return null;
+          return (
+            <div style={{background:'#fff',padding:'20px 28px',border:'1px solid var(--rule)',marginTop:16}}>
+              <div style={{marginBottom:12}}>
+                <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Applications · {_CW.NAT_FULL_META?.year ?? 'latest year'}</div>
+                <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Top ten, with grant rate</div>
+              </div>
+              <BarChart data={rows.map(r => ({name: `${r.name}${r.grant != null ? ` · ${Math.round(r.grant*100)}% granted` : ''}`, v: r.v}))} width={720}/>
+              <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D01 + Asy_D02</div>
+            </div>
+          );
+        })()}
+      </>
+    ),
+  },
+
+  // ───────────────────────────────────────────────────────────
+  // Story 3 · The backlog, halved (id: backlog)
+  // Uses 31 December snapshots only — the documented definition — which
+  // also keeps any mid-year partial rows out of the narrative and chart.
+  // ───────────────────────────────────────────────────────────
+  'backlog': {
+    dek: () => {
+      const snaps = _backlogDec();
+      if (snaps.length < 2) return null;
+      const peak = snaps.reduce((a, b) => b.v > a.v ? b : a);
+      const last = snaps[snaps.length - 1];
+      return <>The queue of undecided cases fell from {_fmtS(peak.v)} at the end of {peak.y} to {_fmtS(last.v)} at the end of {last.y}. The wait has not disappeared — much of it has moved downstream.</>;
+    },
+    blocks: [
+      { type: 'p', text: () =>
+        'Behind every asylum statistic is a queue. The backlog — cases waiting for a first decision — is where arrivals, staffing and policy meet, and for four years it was the system’s defining number.' },
+      { type: 'p', text: () => {
+        const snaps = _backlogDec();
+        const first = snaps[0], peak = snaps.reduce((a, b) => b.v > a.v ? b : a, snaps[0]);
+        if (!first || !peak || first.y === peak.y) return null;
+        return <>Between the end of {first.y} and the end of {peak.y} the queue grew from {_fmtS(first.v)} to {_fmtS(peak.v)} — roughly {(peak.v / first.v).toFixed(1)} times over. Claims rose sharply in those years, but the bigger driver was throughput: decisions slowed while applications climbed, so the queue absorbed the difference.</>;
+      } },
+      { type: 'p', text: () => {
+        const snaps = _backlogDec();
+        if (snaps.length < 2) return null;
+        const last = snaps[snaps.length - 1], prev = snaps[snaps.length - 2];
+        const y2020 = snaps.find(r => r.y === 2020);
+        const drop = _pctS(last.v, prev.v);
+        return <>The fall since has been steep. The queue ended {last.y} at {_fmtS(last.v)} — {drop != null ? `${Math.abs(drop).toFixed(0)}% lower than a year earlier` : 'sharply lower'}{y2020 && last.v < y2020.v ? `, and below where it stood before the surge (${_fmtS(y2020.v)} at the end of 2020)` : ''}.</>;
+      } },
+      { type: 'h2', text: 'How the queue was cut' },
+      { type: 'p', text: () => {
+        const dec = Array.isArray(_CW.DECISIONS_LATEST) ? _CW.DECISIONS_LATEST : [];
+        const total = dec.reduce((s, r) => s + (r.v || 0), 0);
+        const year = _CW.DECISIONS_META?.year;
+        if (!total) return null;
+        return <>Mostly by deciding faster. The Home Office issued {_fmtS(total)} initial outcomes in {year ?? 'the latest year'} — an unusually high throughput. Deciding at that pace changes who is left waiting: straightforward cases clear quickly, and the remaining queue concentrates in nationalities and case types that take longer.</>;
+      } },
+      { type: 'p', text: () => {
+        const bands = (Array.isArray(_CW.BACKLOG_AGE_BANDS) ? _CW.BACKLOG_AGE_BANDS : []).filter(r => /^31 Dec/.test(r.date || ''));
+        const last = bands[bands.length - 1];
+        if (!last || !last.total) return null;
+        return <>The queue’s shape matters as much as its size. At the end of {last.y}, {Math.round((last.gtYearShare || 0) * 100)}% of waiting cases — {_fmtS(last.gt12)} people — had already been waiting more than a year.</>;
+      } },
+      { type: 'p', text: () => {
+        const snaps = _backlogDec();
+        const last = snaps[snaps.length - 1];
+        const dec = Array.isArray(_CW.DECISIONS_LATEST) ? _CW.DECISIONS_LATEST : [];
+        const throughput = dec.reduce((s, r) => s + (r.v || 0), 0);
+        if (!last || !throughput) return null;
+        const months = (last.v / throughput) * 12;
+        return <>A useful way to read the number: divide the queue by the pace of decisions and you get months of work. At the end-of-{last.y} queue size and the latest year’s decision rate, that is about {months.toFixed(1)} months — a system working through its inbox, where three years earlier the same sum gave well over a year.</>;
+      } },
+      { type: 'p', text: () =>
+        <>The queue also drives the numbers around it. Clearing the easy cases first pushed the national <Gloss term="grant rate">grant rate</Gloss> up and then down as the remaining mix hardened — which is why the backlog story and the grant-rate story are really one story read from two ends.</> },
+      { type: 'h2', text: 'Where the pressure went' },
+      { type: 'p', text: () =>
+        <>Clearing first decisions faster does not end cases: a refusal can be appealed, and an unusually large share of recent refusals have been. By spring 2026 the appeals queue was reported at about 87,000 cases, up 72% in a year (as reported to Parliament, March 2026 — the Home Office does not currently publish a live appeals series). Much of the wait has moved downstream rather than disappearing.</> },
+      { type: 'callout', text: () =>
+        'What this measures: cases awaiting an initial decision at the 31 December snapshot each year, main applicants only. Appeals, administrative reviews and later stages sit outside this count — which is exactly why the backlog can fall while the total number of people waiting somewhere in the system does not.' },
+    ],
+    charts: () => (
+      <>
+        <div style={{background:'var(--bg-2)',padding:'24px 28px',border:'1px solid var(--rule)'}}>
+          <LineChart
+            data={_backlogDec()}
+            title="Cases awaiting an initial decision"
+            subtitle="Year-end snapshots · main applicants · UK"
+            stroke="var(--accent-gold)"
+            source="Home Office · Asy_D07"
+            caption="31 December snapshot each year. Mid-year peaks and troughs are not visible in this series."
+            width={720} height={320}
+          />
+        </div>
+        {(() => {
+          const bands = (Array.isArray(_CW.BACKLOG_AGE_BANDS) ? _CW.BACKLOG_AGE_BANDS : []).filter(r => /^31 Dec/.test(r.date || ''));
+          if (!bands.length) return null;
+          const series = [
+            { name: '< 3 months',  data: bands.map(b => b.lt3m  || 0) },
+            { name: '3–6 months',  data: bands.map(b => b.m3to6 || 0) },
+            { name: '6–12 months', data: bands.map(b => b.m6to12|| 0) },
+            { name: '> 12 months', data: bands.map(b => b.gt12  || 0) },
+          ];
+          return (
+            <div style={{background:'#fff',padding:'20px 28px',border:'1px solid var(--rule)',marginTop:16}}>
+              <div style={{marginBottom:12}}>
+                <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>How long pending cases have waited</div>
+                <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Backlog age profile</div>
+              </div>
+              <StackedColumnsMulti years={bands.map(b => b.y)} series={series}
+                colors={['var(--accent-2)', 'var(--accent)', 'var(--accent-gold)', 'var(--accent-warn)']}
+                width={720} height={260}/>
+              <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D07 duration bands</div>
+            </div>
+          );
+        })()}
+      </>
+    ),
+  },
+
+  // ───────────────────────────────────────────────────────────
+  // Story 4 · Eight seasons on the Channel (id: boats)
+  // ───────────────────────────────────────────────────────────
+  'boats': {
+    dek: () => {
+      const rec = _CW.BOATS_RECORDS;
+      if (!rec) return null;
+      return <>{_fmtS(rec.totalMigrants)} people have been detected crossing the Channel in small boats since counting began in 2018, on {_fmtS(rec.totalBoats)} boats. The season’s shape barely changes; almost everything else about the crossings has.</>;
+    },
+    blocks: [
+      { type: 'p', text: () => {
+        const rec = _CW.BOATS_RECORDS;
+        if (!rec) return null;
+        return `On 1 January 2018 the Home Office began publishing a daily count of people detected crossing the English Channel in small boats. In that first year the count was ${_fmtS((_CW.BOATS_ANNUAL || []).find(r => r.y === 2018)?.m)} people. The running total has since passed ${_fmtS(Math.floor((rec.totalMigrants || 0) / 1000) * 1000)}.`;
+      } },
+      { type: 'p', text: () => {
+        const rec = _CW.BOATS_RECORDS;
+        if (!rec?.busiestDay) return null;
+        const d = new Date(rec.busiestDay.date + 'T00:00:00Z');
+        const dLabel = `${d.getUTCDate()} ${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+        const m = rec.busiestMonth?.month ? rec.busiestMonth.month.split('-') : null;
+        return <>The records cluster in one summer. The busiest single day remains {dLabel}, when {_fmtS(rec.busiestDay.migrants)} people arrived{m ? <>; the busiest month is {MONTHS_LONG[+m[1] - 1]} {m[0]}, with {_fmtS(rec.busiestMonth.migrants)}</> : ''}.</>;
+      } },
+      { type: 'h2', text: 'The shape of a season' },
+      { type: 'p', text: () =>
+        'Crossings follow the weather. Nearly every year is quiet from January to March, rises through spring, and peaks in late summer — a pattern stable across all eight years of the series. Annual totals swing on wind, waves and interception, not on the shape of the calendar.' },
+      { type: 'p', text: () => {
+        const ba = Array.isArray(_CW.BOATS_ANNUAL) ? _CW.BOATS_ANNUAL : [];
+        const y2022 = ba.find(r => r.y === 2022);
+        const fullYears = ba.filter(r => r.y < new Date().getUTCFullYear());
+        const last = fullYears[fullYears.length - 1];
+        if (!y2022 || !last) return null;
+        return <>The peak year is still 2022, at {_fmtS(y2022.m)} arrivals. The total fell by more than a third in 2023, then climbed again: {fullYears.slice(-2).map(r => `${_fmtS(r.m)} in ${r.y}`).join(', then ')}. The year-to-date comparison in the chart alongside shows where the current year sits against every previous one, day by day.</>;
+      } },
+      { type: 'h2', text: 'More people per boat' },
+      { type: 'p', text: () => {
+        const ba = Array.isArray(_CW.BOATS_ANNUAL) ? _CW.BOATS_ANNUAL : [];
+        const first = ba.find(r => r.y === 2018);
+        const fullYears = ba.filter(r => r.y < new Date().getUTCFullYear());
+        const last = fullYears[fullYears.length - 1];
+        if (!first?.perBoat || !last?.perBoat) return null;
+        return <>The quietest change is the most telling. In 2018 the average boat carried {Math.round(first.perBoat)} people; by {last.y} it carried {Math.round(last.perBoat)}. The boats have not grown nine-fold — they are more crowded, which is central to why crossings have become more dangerous.</>;
+      } },
+      { type: 'p', text: () => {
+        const annual = Array.isArray(_CW.DEATHS_ANNUAL) ? _CW.DEATHS_ANNUAL : [];
+        if (!annual.length) return null;
+        const worst = annual.filter(r => r.y < new Date().getUTCFullYear()).reduce((a, b) => (b.total || 0) > (a.total || 0) ? b : a, annual[0]);
+        return <>The IOM’s Missing Migrants Project records deaths and disappearances on the route; its worst year so far is {worst.y}, with {_fmtS(worst.total)} recorded. IOM counts only incidents it can verify, so the true number is likely higher.</>;
+      } },
+      { type: 'h2', text: 'Arrivals are not attempts' },
+      { type: 'p', text: () => {
+        const wk = Array.isArray(_CW.BOATS_WEEKLY) ? _CW.BOATS_WEEKLY : [];
+        const withP = wk.filter(w => w && w.p != null && w.m != null);
+        if (withP.length < 14) return null;
+        const recent = withP.slice(-13);
+        const p = recent.reduce((s, w) => s + w.p, 0);
+        const m = recent.reduce((s, w) => s + w.m, 0);
+        if (!(p + m)) return null;
+        return <>Since 2024 the weekly release has also reported <Gloss term="preventions">preventions</Gloss> — crossing attempts stopped on the French side. Over the latest thirteen reported weeks, {Math.round(p / (p + m) * 100)}% of recorded attempts ended in a prevention rather than a UK arrival. The arrivals number alone understates how many people set out.</>;
+      } },
+      { type: 'p', text: () =>
+        <>Two things this series does not count: people who enter clandestinely by other routes (lorries, ferries, air), and people turned back or rescued who never left French waters in a recorded event. It is a count of one route, precisely measured — not a count of irregular entry as a whole.</> },
+      { type: 'callout', text: () =>
+        'Provisional data: the “last 7 days” figures published daily are provisional and are revised when the official weekly series lands each Tuesday. Charts on this site mark the provisional strip separately.' },
+    ],
+    charts: () => (
+      <>
+        <div style={{background:'var(--bg-2)',padding:'24px 28px',border:'1px solid var(--rule)'}}>
+          {(typeof BOATS_YOY !== 'undefined' && BOATS_YOY && Object.keys(BOATS_YOY).length) ? (
+            <YoYCumulative series={BOATS_YOY} width={720} height={320}
+              yLabel="Cumulative migrants" xLabel="Day of year"
+              caption="Each line traces cumulative small-boat arrivals through one year. The current-year line stops at the most recent published week."
+              source="Home Office · SB_01"/>
+          ) : (
+            <LineChart data={(_CW.BOATS_ANNUAL || []).map(r => ({y: r.y, v: r.m}))}
+              title="Small-boat arrivals by year" stroke="var(--accent-warn)"
+              source="Home Office · SB_01" width={720} height={320}/>
+          )}
+        </div>
+        {(() => {
+          const ba = Array.isArray(_CW.BOATS_ANNUAL) ? _CW.BOATS_ANNUAL : [];
+          if (!ba.length) return null;
+          return (
+            <div style={{background:'#fff',padding:'20px 28px',border:'1px solid var(--rule)',marginTop:16}}>
+              <LineChart data={ba.map(r => ({y: r.y, v: r.perBoat}))}
+                title="Average people per boat"
+                subtitle="Annual · migrants ÷ boats · English Channel"
+                stroke="var(--accent-gold)"
+                caption="The current year is a running average and can still move."
+                source="Home Office · SB_01 (derived)"
+                width={720} height={220}/>
+            </div>
+          );
+        })()}
+      </>
+    ),
+  },
+
+  // ───────────────────────────────────────────────────────────
+  // Story 5 · Grant rate, doubled and drifting (id: grant-rate)
+  // ───────────────────────────────────────────────────────────
+  'grant-rate': {
+    dek: () => {
+      const g = _grantFigures();
+      if (!g) return null;
+      return <>In {g.year}, {g.allPct}% of initial outcomes granted protection. That headline is a weighted blend of nationalities granted at over 90% and nationalities granted at nearly zero — and it moves when the mix moves.</>;
+    },
+    blocks: [
+      { type: 'p', text: () =>
+        'When people ask what share of asylum claims succeed, they usually mean the grant rate. It sounds like one number. It is really three: the initial rate, the rate excluding cases that never get a substantive decision, and the final rate once appeals are counted.' },
+      { type: 'p', text: () => {
+        const g = _grantFigures();
+        if (!g) return null;
+        return <>Start with the published pieces. In {g.year} the Home Office issued {_fmtS(g.total)} initial outcomes: {_fmtS(g.granted)} granted protection or other leave ({g.allPct}% of everything, including withdrawn and administrative closures), {_fmtS(g.refused)} were refused, and {_fmtS(g.withdrawn)} were withdrawn or closed. On substantive decisions alone, the grant rate was {g.substPct}%.</>;
+      } },
+      { type: 'p', text: () =>
+        'The recent history is a steep climb and a slide. The initial rate roughly doubled between 2019 and 2022–23 — from around a quarter of decisions to more than half — and has eased since as the backlog-clearing drive changed which cases were being decided.' },
+      { type: 'h2', text: 'A weighted blend' },
+      { type: 'p', text: () => {
+        const rows = _natSorted().filter(r => r.grant != null && r.v >= 500);
+        if (rows.length < 4) return null;
+        const hi = [...rows].sort((a, b) => b.grant - a.grant).slice(0, 2);
+        const lo = [...rows].sort((a, b) => a.grant - b.grant).slice(0, 2);
+        const year = _CW.NAT_FULL_META?.year;
+        return <>The national rate is an average across populations with almost nothing in common. In {year ?? 'the latest year'}, {hi.map(r => `${r.name} claims were granted at ${Math.round(r.grant * 100)}%`).join(' and ')}, while {lo.map(r => `${r.name} sat at ${Math.round(r.grant * 100)}%`).join(' and ')}. The headline moves when the case mix moves — not necessarily when the system gets stricter or more generous.</>;
+      } },
+      { type: 'p', text: () => {
+        const rows = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+        const afg = rows.find(r => r.name === 'Afghanistan');
+        if (!afg || afg.grant == null) return null;
+        return <>The small-multiples chart alongside makes the point country by country. Watch Afghanistan: granted above 95% in the years after Kabul fell, {Math.round(afg.grant * 100)}% in the latest year — one of the sharpest reversals in the series, and large enough to move the national headline on its own.</>;
+      } },
+      { type: 'p', text: () => {
+        const g = _grantFigures();
+        if (!g || !g.withdrawn) return null;
+        return <>The often-ignored third bucket is withdrawals and administrative closures — {_fmtS(g.withdrawn)} outcomes in {g.year}, {Math.round(g.withdrawn / g.total * 100)}% of the total. A claim can be withdrawn by the applicant, or closed by the Home Office when someone misses appointments or cannot be traced. Where these land matters: counting them shrinks the grant rate; excluding them inflates it.</>;
+      } },
+      { type: 'p', text: () =>
+        <>One definitional note: “granted” on this site combines refugee status with <Gloss term="refugee">humanitarian protection</Gloss> and other forms of leave, following Home Office practice. The decisions chart alongside shows them separately — humanitarian and other grants are a thin slice next to full refugee status.</> },
+      { type: 'h2', text: 'The missing 15–20 points' },
+      { type: 'p', text: () =>
+        <>The initial rate is not the end of the story. Refused applicants can appeal to an independent tribunal, and roughly a third of appeals heard have succeeded in recent published figures (36% in 2024, as published). Historically, appeal outcomes have raised the final grant rate by 15–20 percentage points above the initial one. The Home Office has not published appeal outcome data since 2023, so the final rate for recent cohorts is not yet knowable.</> },
+      { type: 'callout', text: () => {
+        const g = _grantFigures();
+        return <>{'One number, three answers'}{g ? <>: for {g.year}, {g.allPct}% of all initial outcomes, {g.substPct}% of substantive decisions, and an unknown-but-higher final rate once appeals resolve.</> : '.'} When two commentators quote different “grant rates”, they are usually both right — about different denominators.</>;
+      } },
+    ],
+    charts: () => (
+      <>
+        {(() => {
+          const dec = Array.isArray(_CW.DECISIONS_LATEST) ? _CW.DECISIONS_LATEST : [];
+          if (!dec.length) return null;
+          return (
+            <div style={{background:'var(--bg-2)',padding:'24px 28px',border:'1px solid var(--rule)'}}>
+              <div style={{marginBottom:12}}>
+                <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Initial decisions · {_CW.DECISIONS_META?.year ?? 'latest year'}</div>
+                <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Where claims land at first decision</div>
+              </div>
+              <StackedBar data={dec} width={660} height={110}/>
+              <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D02</div>
+            </div>
+          );
+        })()}
+        {(typeof NAT_GRANT_ANNUAL !== 'undefined' && NAT_GRANT_ANNUAL) && (
+          <div style={{background:'#fff',padding:'20px 28px',border:'1px solid var(--rule)',marginTop:16}}>
+            <div style={{marginBottom:12}}>
+              <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Grant rate by nationality · {NAT_GRANT_ANNUAL.years[0]}–{NAT_GRANT_ANNUAL.years[NAT_GRANT_ANNUAL.years.length-1]}</div>
+              <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Small multiples</div>
+            </div>
+            <GrantRateSmallMultiples series={NAT_GRANT_ANNUAL} width={720} height={420} cols={3}
+              highlight={['Afghanistan','Syria','Eritrea','Pakistan']}
+              caption="Each cell is one nationality; y-axis is 0–100% grant rate. The dashed line marks 50%."
+              source="Home Office · Asy_D02 (derived)"/>
+          </div>
+        )}
+      </>
+    ),
+  },
+
+  // ───────────────────────────────────────────────────────────
+  // Story 6 · Where the wait happens (id: regions)
+  // ───────────────────────────────────────────────────────────
+  'regions': {
+    dek: () => {
+      const la = _laSorted();
+      if (!la.rows.length) return null;
+      return <>{la.thirdCount} of the UK’s {la.rows.length} council areas house a third of all supported asylum seekers. The geography of the wait is contracted, not chosen — and it is changing fast as hotels close.</>;
+    },
+    blocks: [
+      { type: 'p', text: () =>
+        'Where asylum seekers live while their claim is decided has little to do with where they arrived or where their case is heard. Destitute applicants are housed wherever the Home Office’s accommodation contractors have space — a system called dispersal.' },
+      { type: 'p', text: () => {
+        const la = _laSorted();
+        if (la.rows.length < 3) return null;
+        const date = _CW.SUPPORT_REGIONS_META?.date;
+        const top3 = la.rows.slice(0, 3);
+        return <>The result is heavy concentration. Of the {_fmtS(la.total)} people receiving Home Office support{date ? ` at ${date}` : ''}, a third live in just {la.thirdCount} of {la.rows.length} council areas. {top3[0].name} houses more than anywhere else ({_fmtS(top3[0].total)}), followed by {top3[1].name} ({_fmtS(top3[1].total)}) and {top3[2].name} ({_fmtS(top3[2].total)}).</>;
+      } },
+      { type: 'h2', text: 'The hotel wind-down' },
+      { type: 'p', text: () => {
+        const h = Array.isArray(_CW.HOTELS) ? _CW.HOTELS : [];
+        if (h.length < 3) return null;
+        const last = h[h.length - 1];
+        const twoBack = h[h.length - 3];
+        const drop = _pctS(last.persons_in_hotels, twoBack.persons_in_hotels);
+        const fmtD = s => { const d = new Date(s + 'T00:00:00Z'); return `${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+        return <>Hotels are the volatile part of the map. They are contingency accommodation — used when dispersal housing is full — and the government has committed to closing them, shifting people to large sites and standard housing. The snapshots show it happening: {_fmtS(twoBack.persons_in_hotels)} people were in hotels in {fmtD(twoBack.date)}; by {fmtD(last.date)} it was {_fmtS(last.persons_in_hotels)}{drop != null ? ` — a fall of ${Math.abs(drop).toFixed(0)}% in six months` : ''}.</>;
+      } },
+      { type: 'p', text: () => {
+        const t = _CW.SUPPORT_TIERS_LATEST;
+        if (!t || !t.total) return null;
+        return <>Support comes in three legal flavours. Section 95 — housing and subsistence while a claim is decided — covers {Math.round((t.s95 || 0) / t.total * 100)}% of the total. Section 98 is the emergency bridge while a Section 95 application is assessed, and Section 4 supports people whose claim failed but who cannot leave the UK.</>;
+      } },
+      { type: 'p', text: () => {
+        const h = Array.isArray(_CW.HOTELS) ? _CW.HOTELS : [];
+        if (h.length < 4) return null;
+        const peak = h.reduce((a, b) => (b.persons_in_hotels || 0) > (a.persons_in_hotels || 0) ? b : a, h[0]);
+        const last = h[h.length - 1];
+        if (!peak.persons_in_hotels || peak.date === last.date) return null;
+        const fmtD = s => { const d = new Date(s + 'T00:00:00Z'); return `${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+        const drop = _pctS(last.persons_in_hotels, peak.persons_in_hotels);
+        return <>For scale: at the peak of hotel use, in {fmtD(peak.date)}, {_fmtS(peak.persons_in_hotels)} people were in hotel accommodation. The latest snapshot is {drop != null ? `${Math.abs(drop).toFixed(0)}% below that peak` : 'well below that peak'}. Whether the fall continues, and where those people go instead, is the thing to watch in the next snapshots.</>;
+      } },
+      { type: 'h2', text: 'Contracted geography' },
+      { type: 'p', text: () => {
+        const regs = Array.isArray(_CW.SUPPORT_REGIONS) ? _CW.SUPPORT_REGIONS : [];
+        if (regs.length < 3) return null;
+        const total = regs.reduce((s, r) => s + (r.v || 0), 0) || 1;
+        const sorted = [...regs].sort((a, b) => (b.v || 0) - (a.v || 0));
+        const top3 = sorted.slice(0, 3);
+        const share = Math.round(top3.reduce((s, r) => s + (r.v || 0), 0) / total * 100);
+        return <>At regional level, {top3.map(r => r.name).join(', ')} together house {share}% of the supported population. Accommodation contracts follow housing costs, which is why the map of the wait looks nothing like the map of where claims are lodged — or the map of population.</>;
+      } },
+      { type: 'p', text: () =>
+        <>That geography is set by accommodation providers under regional Home Office contracts, not by the people housed — asylum seekers on support cannot choose where to live without losing it. The concentration runs both ways: some councils host thousands, while many host almost none.</> },
+      { type: 'callout', text: () =>
+        'What this measures: people in receipt of Section 95, 98 or 4 support, counted where they are housed. Asylum seekers who support themselves, people in detention, and resettled refugees sit outside this count.' },
+    ],
+    charts: () => (
+      <>
+        <div style={{background:'var(--bg-2)',padding:'24px 28px',border:'1px solid var(--rule)'}}>
+          <div style={{marginBottom:12}}>
+            <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Supported asylum seekers · {_CW.SUPPORT_REGIONS_META?.date ?? 'latest snapshot'}</div>
+            <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>By UK region</div>
+          </div>
+          <BarChart data={(Array.isArray(_CW.SUPPORT_REGIONS) && _CW.SUPPORT_REGIONS.length ? _CW.SUPPORT_REGIONS : REGIONS)} width={720} color="var(--accent)"/>
+          <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D05/D11</div>
+        </div>
+        {(() => {
+          const la = _laSorted();
+          if (la.rows.length < 10) return null;
+          return (
+            <div style={{background:'#fff',padding:'20px 28px',border:'1px solid var(--rule)',marginTop:16}}>
+              <div style={{marginBottom:12}}>
+                <div className="uc" style={{color:'var(--muted)',marginBottom:3}}>Top ten council areas</div>
+                <div style={{fontSize:19,fontWeight:500,color:'var(--ink)',letterSpacing:-0.1}}>Where the concentration is</div>
+              </div>
+              <BarChart data={la.rows.slice(0, 10).map(r => ({name: r.name, v: r.total}))} width={720} color="var(--accent-warn)"/>
+              <div className="uc" style={{marginTop:14,color:'var(--muted-2)'}}>Source: Home Office · Asy_D11</div>
+            </div>
+          );
+        })()}
+      </>
+    ),
+  },
 };
+
+// ── Shared derivations for the bodies above ──────────────────
+// `_CW` (the window alias) is declared once in copy.jsx, which loads
+// earlier in the bundle — do not redeclare it here, the files share one
+// script scope after concatenation.
+function _natSorted() {
+  const rows = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+  return [...rows].sort((a, b) => (b.v || 0) - (a.v || 0));
+}
+// "Eritrea" → "Eritrean" etc. Only used for the handful of names that can
+// realistically top the table; falls back to "<Name>" + " nationals" being
+// rephrased by the caller if unknown.
+function _natAdj(name) {
+  const map = { Eritrea: 'Eritrean', Pakistan: 'Pakistani', Afghanistan: 'Afghan', Iran: 'Iranian', Sudan: 'Sudanese', Syria: 'Syrian', Albania: 'Albanian', India: 'Indian', Iraq: 'Iraqi', Vietnam: 'Vietnamese', Somalia: 'Somali', Bangladesh: 'Bangladeshi' };
+  return map[name] || name;
+}
+// Which nationality led each year, from the fixed five-series panel —
+// compressed to "Name topped YYYY–YYYY" runs.
+function _natLeadersByYear() {
+  const ns = _CW.NAT_SERIES_LATEST;
+  if (!ns || !Array.isArray(ns.years) || !Array.isArray(ns.series)) return [];
+  const runs = [];
+  ns.years.forEach((y, i) => {
+    let best = null;
+    for (const s of ns.series) {
+      const v = s.data[i];
+      if (v != null && (best == null || v > best.v)) best = { name: s.name, v };
+    }
+    if (!best) return;
+    const prev = runs[runs.length - 1];
+    if (prev && prev.name === best.name) { prev.to = y; }
+    else runs.push({ name: best.name, from: y, to: y });
+  });
+  return runs.map(r => ({ name: r.name, years: r.from === r.to ? String(r.from) : `${r.from}–${r.to}` }));
+}
+// Backlog: 31 December snapshots only (the documented definition); guards
+// against mid-year partial rows.
+function _backlogDec() {
+  const rows = Array.isArray(_CW.BACKLOG_LATEST) ? _CW.BACKLOG_LATEST : [];
+  return rows.filter(r => /^31 Dec/.test(r.date || '')).map(r => ({ y: r.y, v: r.v }));
+}
+// Decisions: grant rate two ways (all outcomes vs substantive only).
+function _grantFigures() {
+  const dec = Array.isArray(_CW.DECISIONS_LATEST) ? _CW.DECISIONS_LATEST : [];
+  if (!dec.length) return null;
+  const total = dec.reduce((s, r) => s + (r.v || 0), 0);
+  if (!total) return null;
+  const granted = dec.filter(r => /grant/i.test(r.label)).reduce((s, r) => s + (r.v || 0), 0);
+  const withdrawn = dec.filter(r => /withdraw|admin/i.test(r.label)).reduce((s, r) => s + (r.v || 0), 0);
+  const refused = dec.filter(r => /refus/i.test(r.label)).reduce((s, r) => s + (r.v || 0), 0);
+  const subst = total - withdrawn;
+  return {
+    year: _CW.DECISIONS_META?.year ?? null,
+    total, granted, refused, withdrawn,
+    allPct: Math.round(granted / total * 100),
+    substPct: subst > 0 ? Math.round(granted / subst * 100) : null,
+  };
+}
+// Local-authority support, sorted, with "how many councils make a third".
+function _laSorted() {
+  const rows = (Array.isArray(_CW.SUPPORT_LA_LATEST) ? _CW.SUPPORT_LA_LATEST : [])
+    .filter(r => r && r.total > 0)
+    .sort((a, b) => (b.total || 0) - (a.total || 0));
+  const total = rows.reduce((s, r) => s + (r.total || 0), 0);
+  let cum = 0, thirdCount = 0;
+  for (const r of rows) { cum += r.total || 0; thirdCount++; if (cum >= total / 3) break; }
+  return { rows, total, thirdCount };
+}
 
 Object.assign(window, { STORY_BODIES, StoryBody });
