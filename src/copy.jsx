@@ -25,6 +25,10 @@
 // that can be computed from the globals alone.
 
 const _CW = (typeof window !== 'undefined') ? window : {};
+const _fmtN = n => n == null ? '—' : Math.round(n).toLocaleString('en-GB');
+// Lead-in emphasis used across takeaways — matches the inline dashboard style.
+const InsightLead = ({ children }) =>
+  <b style={{ fontStyle: 'normal', fontWeight: 500, color: 'var(--ink)' }}>{children}</b>;
 
 // ── Insight registry ─────────────────────────────────────────
 const INSIGHTS = {
@@ -41,6 +45,96 @@ const INSIGHTS = {
     'People detected crossing the Channel in small boats, counted on the day they arrived.',
   'index.glance.resettled': () =>
     'Refugees brought directly to the UK under official schemes, outside the asylum queue.',
+
+  // Dashboard — hero statistic cards. One line under the mode buttons
+  // saying what is being counted.
+  'dash.stat.week': () =>
+    'People detected arriving by small boat in the latest reported week, from the official weekly series.',
+  'dash.stat.ytd': () =>
+    'Running total since 1 January, compared with the same date last year.',
+  'dash.stat.backlog': () =>
+    '“Months of work” divides the queue by the pace of decisions over the last year.',
+  'dash.stat.grant': () =>
+    'First decisions only — successful appeals later raise the overall share granted.',
+
+  // Dashboard — detail statistic cards. Only the non-obvious ones carry a
+  // note; the rest stay bare to keep the grid readable.
+  'dash.stat.preventions': () =>
+    'Crossing attempts stopped on the French side before a boat reached UK waters, as reported to the Home Office.',
+  'dash.stat.appeals': () =>
+    'No live data series — the Home Office stopped publishing appeal outcomes in 2023. Successful appeals raise the final grant rate above the initial one.',
+  'dash.stat.hotels': () =>
+    'A snapshot of who was in a hotel on that date. Hotels are contingency accommodation, used when normal dispersal housing is full.',
+  'dash.stat.age_assessments': () =>
+    'Raised when officials doubt an applicant’s stated age.',
+
+  // Dashboard — figure takeaways for charts without an inline one.
+  // Fig 03a · Channel deaths (IOM). The card body already carries the
+  // undercount caveat, so this stays to the figures.
+  'dash.fig03a': () => {
+    const annual = Array.isArray(_CW.DEATHS_ANNUAL) ? _CW.DEATHS_ANNUAL : [];
+    if (!annual.length) return null;
+    const latest = annual[annual.length - 1];
+    if (latest?.total == null) return null;
+    // The current calendar year is a running total, not a full year — label
+    // it and keep it out of the worst-year comparison.
+    const ytd = latest.y === new Date().getUTCFullYear();
+    const complete = ytd ? annual.slice(0, -1) : annual;
+    const worst = complete.reduce((a, b) => (b.total || 0) > (a.total || 0) ? b : a, complete[0]);
+    return (
+      <>
+        <InsightLead>{_fmtN(latest.total)} deaths and disappearances recorded on the Channel route in {latest.y}{ytd ? ' so far' : ''}.</InsightLead>{' '}
+        {worst && worst.y !== latest.y
+          ? `The highest full-year total in the series is ${worst.y}, with ${_fmtN(worst.total)}.`
+          : 'The highest annual total in the series so far.'}
+      </>
+    );
+  },
+
+  // Fig 10 · Applicants by region of origin (choropleth).
+  'dash.fig10': () => {
+    const rows = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+    if (!rows.length || typeof groupNatByRegion !== 'function') return null;
+    const regions = groupNatByRegion(rows);
+    if (!regions.length) return null;
+    const total = regions.reduce((s, r) => s + (r.v || 0), 0) || 1;
+    const top = regions[0];
+    const year = _CW.NAT_FULL_META?.year;
+    return (
+      <>
+        <InsightLead>{top.name} accounts for {Math.round(top.v / total * 100)}% of {year ?? 'latest-year'} applicants.</InsightLead>{' '}
+        Countries are grouped using the Home Office’s own regional profiling — Afghanistan is counted in Central Asia, and the Caucasus is kept separate.
+      </>
+    );
+  },
+
+  // Fig 11 · Region table next to the choropleth.
+  'dash.fig11': () => {
+    const rows = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+    if (!rows.length || typeof groupNatByRegion !== 'function') return null;
+    const regions = groupNatByRegion(rows);
+    if (regions.length < 2 || !regions[1].v) return null;
+    const ratio = regions[0].v / regions[1].v;
+    return (
+      <>
+        <InsightLead>The same grouping as the map, ranked.</InsightLead>{' '}
+        {regions[0].name} produced {ratio >= 1.95 ? `${ratio.toFixed(1)}× the applicants of` : 'slightly more applicants than'} second-placed {regions[1].name}.
+      </>
+    );
+  },
+
+  // Fig 13 · Support by type (Section 95 / 98 / 4).
+  'dash.fig13': () => {
+    const t = _CW.SUPPORT_TIERS_LATEST;
+    if (!t || !t.total) return null;
+    const s95Share = Math.round((t.s95 || 0) / t.total * 100);
+    return (
+      <>
+        <InsightLead>Section 95 — standard support while a claim is decided — covers {s95Share}% of the {_fmtN(t.total)} people supported.</InsightLead>{' '}
+        Section 4 supports people whose claim failed but who cannot leave the UK; Section 98 is the short-term bridge while a Section 95 application is assessed.
+      </>
+    );
+  },
 };
 
 // Look up an insight by id. Returns null for unknown ids so call sites can

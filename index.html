@@ -1131,6 +1131,10 @@ Object.assign(window, {
 // that can be computed from the globals alone.
 
 const _CW = (typeof window !== 'undefined') ? window : {};
+const _fmtN = n => n == null ? '—' : Math.round(n).toLocaleString('en-GB');
+// Lead-in emphasis used across takeaways — matches the inline dashboard style.
+const InsightLead = ({ children }) =>
+  <b style={{ fontStyle: 'normal', fontWeight: 500, color: 'var(--ink)' }}>{children}</b>;
 
 // ── Insight registry ─────────────────────────────────────────
 const INSIGHTS = {
@@ -1147,6 +1151,96 @@ const INSIGHTS = {
     'People detected crossing the Channel in small boats, counted on the day they arrived.',
   'index.glance.resettled': () =>
     'Refugees brought directly to the UK under official schemes, outside the asylum queue.',
+
+  // Dashboard — hero statistic cards. One line under the mode buttons
+  // saying what is being counted.
+  'dash.stat.week': () =>
+    'People detected arriving by small boat in the latest reported week, from the official weekly series.',
+  'dash.stat.ytd': () =>
+    'Running total since 1 January, compared with the same date last year.',
+  'dash.stat.backlog': () =>
+    '“Months of work” divides the queue by the pace of decisions over the last year.',
+  'dash.stat.grant': () =>
+    'First decisions only — successful appeals later raise the overall share granted.',
+
+  // Dashboard — detail statistic cards. Only the non-obvious ones carry a
+  // note; the rest stay bare to keep the grid readable.
+  'dash.stat.preventions': () =>
+    'Crossing attempts stopped on the French side before a boat reached UK waters, as reported to the Home Office.',
+  'dash.stat.appeals': () =>
+    'No live data series — the Home Office stopped publishing appeal outcomes in 2023. Successful appeals raise the final grant rate above the initial one.',
+  'dash.stat.hotels': () =>
+    'A snapshot of who was in a hotel on that date. Hotels are contingency accommodation, used when normal dispersal housing is full.',
+  'dash.stat.age_assessments': () =>
+    'Raised when officials doubt an applicant’s stated age.',
+
+  // Dashboard — figure takeaways for charts without an inline one.
+  // Fig 03a · Channel deaths (IOM). The card body already carries the
+  // undercount caveat, so this stays to the figures.
+  'dash.fig03a': () => {
+    const annual = Array.isArray(_CW.DEATHS_ANNUAL) ? _CW.DEATHS_ANNUAL : [];
+    if (!annual.length) return null;
+    const latest = annual[annual.length - 1];
+    if (latest?.total == null) return null;
+    // The current calendar year is a running total, not a full year — label
+    // it and keep it out of the worst-year comparison.
+    const ytd = latest.y === new Date().getUTCFullYear();
+    const complete = ytd ? annual.slice(0, -1) : annual;
+    const worst = complete.reduce((a, b) => (b.total || 0) > (a.total || 0) ? b : a, complete[0]);
+    return (
+      <>
+        <InsightLead>{_fmtN(latest.total)} deaths and disappearances recorded on the Channel route in {latest.y}{ytd ? ' so far' : ''}.</InsightLead>{' '}
+        {worst && worst.y !== latest.y
+          ? `The highest full-year total in the series is ${worst.y}, with ${_fmtN(worst.total)}.`
+          : 'The highest annual total in the series so far.'}
+      </>
+    );
+  },
+
+  // Fig 10 · Applicants by region of origin (choropleth).
+  'dash.fig10': () => {
+    const rows = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+    if (!rows.length || typeof groupNatByRegion !== 'function') return null;
+    const regions = groupNatByRegion(rows);
+    if (!regions.length) return null;
+    const total = regions.reduce((s, r) => s + (r.v || 0), 0) || 1;
+    const top = regions[0];
+    const year = _CW.NAT_FULL_META?.year;
+    return (
+      <>
+        <InsightLead>{top.name} accounts for {Math.round(top.v / total * 100)}% of {year ?? 'latest-year'} applicants.</InsightLead>{' '}
+        Countries are grouped using the Home Office’s own regional profiling — Afghanistan is counted in Central Asia, and the Caucasus is kept separate.
+      </>
+    );
+  },
+
+  // Fig 11 · Region table next to the choropleth.
+  'dash.fig11': () => {
+    const rows = Array.isArray(_CW.NAT_FULL) ? _CW.NAT_FULL : [];
+    if (!rows.length || typeof groupNatByRegion !== 'function') return null;
+    const regions = groupNatByRegion(rows);
+    if (regions.length < 2 || !regions[1].v) return null;
+    const ratio = regions[0].v / regions[1].v;
+    return (
+      <>
+        <InsightLead>The same grouping as the map, ranked.</InsightLead>{' '}
+        {regions[0].name} produced {ratio >= 1.95 ? `${ratio.toFixed(1)}× the applicants of` : 'slightly more applicants than'} second-placed {regions[1].name}.
+      </>
+    );
+  },
+
+  // Fig 13 · Support by type (Section 95 / 98 / 4).
+  'dash.fig13': () => {
+    const t = _CW.SUPPORT_TIERS_LATEST;
+    if (!t || !t.total) return null;
+    const s95Share = Math.round((t.s95 || 0) / t.total * 100);
+    return (
+      <>
+        <InsightLead>Section 95 — standard support while a claim is decided — covers {s95Share}% of the {_fmtN(t.total)} people supported.</InsightLead>{' '}
+        Section 4 supports people whose claim failed but who cannot leave the UK; Section 98 is the short-term bridge while a Section 95 application is assessed.
+      </>
+    );
+  },
 };
 
 // Look up an insight by id. Returns null for unknown ids so call sites can
@@ -5353,7 +5447,8 @@ function DashboardView({ setRoute }) {
               d: lastWk ? `week ending ${lastWk.we}` : 'Data pending',
             }],
             spark: wk.slice(-12).map((w,i) => ({ y: i, v: w.m || 0 })),
-            sparkStroke: 'var(--accent-warn)' },
+            sparkStroke: 'var(--accent-warn)',
+            note: insight('dash.stat.week') },
           (() => {
             const popForYear = latestYoyYear ? ukPopFor(+latestYoyYear) : null;
             const ytdPer100k = (ytd != null && popForYear) ? (ytd / (popForYear * 1000)) * 100000 : null;
@@ -5370,7 +5465,8 @@ function DashboardView({ setRoute }) {
                   v: ytdDelta != null ? `${ytdDelta>=0?'+':''}${ytdDelta.toFixed(0)}%` : '—',
                   d: `vs same point in ${+latestYoyYear - 1}` },
               ],
-              spark: boatsAnnual, sparkStroke: 'var(--accent-warn)' };
+              spark: boatsAnnual, sparkStroke: 'var(--accent-warn)',
+              note: insight('dash.stat.ytd') };
           })(),
           (() => {
             const last = backlogSeries[backlogSeries.length - 1];
@@ -5390,7 +5486,8 @@ function DashboardView({ setRoute }) {
                   v: yoyPct != null ? `${yoyPct>=0?'+':''}${yoyPct.toFixed(0)}%` : '—',
                   d: 'vs prior year-end' },
               ],
-              spark: backlogSeries, sparkStroke: 'var(--accent-gold)' };
+              spark: backlogSeries, sparkStroke: 'var(--accent-gold)',
+              note: insight('dash.stat.backlog') };
           })(),
           (() => {
             const grant2019 = (() => {
@@ -5411,7 +5508,8 @@ function DashboardView({ setRoute }) {
                   v: `${deltaPp >= 0 ? '+' : ''}${deltaPp}pp`,
                   d: `vs 2019 (${Math.round(grant2019*100)}%)` }] : []),
               ],
-              spark: grantSpark, sparkStroke: 'var(--accent-2)' };
+              spark: grantSpark, sparkStroke: 'var(--accent-2)',
+              note: insight('dash.stat.grant') };
           })(),
         ];
         // Mode is held per-card, default 0 (first/total).
@@ -5449,6 +5547,9 @@ function DashboardView({ setRoute }) {
                   <Spark data={card.spark} width={220} height={36} stroke={card.sparkStroke}/>
                 </div>
               )}
+              {card.note && (
+                <div style={{fontSize:11.5,lineHeight:1.45,color:'var(--muted)',marginTop:12,paddingTop:10,borderTop:'1px dotted var(--rule-2)',textWrap:'pretty'}}>{card.note}</div>
+              )}
             </div>
           );
         };
@@ -5473,18 +5574,23 @@ function DashboardView({ setRoute }) {
       <section className="kpi-detail-4" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:14}}>
         {[
           { cls:'ink', label:`Preventions · ${preventionsYear}`, v:fmtN(preventionsYearTotal),
-            d: preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true },
+            d: preventionsFirstWeek ? `since wk ending ${preventionsFirstWeek}` : 'provisional', dPos:true,
+            note: insight('dash.stat.preventions') },
           { cls:'accent', label:`Applications · ${rangeLatest.y}`, v:fmtN(rangeLatest.v),
             d: pctChange!=null ? `${+pctChange>=0?'+':''}${pctChange}% vs ${rangePrev?.y??''}` : `${rangeLatest.y} only`,
             dPos: pctChange!=null ? +pctChange<0 : null },
           { cls:'ink', label:`Initial decisions · ${decisionsYear}`, v:fmtN(decisionsTotal),
             d: `${Math.round(decisionsData[0].v/decisionsTotal*100)}% granted asylum${(range[0]>decisionsYear||range[1]<decisionsYear)?' · outside range':''}` },
-          { cls:'olive', label:'Appeals allowed', v:'36%', d:'of 41k heard in 2024' },
+          // Static editorial figure, explicitly dated — no live appeals series
+          // exists to derive this from (see dash.stat.appeals note).
+          { cls:'olive', label:'Appeals allowed · 2024', v:'36%', d:'of substantive appeals heard, as published',
+            note: insight('dash.stat.appeals') },
         ].map((k,i)=>(
           <div key={i} className={`kpi-card ${k.cls}`}>
             <div className="uc" style={{color:'var(--muted)',marginBottom:12}}>{k.label}</div>
             <div style={{fontFamily:'var(--serif)',fontSize:42,fontWeight:400,letterSpacing:-0.4,lineHeight:1,color:'var(--ink)'}} className="tnum">{k.v}</div>
             <div style={{fontSize:13,color: k.dPos != null ? (k.dPos ? 'var(--accent-2)' : 'var(--accent-warn)') : 'var(--muted)',marginTop:10,fontStyle:'italic'}}>{k.d}</div>
+            {k.note && <div style={{fontSize:11.5,lineHeight:1.45,color:'var(--muted)',marginTop:10,paddingTop:8,borderTop:'1px dotted var(--rule-2)',textWrap:'pretty'}}>{k.note}</div>}
           </div>
         ))}
       </section>
@@ -5520,13 +5626,15 @@ function DashboardView({ setRoute }) {
                 d: topNatCard.share!=null ? `${fmtN(topNatCard.v)} · ${topNatCard.share}% of total` : `${fmtN(topNatCard.v)} apps`, pending:false }
             : { cls:'gold', label:'Top nationality · Q-o-Q', v:'—', d:'Data pending', pending:true },
           hotelsCard
-            ? { cls:'ink', label:`In asylum hotels · ${hotelsCard.date}`, v:fmtN(hotelsCard.persons_in_hotels), d: hotelsCard.delta==null ? 'latest snapshot' : `${hotelsCard.delta>=0?'+':''}${hotelsCard.delta.toFixed(1)}% vs previous snapshot`, pending:false }
+            ? { cls:'ink', label:`In asylum hotels · ${hotelsCard.date}`, v:fmtN(hotelsCard.persons_in_hotels), d: hotelsCard.delta==null ? 'latest snapshot' : `${hotelsCard.delta>=0?'+':''}${hotelsCard.delta.toFixed(1)}% vs previous snapshot`, pending:false,
+                note: insight('dash.stat.hotels') }
             : { cls:'ink', label:'In asylum hotels', v:'—', d:'Data pending', pending:true },
         ].map((k,i)=>(
           <div key={i} className={`kpi-card ${k.cls}`} style={k.pending?{opacity:0.6}:{}}>
             <div className="uc" style={{color:'var(--muted)',marginBottom:12}}>{k.label}</div>
             <div style={{fontFamily:'var(--serif)',fontSize: k.pending?24: (typeof k.v === 'string' && k.v.length>8 ? 22 : 32),fontWeight:400,letterSpacing:-0.3,lineHeight:1,color:'var(--ink)'}} className="tnum">{k.v}</div>
             <div style={{fontSize:12.5,color: k.dPos != null ? (k.dPos ? 'var(--accent-2)' : 'var(--accent-warn)') : 'var(--muted)',marginTop:10,fontStyle:'italic'}}>{k.d}</div>
+            {k.note && <div style={{fontSize:11.5,lineHeight:1.45,color:'var(--muted)',marginTop:10,paddingTop:8,borderTop:'1px dotted var(--rule-2)',textWrap:'pretty'}}>{k.note}</div>}
           </div>
         ))}
       </section>
@@ -5559,7 +5667,8 @@ function DashboardView({ setRoute }) {
               ? { cls:'gold', label:`Child applicants · ${yr}`, v:fmtN(sexAgeRangeLatest.under18), d: under18Delta != null ? `${+under18Delta>=0?'+':''}${under18Delta}% vs ${sexAgeRangePrev?.y??''}` : 'main applicants under 18' }
               : { cls:'gold', label:'Child applicants', v:'—', d:'Data pending', pending:true },
             ageDisputesCard
-              ? { cls:'accent-2', label:`Age assessments raised · ${ageDisputesCard.year}`, v:fmtN(ageDisputesCard.raised), d:`${fmtN(ageDisputesCard.over18)} found adult · ${fmtN(ageDisputesCard.under18)} found child` }
+              ? { cls:'accent-2', label:`Age assessments raised · ${ageDisputesCard.year}`, v:fmtN(ageDisputesCard.raised), d:`${fmtN(ageDisputesCard.over18)} found adult · ${fmtN(ageDisputesCard.under18)} found child`,
+                  note: insight('dash.stat.age_assessments') }
               : { cls:'', label:'Age assessments', v:'—', d:'Data pending', pending:true },
           ];
         })().map((k,i)=>(
@@ -5567,6 +5676,7 @@ function DashboardView({ setRoute }) {
             <div className="uc" style={{color:'var(--muted)',marginBottom:12}}>{k.label}</div>
             <div style={{fontFamily:'var(--serif)',fontSize: k.pending?24: (typeof k.v === 'string' && k.v.length>8 ? 18 : 28),fontWeight:400,letterSpacing:-0.3,lineHeight:1.1,color:'var(--ink)'}} className="tnum">{k.v}</div>
             <div style={{fontSize:11.5,color:'var(--muted)',marginTop:10,fontStyle:'italic',lineHeight:1.4}}>{k.d}</div>
+            {k.note && <div style={{fontSize:11.5,lineHeight:1.45,color:'var(--muted)',marginTop:10,paddingTop:8,borderTop:'1px dotted var(--rule-2)',textWrap:'pretty'}}>{k.note}</div>}
           </div>
         ))}
       </section>
@@ -5928,10 +6038,12 @@ function DashboardView({ setRoute }) {
           <DashSectionHeader kicker="Geography" title="Who applies" accent="var(--accent-gold)" cadence={`Applications · ${natFullYear ?? 'latest'}`}/>
           {natFull && (
             <div className="chart-grid-2" style={{display:'grid',gridTemplateColumns:'1.35fr 1fr',gap:20,alignItems:'start'}}>
-              <DashFrame number="10" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
+              <DashFrame number="10" kickerColor="var(--accent-gold)" title="Applicants by region of origin" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}
+                takeaway={insight('dash.fig10')}>
                 <WorldMapChoropleth data={groupNatByRegion(natFull)} countryData={natFull} width={720} height={420}/>
               </DashFrame>
-              <DashFrame number="11" kickerColor="var(--accent-gold)" title="Applicants by region — detail" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}>
+              <DashFrame number="11" kickerColor="var(--accent-gold)" title="Applicants by region — detail" sub={`UK · ${natFullYear ?? ''} · grouped from Asy_D01`}
+                takeaway={insight('dash.fig11')}>
                 <RegionTable data={groupNatByRegion(natFull)} rows={natFull}/>
               </DashFrame>
             </div>
@@ -5974,7 +6086,8 @@ function DashboardView({ setRoute }) {
               {tiers && tiers.total > 0 && (
                 <DashFrame number="13" kickerColor="var(--accent-warn)"
                   title="Support by type · Section 95 / 98 / 4"
-                  sub={`UK · as at ${tiers.date} · Asy_D11`} source="Home Office · Asy_D11">
+                  sub={`UK · as at ${tiers.date} · Asy_D11`} source="Home Office · Asy_D11"
+                  takeaway={insight('dash.fig13')}>
                   <SupportTiersCard tiers={tiers}/>
                 </DashFrame>
               )}
@@ -6218,7 +6331,8 @@ function ChannelDeathsCard() {
     <DashFrame number="03a" kickerColor="var(--accent-warn)"
       title="Channel deaths · recorded by IOM"
       sub={pending ? 'Pending first IOM fetch' : `English Channel · ${annual[0]?.y}–${latest.y}`}
-      source="IOM Missing Migrants Project">
+      source="IOM Missing Migrants Project"
+      takeaway={pending ? null : insight('dash.fig03a')}>
       {pending ? (
         <div style={{padding:'36px 0',color:'var(--muted-2)',fontStyle:'italic',fontSize:13.5,maxWidth:720,lineHeight:1.6}}>
           Pending first pull from the IOM Missing Migrants Project. Run
