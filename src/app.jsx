@@ -526,33 +526,173 @@ function fmtBandNumber(raw) {
 // ─────────────────────────────────────────────────────────────
 // "Numbers in the news" band
 //
-// Reads window.NEWS_BAND (hand-curated weekly in
-// data/news-band-data.js). Renders 3–4 figures being publicly argued
-// about, each with a one-line clarification grounded in our data.
-// Returns null if the global is missing or has no items.
+// Surfaces the biggest year-on-year MOVERS across a pool of secondary
+// metrics — nationality claim shifts, hotel and support caseloads,
+// resettlement schemes, migrants-per-boat, nationality grant rates —
+// i.e. things that AREN'T already on the "At a glance" strip below.
+// Everything is computed from the live globals at render time, so the
+// band self-refreshes with the daily data build; nothing is hand-typed.
+//
+// Selection rules (see newsBandItems):
+//   - Rank by |year-on-year % change|, so a surprising swing wins over a
+//     large-but-flat total.
+//   - MATERIALITY FLOOR: a candidate must clear FLOOR (people, or claim
+//     volume for rate metrics) so a tiny-base swing (3→9 = +200%) can't
+//     hijack a slot. Same guard-rail idea as the grant-rate card.
+//   - LIKE-FOR-LIKE periods only: annual series compare full year vs
+//     prior full year; quarterly snapshots compare a quarter-end against
+//     the SAME quarter a year earlier. Partial current-year rows (e.g.
+//     BOATS_ANNUAL's running 2026 total) are excluded so a half-finished
+//     period can't masquerade as a collapse — the trap behind the
+//     backlog "14" bug.
+//   - ONE card per category, so four cards are four different KINDS of
+//     mover, not four nationalities.
+// Returns null only if no eligible mover can be built.
 // ─────────────────────────────────────────────────────────────
+const NEWS_BAND_FLOOR = 500;      // people (or claim volume for rate metrics)
+const NEWS_BAND_RATE_PTS = 0.08;  // a rate must move >=8 points to count as a "mover"
+
+function newsBandItems(W) {
+  const num = n => Number(n).toLocaleString('en-GB');
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const fmtVal = (v, unit) => unit === 'rate' ? Math.round(v * 100) + '%'
+    : unit === 'ratio' ? String(Number(v.toFixed(1)))
+    : num(Math.round(v));
+  const parse = s => { if (!s) return null; const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? s + 'T00:00:00Z' : s); return isNaN(d) ? null : d; };
+
+  const cands = [];
+  // period: 'annual' → "in <priorYear>"; 'snapshot' → "a year earlier".
+  const add = c => {
+    if (c.current == null || c.prior == null || c.prior === 0) return;
+    if (c.unit === 'count' && Math.max(c.current, c.prior) < NEWS_BAND_FLOOR) return;
+    // A rate must swing by a meaningful number of points, else a trivial
+    // 1%→3% move reads as "+160%" and outranks real movers.
+    if (c.unit === 'rate' && Math.abs(c.current - c.prior) < NEWS_BAND_RATE_PTS) return;
+    const pct = (c.current - c.prior) / Math.abs(c.prior);
+    if (!isFinite(pct) || pct === 0) return;
+    cands.push({ ...c, pct, absPct: Math.abs(pct) });
+  };
+
+  // 1) Asylum claims by nationality — ALL nationalities, biggest mover on a
+  //    rolling 12-month basis (trailing 4 quarters vs the prior 4). Both
+  //    windows are full four-quarter spans, so the comparison is like-for-
+  //    like and covers every nationality in the table, not just a tracked
+  //    few. NAT_QUARTERLY: {quarters:[...], series:[{name, data:[...]}]}.
+  const nq = W.NAT_QUARTERLY;
+  const AGG = /^(refugee|other|others|unknown|total|all other nationalities|other nationalities)$/i;
+  if (nq && Array.isArray(nq.quarters) && Array.isArray(nq.series) && nq.quarters.length >= 8) {
+    const n = nq.quarters.length, endQ = nq.quarters[n - 1];
+    const qEnd = q => { const m = /^(\d{4})\s*Q([1-4])$/.exec(q || ''); return m ? parse(`${m[1]}${['-03-31', '-06-30', '-09-30', '-12-31'][+m[2] - 1]}`) : null; };
+    const sum = (data, a, b) => { let t = 0; for (let i = a; i < b; i++) t += data[i] || 0; return t; };
+    for (const s of nq.series) {
+      if (AGG.test(String(s.name).trim())) continue; // drop aggregate rows (e.g. "Refugee")
+      add({
+        cat: 'claims', kicker: `Asylum claims · ${s.name}`, glossTerm: 'main applicants',
+        current: sum(s.data, n - 4, n), prior: sum(s.data, n - 8, n - 4), unit: 'count', period: 'snapshot',
+        noun: `${s.name} asylum claims`, source: `Asy_D01 · 12mo to ${endQ}`, asOf: qEnd(endQ),
+      });
+    }
+  }
+
+  // 2) People in asylum hotels (quarter-end snapshot vs same quarter a year earlier).
+  const ho = arrFrom('HOTELS');
+  if (ho.length > 4) {
+    const last = ho[ho.length - 1], back = ho[ho.length - 5];
+    const ld = parse(last.date);
+    const lastLabel = ld ? `${ld.getUTCDate()} ${MONTHS_SHORT[ld.getUTCMonth()]} ${ld.getUTCFullYear()}` : last.date;
+    add({
+      cat: 'hotels', kicker: 'People in asylum hotels', glossTerm: null,
+      current: last.persons_in_hotels, prior: back.persons_in_hotels, unit: 'count', period: 'snapshot',
+      noun: 'people housed in asylum hotels', source: `Asylum support · ${lastLabel}`, asOf: ld,
+    });
+  }
+
+  // 3) People on asylum support (S95/S98/S4 total, snapshot vs a year earlier).
+  const st = arrFrom('SUPPORT_TIERS_ANNUAL');
+  if (st.length > 4) {
+    const last = st[st.length - 1], back = st[st.length - 5];
+    add({
+      cat: 'support', kicker: 'On asylum support', glossTerm: null,
+      current: last.total, prior: back.total, unit: 'count', period: 'snapshot',
+      noun: 'people on asylum support', source: `Asylum support · ${last.date}`, asOf: parse(last.date),
+    });
+  }
+
+  // 4) Resettlement arrivals — biggest scheme mover (annual).
+  const rs = arrFrom('RESETTLEMENT_SERIES');
+  const ry = W.RESETTLEMENT_META && W.RESETTLEMENT_META.years;
+  if (rs.length && Array.isArray(ry) && ry.length >= 2) {
+    const cy = ry[ry.length - 1], py = ry[ry.length - 2];
+    for (const r of rs) add({
+      cat: 'resettlement', kicker: `Resettlement · ${r.name}`, glossTerm: null,
+      current: r[String(cy)], prior: r[String(py)], unit: 'count', period: 'annual',
+      priorYear: py, noun: `${r.name} resettlement arrivals`, source: `Resettlement · ${cy}`, asOf: parse(`${cy}-12-31`),
+    });
+  }
+
+  // 5) Average migrants per boat (annual) — last two COMPLETE years only.
+  const ba = arrFrom('BOATS_ANNUAL');
+  const ldp = (W.BOATS_META && W.BOATS_META.latestDataPoint) || '';
+  if (ba.length >= 2) {
+    const complete = ba.filter(r => ldp >= `${r.y}-12-31`);
+    const use = complete.length >= 2 ? complete : ba.slice(0, -1);
+    if (use.length >= 2) {
+      const last = use[use.length - 1], prev = use[use.length - 2];
+      if ((last.b || 0) >= 100) add({
+        cat: 'perboat', kicker: 'Migrants per boat', glossTerm: null,
+        current: last.perBoat, prior: prev.perBoat, unit: 'ratio', period: 'annual',
+        priorYear: prev.y, noun: 'average migrants per small boat', source: `SB_01 · ${last.y}`, asOf: parse(`${last.y}-12-31`),
+      });
+    }
+  }
+
+  // NOTE: grant-rate *movements* are deliberately NOT in this pool. The
+  // source gives the rate but not the number of decisions behind it, so a
+  // rate built on a handful of decisions (e.g. Syria after the Dec 2024
+  // decision pause: 88%→5%) can swing wildly for denominator reasons we
+  // can't detect here — too artifact-prone to auto-headline. Grant rate as
+  // a *level* is still shown elsewhere; only its year-on-year delta is
+  // excluded. Re-add with a decisions-count floor if that field is ingested.
+
+  // One representative per category = its biggest mover; then top 4 by |%|.
+  const byCat = {};
+  for (const c of cands) if (!byCat[c.cat] || c.absPct > byCat[c.cat].absPct) byCat[c.cat] = c;
+  const reps = Object.values(byCat).sort((a, b) => b.absPct - a.absPct).slice(0, 4);
+
+  const items = reps.map(c => {
+    const dir = c.pct > 0 ? 'up' : 'down';
+    const pctStr = Math.round(c.absPct * 100) + '%';
+    const when = c.period === 'annual' ? ` in ${c.priorYear}` : ' a year earlier';
+    const pts = c.unit === 'rate' ? ` (${Math.round(c.prior * 100)}% → ${Math.round(c.current * 100)}%)` : '';
+    return {
+      kicker: c.kicker, glossTerm: c.glossTerm, route: { name: 'dashboard' },
+      number: fmtVal(c.current, c.unit),
+      delta: { up: c.pct > 0, pctStr },
+      context: `${cap(c.noun)} — ${dir} ${pctStr} year-on-year, from ${fmtVal(c.prior, c.unit)}${when}${pts}.`,
+      source: c.source,
+    };
+  });
+
+  const freshest = reps.map(c => c.asOf).filter(Boolean).sort((a, b) => b - a)[0] || null;
+  return { items, freshest };
+}
+
 function NewsBand({ setRoute }) {
   const W = (typeof window !== 'undefined') ? window : {};
-  const band = W.NEWS_BAND;
-  if (!band || !Array.isArray(band.items) || !band.items.length) return null;
-  const fmtUpdated = (() => {
-    if (!band.updated) return null;
-    const d = new Date(band.updated + 'T00:00:00Z');
-    if (isNaN(d.getTime())) return band.updated;
-    return `${d.getUTCDate()} ${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-  })();
-  const headline = band.fallback ? 'Numbers worth knowing' : <>Numbers <em style={{color:'var(--accent-warn)',fontStyle:'italic'}}>in the news</em></>;
+  const { items, freshest } = newsBandItems(W);
+  if (!items.length) return null;
+  const fmtUpdated = freshest ? `${freshest.getUTCDate()} ${MONTHS_SHORT[freshest.getUTCMonth()]} ${freshest.getUTCFullYear()}` : null;
   return (
     <section className="page-section" style={{maxWidth:1240,margin:'0 auto',padding:'36px 48px 8px',borderBottom:'1px solid var(--rule)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:18,gap:16,flexWrap:'wrap'}}>
-        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,margin:0,letterSpacing:-0.2}}>{headline}</h2>
+        <h2 style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:500,margin:0,letterSpacing:-0.2}}>Numbers <em style={{color:'var(--accent-warn)',fontStyle:'italic'}}>in the news</em></h2>
         <div className="uc" style={{color:'var(--muted)'}}>
-          {band.fallback ? 'Evergreen denominators' : 'Curated · updated weekly'}
-          {fmtUpdated && <span style={{marginLeft:10,color:'var(--muted-2)'}}>· {fmtUpdated}</span>}
+          Largest year-on-year moves
+          {fmtUpdated && <span style={{marginLeft:10,color:'var(--muted-2)'}}>· to {fmtUpdated}</span>}
         </div>
       </div>
-      <div className="news-band-row" style={{display:'grid',gridTemplateColumns:`repeat(${band.items.length},1fr)`,gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
-        {band.items.map((it, i) => (
+      <div className="news-band-row" style={{display:'grid',gridTemplateColumns:`repeat(${items.length},1fr)`,gap:1,background:'var(--rule)',border:'1px solid var(--rule)'}}>
+        {items.map((it, i) => (
           <button key={i}
             onClick={() => it.route && setRoute(it.route)}
             style={{background:'var(--bg)',border:'none',padding:'20px 22px',display:'flex',flexDirection:'column',minHeight:170,cursor:it.route?'pointer':'default',textAlign:'left',transition:'background .12s',fontFamily:'inherit',color:'inherit'}}
@@ -567,7 +707,13 @@ function NewsBand({ setRoute }) {
                 ? <Gloss term={it.glossTerm}>{it.kicker}</Gloss>
                 : it.kicker}
             </div>
-            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:30,letterSpacing:-0.5,fontWeight:400,lineHeight:1,marginBottom:14,color:'var(--ink)'}}>{fmtBandNumber(it.number)}</div>
+            <div className="tnum" style={{fontFamily:'var(--serif)',fontSize:30,letterSpacing:-0.5,fontWeight:400,lineHeight:1,marginBottom:it.delta?8:14,color:'var(--ink)'}}>{fmtBandNumber(it.number)}</div>
+            {it.delta && (
+              <div style={{fontFamily:'var(--mono)',fontSize:12,fontWeight:600,color:'var(--accent-warn)',letterSpacing:'.02em',marginBottom:14,display:'flex',alignItems:'center',gap:5}}>
+                <span aria-hidden="true">{it.delta.up ? '▲' : '▼'}</span>{it.delta.pctStr}
+                <span style={{color:'var(--muted)',fontWeight:400,letterSpacing:'.04em'}}>YoY</span>
+              </div>
+            )}
             <div style={{fontSize:13.5,lineHeight:1.45,color:'var(--ink-2)',textWrap:'pretty',flex:1}}>{it.context}</div>
             {it.source && (
               <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--muted)',letterSpacing:'.04em',marginTop:14}}>{it.source}</div>
