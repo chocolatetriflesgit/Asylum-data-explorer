@@ -573,16 +573,25 @@ function newsBandItems(W) {
     cands.push({ ...c, pct, absPct: Math.abs(pct) });
   };
 
-  // 1) Asylum claims by nationality (annual, both years complete).
-  const ns = W.NAT_SERIES_LATEST;
-  if (ns && Array.isArray(ns.years) && Array.isArray(ns.series) && ns.years.length >= 2) {
-    const i = ns.years.length - 1;
-    for (const s of ns.series) add({
-      cat: 'claims', kicker: `Asylum claims · ${s.name}`, glossTerm: 'main applicants',
-      current: s.data[i], prior: s.data[i - 1], unit: 'count', period: 'annual',
-      priorYear: ns.years[i - 1], noun: `${s.name} asylum claims`,
-      source: `Asy_D01 · ${ns.years[i]}`, asOf: parse(`${ns.years[i]}-12-31`),
-    });
+  // 1) Asylum claims by nationality — ALL nationalities, biggest mover on a
+  //    rolling 12-month basis (trailing 4 quarters vs the prior 4). Both
+  //    windows are full four-quarter spans, so the comparison is like-for-
+  //    like and covers every nationality in the table, not just a tracked
+  //    few. NAT_QUARTERLY: {quarters:[...], series:[{name, data:[...]}]}.
+  const nq = W.NAT_QUARTERLY;
+  const AGG = /^(refugee|other|others|unknown|total|all other nationalities|other nationalities)$/i;
+  if (nq && Array.isArray(nq.quarters) && Array.isArray(nq.series) && nq.quarters.length >= 8) {
+    const n = nq.quarters.length, endQ = nq.quarters[n - 1];
+    const qEnd = q => { const m = /^(\d{4})\s*Q([1-4])$/.exec(q || ''); return m ? parse(`${m[1]}${['-03-31', '-06-30', '-09-30', '-12-31'][+m[2] - 1]}`) : null; };
+    const sum = (data, a, b) => { let t = 0; for (let i = a; i < b; i++) t += data[i] || 0; return t; };
+    for (const s of nq.series) {
+      if (AGG.test(String(s.name).trim())) continue; // drop aggregate rows (e.g. "Refugee")
+      add({
+        cat: 'claims', kicker: `Asylum claims · ${s.name}`, glossTerm: 'main applicants',
+        current: sum(s.data, n - 4, n), prior: sum(s.data, n - 8, n - 4), unit: 'count', period: 'snapshot',
+        noun: `${s.name} asylum claims`, source: `Asy_D01 · 12mo to ${endQ}`, asOf: qEnd(endQ),
+      });
+    }
   }
 
   // 2) People in asylum hotels (quarter-end snapshot vs same quarter a year earlier).
