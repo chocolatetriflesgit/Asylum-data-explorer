@@ -1,5 +1,5 @@
 # Developer / CI-only dependencies. Not needed at runtime.
 -r requirements.txt
 
-pytest==9.1.0
+pytest==9.1.1
 pip-audit==2.10.1
